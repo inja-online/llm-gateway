@@ -1,0 +1,31 @@
+# llm-gateway example config. Copy to gateway.yaml and edit.
+listen: ":8787"
+
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+  deepseek:
+    kind: openai_compat
+    base_url: "https://api.deepseek.com"
+    # api_key_env: DEEPSEEK_API_KEY   # uncomment to hold the key server-side
+  openrouter:
+    kind: openai_compat
+    base_url: "https://openrouter.ai/api/v1"
+
+defaults:
+  openai_dialect: openai       # bare model ids on /v1/chat/completions
+  anthropic_dialect: anthropic # bare model ids on /v1/messages (roadmap)
+
+aliases:
+  fast: deepseek/deepseek-chat
+
+hooks:
+  jsonl:
+    output: stdout             # stdout | stderr | /path/to/usage.jsonl
+  # webhook:
+  #   url: "https://billing.example.com/ingest"
+  #   timeout: 3s
