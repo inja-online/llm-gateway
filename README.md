@@ -21,15 +21,38 @@ your app (OpenAI SDK / Anthropic SDK / Claude Code)
 
 ## Status
 
-Early. Currently implemented (M1):
+Working, early. Two dialects in, two provider families out — any combination.
 
-- `POST /v1/chat/completions` → any OpenAI-compatible upstream (passthrough), streaming + non-streaming
-- Model routing: `provider/model` prefixes, aliases, per-dialect defaults
-- Usage extraction from upstream `usage` fields (incl. `stream_options.include_usage` auto-injection)
-- JSONL hook, in-process Go hook
-- `GET /healthz`
+| Client speaks | Upstream is | Path |
+|---|---|---|
+| OpenAI (`/v1/chat/completions`) | OpenAI-compatible | passthrough |
+| OpenAI | Anthropic | translated |
+| Anthropic (`/v1/messages`) | Anthropic | passthrough |
+| Anthropic | OpenAI-compatible | translated |
 
-Roadmap: Anthropic dialect (`/v1/messages`) + Claude Code support, cross-dialect translation, tool-call mapping, Google egress, webhook hook. See plan in commit history.
+Covered on every path: streaming and non-streaming, tool calls, images,
+system prompts, error envelopes reshaped into the caller's dialect, and one
+usage event per request. Plus `POST /v1/messages/count_tokens` and `GET /healthz`.
+
+Roadmap: Google/Gemini egress, webhook hook, `/v1/models`.
+
+### Claude Code
+
+Point it at the gateway — no code changes:
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:8787
+export ANTHROPIC_API_KEY=<key valid for whatever provider you route to>
+claude
+```
+
+With an Anthropic-kind provider this is byte-exact passthrough. Route it at an
+OpenAI-compatible provider instead and requests are translated both ways, with
+one caveat: Anthropic reports input tokens in `message_start`, but OpenAI-wire
+upstreams only report usage at the end of a stream, so on that path
+`message_start` carries `input_tokens: 0` and the true counts land in the final
+event (and in the usage hook). Claude Code works either way; only its live
+token display is affected.
 
 ## Quickstart
 
@@ -61,6 +84,15 @@ from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8787/v1", api_key="<your DEEPSEEK key>")
 r = client.chat.completions.create(model="deepseek/deepseek-chat",
                                    messages=[{"role": "user", "content": "hi"}])
+```
+
+…or any Anthropic SDK, including against a non-Anthropic model:
+
+```python
+from anthropic import Anthropic
+client = Anthropic(base_url="http://localhost:8787", api_key="<key for the target provider>")
+r = client.messages.create(model="deepseek/deepseek-chat", max_tokens=100,
+                           messages=[{"role": "user", "content": "hi"}])
 ```
 
 Every request prints one usage line:
