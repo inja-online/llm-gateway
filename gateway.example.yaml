@@ -7,15 +7,17 @@
 # Client dialects (ingress):
 #   OpenAI     POST /v1/chat/completions
 #              (also used by Gemini OpenAI-compat clients — same wire format)
+#              POST /v1/images/generations|edits|variations
+#              POST /v1/videos   GET /v1/videos/{id}?provider=...
 #   Anthropic  POST /v1/messages
-#   Google     POST /v1beta/models/{model}:generateContent          (native)
+#   Google     POST /v1beta/models/{model}:generateContent          (native chat / image-in-chat)
 #              POST /v1beta/models/{model}:streamGenerateContent    (native)
 #
 # Provider kinds (egress):
-#   openai / openai_compat  — Chat Completions
+#   openai / openai_compat  — Chat Completions + images + videos
 #                             (set base_url to Gemini …/v1beta/openai for google_openai)
-#   anthropic               — Messages API
-#   google                  — native Gemini generateContent
+#   anthropic               — Messages API (chat only)
+#   google                  — native Gemini generateContent (chat / multimodal)
 
 listen: ":8787"   # override with env GATEWAY_LISTEN=0.0.0.0:8787
 

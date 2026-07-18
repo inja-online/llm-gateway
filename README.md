@@ -109,9 +109,10 @@ Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway rou
 
 Also shipped:
 
-- Streaming + non-streaming, tools, images, system prompts
+- Streaming + non-streaming, tools, multimodal **input** images, system prompts
+- OpenAI-compatible **image generation** (`/v1/images/*`) and **video generation** (`/v1/videos`)
 - Dialect-shaped errors
-- One usage event per chat request (JSONL / webhook / Go hook)
+- One usage event per chat / media request (JSONL / webhook / Go hook)
 - `POST /v1/messages/count_tokens`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
@@ -122,8 +123,9 @@ Also shipped:
 | Area | What you get |
 |---|---|
 | **Triple ingress** | OpenAI, Anthropic (Claude Code), and native Gemini `generateContent` |
+| **Media generation** | OpenAI-compat `images/*` + `videos` (OpenAI, Gemini OpenAI-compat, …) |
 | **Multi-provider egress** | Native Anthropic + native Gemini + any OpenAI-compatible host (xAI, Moonshot, DeepSeek, …) |
-| **Cross-dialect translation** | OpenAI ↔ Anthropic ↔ Google when client and upstream disagree |
+| **Cross-dialect translation** | OpenAI ↔ Anthropic ↔ Google **chat** when client and upstream disagree |
 | **Passthrough-first** | Same dialect → near-verbatim bytes (full fidelity) |
 | **Usage metering** | JSONL (stdout/file), async webhook, or in-process Go hook — one event per chat request |
 | **Ops** | One YAML file, `GATEWAY_LISTEN` / `GATEWAY_CONFIG`, `/healthz`, 30s SIGTERM drain |
@@ -310,10 +312,38 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
 | `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
 | `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini native streaming (upstream `?alt=sse`) |
+| `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
+| `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
+| `POST` | `/v1/images/variations` | Image variations (passthrough) |
+| `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
+| `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
+
+### Image & video generation
+
+Chat multimodal **inputs** (image URL / base64 in messages) are already part of chat translation. **Generation** APIs are separate OpenAI-compatible routes:
+
+| API | Providers | Notes |
+|---|---|---|
+| Images | `openai`, `openai_compat` (incl. `google_openai`) | Rewrite `model`; emit one usage event (`estimated: true` if no tokens) |
+| Videos | same | Create is `POST` with `model`; poll with `GET /v1/videos/{id}?provider=google_openai` |
+| Native Gemini image-in-chat | `kind: google` | Via `generateContent` image models / modalities on the Google dialect |
+
+Not supported (yet): cross-dialect translation of image/video generation (e.g. OpenAI images → Anthropic). Route these to an OpenAI-family provider only.
+
+```python
+# Image gen via Gemini OpenAI-compat
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["GEMINI_API_KEY"])
+img = client.images.generate(model="google_openai/gemini-2.5-flash-image", prompt="a sheepadoodle in a cape")
+
+# Video job (poll status)
+# POST /v1/videos  {"model":"google_openai/veo-3.1-generate-preview","prompt":"..."}
+# GET  /v1/videos/{id}?provider=google_openai
+```
 
 No `/v1/models` yet. Unknown routes → standard 404.
 
@@ -612,9 +642,11 @@ git tag v0.1.0 && git push origin v0.1.0
 ## Roadmap
 
 - [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
+- [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
 - [ ] `GET /v1/models`
 - [ ] Optional request auth at the gateway edge
 - [ ] Vertex AI (ADC / service-account) auth helper
+- [ ] Cross-dialect image/video generation translation
 
 ---
 

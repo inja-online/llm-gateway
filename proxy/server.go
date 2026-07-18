@@ -46,6 +46,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
 	// Native Gemini generateContent / streamGenerateContent (model in path).
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
+	// OpenAI-compatible image & video generation (passthrough to openai / openai_compat).
+	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
+	mux.HandleFunc("POST /v1/images/edits", s.handleImagesEdits)
+	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)
+	mux.HandleFunc("POST /v1/videos", s.handleVideosCreate)
+	mux.HandleFunc("GET /v1/videos/{id}", s.handleVideosGet)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
