@@ -33,6 +33,7 @@ type streamEnvelope struct {
 		Type string `json:"type"`
 		ID   string `json:"id"`
 		Name string `json:"name"`
+		Data string `json:"data"` // redacted_thinking
 	} `json:"content_block"`
 	Delta *struct {
 		Type        string `json:"type"`
@@ -80,6 +81,11 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 			ev.ToolName = env.ContentBlock.Name
 		case "thinking":
 			ev.BlockType = canonical.BlockThinking
+		case "redacted_thinking":
+			// Full opaque payload arrives on start; no thinking_delta follows.
+			ev.BlockType = canonical.BlockThinking
+			ev.Redacted = true
+			ev.Text = env.ContentBlock.Data
 		default:
 			ev.BlockType = canonical.BlockText
 		}

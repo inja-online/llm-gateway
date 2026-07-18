@@ -298,6 +298,8 @@ type StreamEvent struct {
 	ToolName  string    // EventBlockStart (tool_use)
 
 	Text        string // EventTextDelta / EventThinkingDelta
+	// Redacted marks redacted_thinking stream blocks (Anthropic).
+	Redacted    bool
 	PartialJSON string // EventJSONDelta
 
 	StopReason string // EventFinish

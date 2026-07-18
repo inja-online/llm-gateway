@@ -8,16 +8,36 @@ import "encoding/json"
 // --- request wire types ---
 
 type messagesRequest struct {
-	Model         string          `json:"model"`
-	System        []systemBlock   `json:"system,omitempty"`
-	Messages      []message       `json:"messages"`
-	MaxTokens     int             `json:"max_tokens"`
-	Stream        bool            `json:"stream,omitempty"`
-	Temperature   *float64        `json:"temperature,omitempty"`
-	TopP          *float64        `json:"top_p,omitempty"`
-	StopSequences []string        `json:"stop_sequences,omitempty"`
-	Tools         []tool          `json:"tools,omitempty"`
-	ToolChoice    json.RawMessage `json:"tool_choice,omitempty"`
+	Model         string            `json:"model"`
+	System        []systemBlock     `json:"system,omitempty"`
+	Messages      []message         `json:"messages"`
+	MaxTokens     int               `json:"max_tokens"`
+	Stream        bool              `json:"stream,omitempty"`
+	Temperature   *float64          `json:"temperature,omitempty"`
+	TopP          *float64          `json:"top_p,omitempty"`
+	TopK          *int              `json:"top_k,omitempty"`
+	StopSequences []string          `json:"stop_sequences,omitempty"`
+	Tools         []tool            `json:"tools,omitempty"`
+	ToolChoice    json.RawMessage   `json:"tool_choice,omitempty"`
+	Thinking      *thinkingWire     `json:"thinking,omitempty"`
+	OutputConfig  *outputConfigWire `json:"output_config,omitempty"`
+}
+
+// thinkingWire is Anthropic extended/adaptive thinking request config.
+type thinkingWire struct {
+	Type         string `json:"type"` // enabled | disabled | adaptive
+	BudgetTokens *int   `json:"budget_tokens,omitempty"`
+}
+
+type outputConfigWire struct {
+	Format *outputFormatWire `json:"format,omitempty"`
+	Effort string            `json:"effort,omitempty"`
+}
+
+type outputFormatWire struct {
+	Type   string          `json:"type"` // json_schema
+	Schema json.RawMessage `json:"schema,omitempty"`
+	Name   string          `json:"name,omitempty"`
 }
 
 type systemBlock struct {
@@ -36,8 +56,9 @@ type block struct {
 
 	Text string `json:"text,omitempty"`
 
-	// image
+	// image / document
 	Source *imageSourceWire `json:"source,omitempty"`
+	Title  string           `json:"title,omitempty"`
 
 	// tool_use
 	ID    string          `json:"id,omitempty"`
@@ -52,13 +73,16 @@ type block struct {
 	// thinking
 	Thinking  string `json:"thinking,omitempty"`
 	Signature string `json:"signature,omitempty"`
+	// redacted_thinking opaque payload
+	Data string `json:"data,omitempty"`
 }
 
 type imageSourceWire struct {
-	Type      string `json:"type"` // base64 | url
+	Type      string `json:"type"` // base64 | url | file
 	MediaType string `json:"media_type,omitempty"`
 	Data      string `json:"data,omitempty"`
 	URL       string `json:"url,omitempty"`
+	FileID    string `json:"file_id,omitempty"`
 }
 
 type tool struct {

@@ -38,6 +38,9 @@ func outBlockFor(b canonical.Block) (outBlock, bool) {
 	case canonical.BlockText:
 		return outBlock{Type: "text", Text: b.Text}, true
 	case canonical.BlockThinking:
+		if b.Redacted {
+			return outBlock{Type: "redacted_thinking", Data: b.Text}, true
+		}
 		return outBlock{Type: "thinking", Thinking: b.Text, Signature: b.Signature}, true
 	case canonical.BlockToolUse:
 		input := b.Input

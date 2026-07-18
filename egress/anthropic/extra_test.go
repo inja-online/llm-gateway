@@ -85,10 +85,14 @@ func TestNormalizeStopUnknown(t *testing.T) {
 	}
 }
 
-func TestParseBlockUnknown(t *testing.T) {
-	_, ok := parseBlock(block{Type: "redacted_thinking"})
-	if ok {
-		t.Fatal("want skip")
+func TestParseBlockRedactedThinkingPreserve(t *testing.T) {
+	// #48: redacted_thinking must be preserved (not skipped) for multi-turn Claude.
+	cb, ok := parseBlock(block{Type: "redacted_thinking", Data: "opaque-cipher"})
+	if !ok {
+		t.Fatal("want preserve redacted_thinking")
+	}
+	if cb.Type != canonical.BlockThinking || !cb.Redacted || cb.Text != "opaque-cipher" {
+		t.Fatalf("%+v", cb)
 	}
 }
 
