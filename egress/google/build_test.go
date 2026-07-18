@@ -57,6 +57,15 @@ func TestPath(t *testing.T) {
 	if Path("gemini-2.0-flash", true) != "/models/gemini-2.0-flash:streamGenerateContent?alt=sse" {
 		t.Fatal(Path("gemini-2.0-flash", true))
 	}
+	if CountTokensPath("gemini-2.0-flash") != "/models/gemini-2.0-flash:countTokens" {
+		t.Fatal(CountTokensPath("gemini-2.0-flash"))
+	}
+	if ModelsPath() != "/models" {
+		t.Fatal(ModelsPath())
+	}
+	if ModelPath("gemini-2.0-flash") != "/models/gemini-2.0-flash" {
+		t.Fatal(ModelPath("gemini-2.0-flash"))
+	}
 }
 
 func TestStreamParser(t *testing.T) {

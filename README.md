@@ -105,15 +105,17 @@ Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway rou
 | Anthropic | `google` | **translated** |
 | Google `POST /v1beta/models/{model}:generateContent` | `google` | **passthrough** |
 | Google stream `:streamGenerateContent` | `google` | **passthrough** |
+| Google `:countTokens` | `google` | **passthrough** |
 | Google | `openai` / `openai_compat` / `anthropic` | **translated** |
 
 Also shipped:
 
 - Streaming + non-streaming, tools, multimodal **input** images, system prompts
 - OpenAI-compatible **image generation** (`/v1/images/*`) and **video generation** (`/v1/videos`)
+- Native Gemini model discovery (`GET /v1beta/models`, `GET /v1beta/models/{model}`)
 - Dialect-shaped errors
 - One usage event per chat / media request (JSONL / webhook / Go hook)
-- `POST /v1/messages/count_tokens`, `GET /healthz`
+- `POST /v1/messages/count_tokens` (Anthropic proxy, Google `:countTokens` translate, or estimate), `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
 ---
@@ -139,7 +141,8 @@ Google exposes **two** wire formats. The gateway supports **both as egress** and
 
 | Gemini API | Wire format | Ingress (client → gateway) | Egress (gateway → Google) |
 |---|---|---|---|
-| **Native** | `generateContent` / `streamGenerateContent` | **Yes** — dedicated dialect `POST /v1beta/models/{model}:…` (`ingress/google`) | **Yes** — `kind: google` (`egress/google`), `x-goog-api-key` |
+| **Native** | `generateContent` / `streamGenerateContent` / `countTokens` | **Yes** — dedicated dialect `POST /v1beta/models/{model}:…` (`ingress/google`) | **Yes** — `kind: google` (`egress/google`), `x-goog-api-key` |
+| **Native discovery** | `GET /v1beta/models` (+ `/{model}`) | **Yes** — passthrough to `kind: google` (`?provider=` or `defaults.google_dialect`) | **Yes** — `x-goog-api-key` |
 | **OpenAI-compat** | Chat Completions | **Yes** — OpenAI dialect `POST /v1/chat/completions` (identical wire; no separate Google route) | **Yes** — `kind: openai_compat` + Gemini OpenAI base, Bearer |
 
 Template entries:
@@ -312,12 +315,15 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
 | `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
 | `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini native streaming (upstream `?alt=sse`) |
+| `POST` | `/v1beta/models/{model}:countTokens` | Gemini native token count (passthrough; no usage event) |
+| `GET` | `/v1beta/models` | List Gemini models (`?provider=` or `defaults.google_dialect`) |
+| `GET` | `/v1beta/models/{model}` | Get one Gemini model |
 | `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
 | `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
 | `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
 | `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
-| `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
+| `POST` | `/v1/messages/count_tokens` | Token count (proxy, Google translate, or estimate) |
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
@@ -354,7 +360,7 @@ No `/v1/models` yet. Unknown routes → standard 404.
 | Request / response body | 32 MiB |
 | Overall proxy timeout | none (streams may be long-lived) |
 | Upstream response header wait | 60s |
-| `count_tokens` → Anthropic | 15s |
+| `count_tokens` / `:countTokens` / models GET | 15s |
 | Shutdown drain | 30s |
 
 Client disconnect cancels the upstream context.
@@ -364,9 +370,16 @@ Client disconnect cancels the upstream context.
 | Resolved provider | Behavior |
 |---|---|
 | `anthropic` | Proxy to real `…/messages/count_tokens`; fall back to estimate on failure |
+| `google` | Translate Anthropic body → Gemini `:countTokens`; map `totalTokens` → `{input_tokens}`; fall back to estimate on failure |
 | other | Local estimate only (~1 token / 4 chars of text & tool schema) |
 
 Estimate is for client compatibility (e.g. Claude Code), **not billing**. No usage event is emitted.
+
+Native Gemini clients can also call `POST /v1beta/models/{model}:countTokens` directly (Google-shaped body/response; also no usage event).
+
+### Google model discovery
+
+`GET /v1beta/models` and `GET /v1beta/models/{model}` passthrough to a `kind: google` provider. Choose the provider with `?provider=NAME` or `defaults.google_dialect`. Auth uses `x-goog-api-key` (or `api_key_env`). No usage event.
 
 ---
 
@@ -488,7 +501,7 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
 | **Go** | `gateway.WithHook(h)` | In-process after response |
 
-Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
+Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens`, Gemini `:countTokens`, `GET /v1beta/models*`, or `healthz`.
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
