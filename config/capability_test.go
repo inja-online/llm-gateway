@@ -116,3 +116,33 @@ func TestUnknownModalityUnsupported(t *testing.T) {
 		t.Fatal("unknown modality must be false")
 	}
 }
+
+func TestSupportsAllModalities(t *testing.T) {
+	p := Provider{Kind: KindOpenAI}
+	if !p.Supports(ModalityText) {
+		t.Fatal("text")
+	}
+	if !p.Supports(ModalityImageGen) {
+		t.Fatal("image")
+	}
+	if !p.Supports(ModalityRealtime) {
+		t.Fatal("realtime")
+	}
+	if p.Supports("not-a-modality") {
+		t.Fatal("unknown")
+	}
+	// openai_compat defaults: no image
+	p2 := Provider{Kind: KindOpenAICompat}
+	if p2.Supports(ModalityImageGen) {
+		t.Fatal("compat image should be off by default")
+	}
+	if p2.Supports(ModalityAudioSpeech) {
+		t.Fatal()
+	}
+	if p2.Supports(ModalityAudioTranscribe) {
+		t.Fatal()
+	}
+	if p2.Supports(ModalityVideoGen) {
+		t.Fatal()
+	}
+}

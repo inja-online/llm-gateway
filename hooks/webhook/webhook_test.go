@@ -74,3 +74,22 @@ func TestPostNetworkError(t *testing.T) {
 	s.OnUsage(context.Background(), hooks.UsageEvent{RequestID: "net"})
 	time.Sleep(150 * time.Millisecond)
 }
+
+func TestPostStatusAndBadURL(t *testing.T) {
+	// status >= 300 branch
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(503)
+	}))
+	t.Cleanup(srv.Close)
+	s := New(srv.URL, time.Second)
+	s.OnUsage(context.Background(), hooks.UsageEvent{Model: "m"})
+	time.Sleep(50 * time.Millisecond)
+
+	// bad URL build error path
+	s2 := New("http://[::1]:namedbad", time.Millisecond)
+	s2.post([]byte(`{}`))
+
+	// network error
+	s3 := New("http://127.0.0.1:1", 50*time.Millisecond)
+	s3.post([]byte(`{}`))
+}

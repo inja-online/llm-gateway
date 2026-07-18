@@ -117,3 +117,63 @@ hooks:
 		t.Fatalf("timeout = %v", cfg.Hooks.Webhook.Timeout)
 	}
 }
+
+func TestEdgeKeysAndAuthMode(t *testing.T) {
+	t.Setenv("EDGE_KEYS_TEST", " a ,b, a , ")
+	cfg, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x", auth: ADC }
+edge_auth:
+  enabled: true
+  keys: ["k1", " k1 ", "k2"]
+  keys_env: EDGE_KEYS_TEST
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := cfg.EdgeKeys()
+	if len(keys) < 3 {
+		t.Fatalf("keys %#v", keys)
+	}
+	// first-occurrence de-dupe: k1 once, k2, a, b (order may include env)
+	seen := map[string]int{}
+	for _, k := range keys {
+		seen[k]++
+		if seen[k] > 1 {
+			t.Fatalf("duplicate %q in %#v", k, keys)
+		}
+	}
+	if cfg.Providers["x"].AuthMode() != AuthADC && cfg.Providers["x"].AuthMode() != "adc" {
+		// AuthMode lowercases
+		if got := cfg.Providers["x"].AuthMode(); got != "adc" {
+			t.Fatalf("auth mode %q", got)
+		}
+	}
+	p := Provider{}
+	if p.AuthMode() != AuthAPIKey {
+		t.Fatalf("default auth %q", p.AuthMode())
+	}
+}
+
+func TestValidateEdgeAuthErrors(t *testing.T) {
+	_, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+edge_auth:
+  enabled: true
+`))
+	if err == nil {
+		t.Fatal("expected error when no keys")
+	}
+	t.Setenv("EMPTY_EDGE_KEYS", "")
+	_, err = Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+edge_auth:
+  enabled: true
+  keys_env: EMPTY_EDGE_KEYS
+`))
+	if err == nil {
+		t.Fatal("expected error when keys_env empty")
+	}
+}

@@ -88,3 +88,10 @@ func TestParseEmbedResponseNoUsage(t *testing.T) {
 		t.Fatalf("%d %v %v", tok, has, err)
 	}
 }
+
+func TestParseEmbedResponseBatchNoUsage(t *testing.T) {
+	vecs, tok, has, err := ParseEmbedResponse([]byte(`{"embeddings":[{"values":[1]}]}`), true)
+	if err != nil || has || tok != 0 || len(vecs) != 1 {
+		t.Fatalf("%v %d %v %v", vecs, tok, has, err)
+	}
+}

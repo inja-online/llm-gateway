@@ -2,6 +2,7 @@ package google
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/inja-online/llm-gateway/canonical"
@@ -87,5 +88,19 @@ func TestStreamParser(t *testing.T) {
 	}
 	if !sawFinish {
 		t.Fatal("no finish")
+	}
+}
+
+func TestBuildRequestSafetySettings(t *testing.T) {
+	req := &canonical.Request{
+		Messages: []canonical.Message{{Role: canonical.RoleUser, Content: []canonical.Block{{Type: canonical.BlockText, Text: "hi"}}}},
+		SafetySettings: json.RawMessage(`[{"category":"HARM_CATEGORY_HATE_SPEECH","threshold":"BLOCK_NONE"}]`),
+	}
+	body, err := BuildRequest(req, "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "HARM_CATEGORY") {
+		t.Fatalf("%s", body)
 	}
 }
