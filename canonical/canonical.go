@@ -18,6 +18,11 @@ const (
 	BlockToolUse    BlockType = "tool_use"
 	BlockToolResult BlockType = "tool_result"
 	BlockThinking   BlockType = "thinking"
+	// BlockDocument is a non-image document (primarily PDF).
+	BlockDocument BlockType = "document"
+	// BlockAudio is chat input audio. It is input-only for the chat path
+	// (not TTS/speech output as a content block; STT/TTS use separate modalities).
+	BlockAudio BlockType = "audio"
 )
 
 // Role values for a Message.
@@ -35,12 +40,49 @@ const (
 	StopRefusal      = "refusal"
 )
 
+// ResponseFormat kind values (canonical names; not provider wire keys).
+const (
+	ResponseFormatText       = "text"
+	ResponseFormatJSONObject = "json_object"
+	ResponseFormatJSONSchema = "json_schema"
+)
+
+// MaxTokensField records which OpenAI-style max field the client used so
+// egress can re-emit the same knob. Empty means unset / not applicable.
+const (
+	MaxTokensFieldMaxTokens           = "max_tokens"
+	MaxTokensFieldMaxCompletionTokens = "max_completion_tokens"
+)
+
 // ImageSource holds an inline or referenced image.
 type ImageSource struct {
 	// Kind is "base64" or "url".
 	Kind      string
 	MediaType string // for base64
 	Data      string // base64 payload or URL
+	// Detail is OpenAI image_url.detail: "auto" | "low" | "high".
+	// Empty means unset — do not default to "auto" on the wire.
+	Detail string
+}
+
+// DocumentSource holds an inline or referenced non-image document (e.g. PDF).
+// Kind is "base64" | "url" | "file_uri".
+type DocumentSource struct {
+	Kind      string
+	MediaType string // e.g. application/pdf
+	Data      string // base64 payload, URL, or file URI
+	Filename  string // optional
+	Title     string // optional
+}
+
+// AudioSource holds chat input audio.
+// Kind is "base64" | "url". Input-only for chat content blocks.
+type AudioSource struct {
+	Kind      string
+	MediaType string
+	Data      string // base64 payload or URL
+	// Transcript is an optional client-supplied transcript of the audio.
+	Transcript string
 }
 
 // Block is one unit of message content. Only the fields relevant to Type are
@@ -51,7 +93,10 @@ type Block struct {
 	Text      string // text, thinking
 	Signature string // thinking
 
-	Image *ImageSource // image
+	Image    *ImageSource    // image
+	Document *DocumentSource // document
+	// Audio is chat input audio (BlockAudio). Input-only; not used for TTS output.
+	Audio *AudioSource
 
 	ID    string          // tool_use id
 	Name  string          // tool_use name
@@ -62,7 +107,11 @@ type Block struct {
 	ResultBlocks []Block // tool_result: multimodal content (text/image); not nested tool_use/tool_result
 	IsError      bool    // tool_result
 
-	Redacted bool // thinking: redacted_thinking (Anthropic)
+	// Redacted marks Anthropic redacted_thinking blocks. When true, Text may
+	// hold an opaque payload that must be preserved for multi-turn Claude
+	// thinking continuity; do not attempt to decrypt or display it.
+	// (Issue #48: redacted_thinking support.)
+	Redacted bool
 }
 
 // Message is one turn.
@@ -93,6 +142,40 @@ type ToolChoice struct {
 	Name string // for ToolSpecific
 }
 
+// ResponseFormat is structured-output / JSON-mode configuration.
+// Nil on Request means no structured output was requested.
+type ResponseFormat struct {
+	// Kind is text | json_object | json_schema.
+	Kind string
+	// Name is an optional schema name (OpenAI json_schema.name).
+	Name string
+	// Description is an optional schema description.
+	Description string
+	// Schema is the JSON Schema document when Kind is json_schema.
+	Schema json.RawMessage
+	// Strict, when non-nil, requests strict schema adherence where supported.
+	Strict *bool
+}
+
+// ThinkingConfig is request-side reasoning/thinking controls.
+//
+// Nil on Request means the client did not request thinking controls (do not
+// invent budgets or effort). Mapping between Effort and BudgetTokens across
+// dialects is best-effort, not bit-identical.
+type ThinkingConfig struct {
+	// Type is the thinking mode when known: "enabled", "disabled", "adaptive",
+	// or empty when only other fields convey the request.
+	Type string
+	// Effort is a provider effort string (e.g. "minimal", "low", "medium", "high").
+	// Effort ↔ BudgetTokens mapping is best-effort across dialects.
+	Effort string
+	// BudgetTokens is a numeric thinking/reasoning token budget when set.
+	BudgetTokens *int
+	// IncludeThoughts, when non-nil, controls whether thinking content is
+	// returned to the client (Google includeThoughts / display preference).
+	IncludeThoughts *bool
+}
+
 // Request is a canonical chat request.
 type Request struct {
 	Model         string
@@ -102,10 +185,39 @@ type Request struct {
 	Stream        bool
 	Temperature   *float64
 	TopP          *float64
+	// TopK is optional top-k sampling (Anthropic/Google). Nil = unset.
+	// OpenAI chat-completions generally omits this on egress.
+	TopK *int
+	// FrequencyPenalty and PresencePenalty are OpenAI-style sampling penalties.
+	// Nil = unset. Anthropic Messages generally drops them on egress.
+	FrequencyPenalty *float64
+	PresencePenalty  *float64
+	// Seed is an optional deterministic-sampling seed (field-level fidelity;
+	// does not guarantee bit-identical outputs across providers).
+	Seed *int64
 	StopSequences []string
 	Tools         []Tool
 	ToolChoice    *ToolChoice
-	Metadata      map[string]string
+	// ParallelToolCalls, when non-nil, prefers (true) or disables (false)
+	// parallel tool calls. Unset means omit (provider default).
+	// OpenAI: parallel_tool_calls; Anthropic: disable_parallel_tool_use with
+	// inverted polarity (parallel=false ↔ disable=true).
+	ParallelToolCalls *bool
+	Metadata          map[string]string
+
+	// ResponseFormat is optional structured-output / JSON-mode config.
+	// Nil means unset (current behavior: free-form text).
+	ResponseFormat *ResponseFormat
+
+	// Thinking is optional request-side reasoning/thinking configuration.
+	// Nil means the client did not request thinking controls.
+	Thinking *ThinkingConfig
+
+	// MaxTokensField records which wire field supplied MaxTokens on OpenAI-style
+	// ingress: "" | "max_tokens" | "max_completion_tokens". MaxTokens remains
+	// the numeric budget; egress uses this to re-emit the correct field name.
+	// Anthropic/Google always map the numeric budget to their native field.
+	MaxTokensField string
 
 	// ServiceTier is an optional OpenAI request hint (e.g. "auto", "default").
 	// Other dialects omit it on egress.
