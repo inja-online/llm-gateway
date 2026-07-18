@@ -25,6 +25,7 @@ type content struct {
 type part struct {
 	Text             string            `json:"text,omitempty"`
 	InlineData       *blob             `json:"inline_data,omitempty"`
+	FileData         *fileData         `json:"file_data,omitempty"`
 	FunctionCall     *functionCall     `json:"function_call,omitempty"`
 	FunctionResponse *functionResponse `json:"function_response,omitempty"`
 	Thought          bool              `json:"thought,omitempty"`
@@ -33,6 +34,13 @@ type part struct {
 type blob struct {
 	MIMEType string `json:"mime_type"`
 	Data     string `json:"data"`
+}
+
+// fileData is Gemini's file_data part (Files API URI or remote http(s) URL).
+// Pass-through avoids server-side fetch/SSRF; Gemini resolves the URI.
+type fileData struct {
+	MIMEType string `json:"mime_type,omitempty"`
+	FileURI  string `json:"file_uri"`
 }
 
 type functionCall struct {

@@ -2,12 +2,19 @@ package google
 
 import (
 	"encoding/json"
+	"path"
+	"strings"
 
 	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // BuildRequest converts a canonical request into a Gemini generateContent body.
 // The model id is not placed in the body — it belongs in the URL path (see Path).
+//
+// Image / media policy (#36, #35):
+//  1. Kind base64 (or data: URL) → inline_data
+//  2. Kind url / http(s) / Files API URI → file_data.file_uri pass-through (no fetch, no SSRF)
+//  3. Unusable image sources are omitted (no silent "[image: …]" text placeholder)
 func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	out := generateRequest{}
 	if sys := concatText(req.System); sys != "" {
@@ -70,15 +77,10 @@ func buildContent(m canonical.Message, toolNames map[string]string) content {
 		case canonical.BlockThinking:
 			c.Parts = append(c.Parts, part{Text: b.Text, Thought: true})
 		case canonical.BlockImage:
-			if b.Image != nil && b.Image.Kind == "base64" {
-				c.Parts = append(c.Parts, part{InlineData: &blob{
-					MIMEType: b.Image.MediaType,
-					Data:     b.Image.Data,
-				}})
-			} else if b.Image != nil {
-				// Remote URLs are not native Gemini inline; drop with a note as text.
-				c.Parts = append(c.Parts, part{Text: "[image: " + b.Image.Data + "]"})
+			if p, ok := buildImagePart(b.Image); ok {
+				c.Parts = append(c.Parts, p)
 			}
+			// Unusable image: omit part (no text placeholder).
 		case canonical.BlockToolUse:
 			args := b.Input
 			if len(args) == 0 {
@@ -100,6 +102,93 @@ func buildContent(m canonical.Message, toolNames map[string]string) content {
 		c.Parts = []part{{Text: ""}}
 	}
 	return c
+}
+
+// buildImagePart maps a canonical ImageSource to a Gemini part.
+// Returns ok=false when the source is empty/unusable (caller omits the part).
+func buildImagePart(img *canonical.ImageSource) (part, bool) {
+	if img == nil || img.Data == "" {
+		return part{}, false
+	}
+	// data: URLs (sometimes carried as Kind "url") → inline_data, no network I/O.
+	if mt, data, ok := parseDataURL(img.Data); ok {
+		if mt == "" {
+			mt = img.MediaType
+		}
+		if mt == "" {
+			mt = "application/octet-stream"
+		}
+		return part{InlineData: &blob{MIMEType: mt, Data: data}}, true
+	}
+	if img.Kind == "base64" {
+		mt := img.MediaType
+		if mt == "" {
+			mt = "application/octet-stream"
+		}
+		return part{InlineData: &blob{MIMEType: mt, Data: img.Data}}, true
+	}
+	// URL / Files API URI → file_data pass-through (preferred over fetch).
+	uri := img.Data
+	mt := img.MediaType
+	if mt == "" {
+		mt = guessMIMEFromURI(uri)
+	}
+	return part{FileData: &fileData{MIMEType: mt, FileURI: uri}}, true
+}
+
+// parseDataURL parses data:[<mediatype>][;base64],<data>. Returns false if not a data URL.
+func parseDataURL(u string) (mediaType, data string, ok bool) {
+	const prefix = "data:"
+	if !strings.HasPrefix(u, prefix) {
+		return "", "", false
+	}
+	rest := u[len(prefix):]
+	meta, payload, cut := strings.Cut(rest, ",")
+	if !cut {
+		return "", "", false
+	}
+	mediaType = meta
+	if i := strings.Index(meta, ";"); i >= 0 {
+		mediaType = meta[:i]
+		// Only base64 payloads are accepted as inline (non-base64 data: is rare).
+		if !strings.Contains(meta[i:], "base64") {
+			return "", "", false
+		}
+	} else if mediaType != "" && !strings.Contains(meta, "base64") {
+		// data:text/plain,hello — not base64; treat as unusable for Gemini inline.
+		return "", "", false
+	}
+	return mediaType, payload, true
+}
+
+// guessMIMEFromURI infers a mime type from a URL path extension when clients omit it.
+func guessMIMEFromURI(uri string) string {
+	// Strip query/fragment for extension detection.
+	p := uri
+	if i := strings.IndexAny(p, "?#"); i >= 0 {
+		p = p[:i]
+	}
+	ext := strings.ToLower(path.Ext(p))
+	switch ext {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".pdf":
+		return "application/pdf"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	case ".mp4":
+		return "video/mp4"
+	default:
+		return ""
+	}
 }
 
 func buildToolChoice(tc *canonical.ToolChoice) *functionCallingConfig {
