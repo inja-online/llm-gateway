@@ -9,6 +9,7 @@ import (
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
 	"github.com/inja-online/llm-gateway/hooks/jsonl"
+	"github.com/inja-online/llm-gateway/hooks/webhook"
 	"github.com/inja-online/llm-gateway/proxy"
 )
 
@@ -37,6 +38,9 @@ func New(cfg *config.Config, opts ...Option) (http.Handler, error) {
 			return nil, fmt.Errorf("hooks.jsonl: %w", err)
 		}
 		all = append(all, sink)
+	}
+	if cfg.Hooks.Webhook != nil {
+		all = append(all, webhook.New(cfg.Hooks.Webhook.URL, cfg.Hooks.Webhook.Timeout))
 	}
 	all = append(all, o.extraHooks...)
 	return proxy.NewServer(cfg, all).Handler(), nil

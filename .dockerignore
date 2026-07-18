@@ -1,0 +1,11 @@
+.git
+.github
+**/*_test.go
+**/testdata
+coverage.out
+coverage.txt
+llm-gateway
+llm-gateway.exe
+dist
+*.md
+!gateway.example.yaml

@@ -8,18 +8,22 @@ A small, dependency-free LLM gateway. Clients speak **OpenAI** or **Anthropic** 
 your app (OpenAI SDK / Anthropic SDK / Claude Code)
         │
         ▼
-   llm-gateway  ──► usage events (JSONL / Go hook; webhook roadmap)
+   llm-gateway  ──► usage events (JSONL stdout / webhook / Go hook)
         │
         ▼
   any upstream provider
 ```
 
+**Stateless and cloud-native:** no database, no sessions, no sticky routing. Scale with identical replicas; emit usage to stdout or a webhook. One static binary (or container) runs the same on a laptop, a Windows box, Docker, or Kubernetes.
+
 ## Design principles
 
 - **No auth.** The gateway validates nothing. Your client's API key is forwarded to the upstream provider as-is (mapped to the provider's auth scheme). Optionally, a provider can be configured with `api_key_env` so the gateway supplies the key server-side.
-- **No database.** Metering is push-only: every request emits exactly one usage event to the configured hooks. Pipe the JSONL anywhere, or embed the gateway as a Go library and register your own hook.
+- **No database.** Metering is push-only: every request emits exactly one usage event to the configured hooks. Pipe the JSONL anywhere, POST a webhook, or embed the gateway as a Go library and register your own hook.
+- **Stateless.** Any replica can handle any request. Config is load-once; graceful SIGTERM drain is built in.
 - **Modular.** Dialects (ingress wire formats) and providers (egress) are self-contained packages. Adding one doesn't touch the core.
 - **Passthrough first.** When the client dialect matches the upstream dialect, bytes are forwarded near-verbatim — full fidelity, minimal surface for translation bugs.
+- **Simple deploy.** One binary, one YAML file, optional Docker/K8s manifests — no control plane.
 
 ## Status
 
@@ -36,22 +40,67 @@ Covered on every chat path: streaming and non-streaming, tool calls, images, sys
 
 Also implemented: `POST /v1/messages/count_tokens`, `GET /healthz`.
 
-**Roadmap:** Google/Gemini egress, webhook hook, `GET /v1/models`. Config already accepts `kind: google` and `hooks.webhook`, but those paths are not implemented yet.
+**Roadmap:** Google/Gemini egress, `GET /v1/models`. Config already accepts `kind: google`, but chat translation for it is not implemented yet.
 
 ---
 
 ## Quickstart
 
+### Binary (macOS / Linux / Windows)
+
 ```bash
 git clone https://github.com/inja-online/llm-gateway.git
 cd llm-gateway
-go build -o llm-gateway ./cmd/gateway
+go build -o llm-gateway ./cmd/gateway          # Windows: go build -o llm-gateway.exe ./cmd/gateway
 cp gateway.example.yaml gateway.yaml
 # edit gateway.yaml
-./llm-gateway -config gateway.yaml
+./llm-gateway -config gateway.yaml            # Windows: .\llm-gateway.exe -config gateway.yaml
 ```
 
-Default listen address is `:8787` if `listen` is omitted.
+Or download a release binary for your OS/arch from GitHub Releases.
+
+Env overrides (optional):
+
+| Env | Meaning |
+|---|---|
+| `GATEWAY_CONFIG` | Default path for `-config` |
+| `GATEWAY_LISTEN` | Bind address (overrides `listen:` in YAML) |
+
+Default listen address is `:8787` if neither YAML nor env sets it. SIGINT / SIGTERM shut down gracefully (30s drain for in-flight requests).
+
+### Docker
+
+```bash
+docker compose up --build
+curl http://localhost:8787/healthz
+```
+
+Mount your own config: edit the volume in `docker-compose.yml`, or:
+
+```bash
+docker build -t llm-gateway .
+docker run --rm -p 8787:8787 \
+  -v "$PWD/gateway.yaml:/config/gateway.yaml:ro" \
+  -e GATEWAY_LISTEN=:8787 \
+  llm-gateway
+```
+
+### Kubernetes
+
+```bash
+# Point the Deployment image at your registry build, then:
+kubectl apply -f deploy/k8s/gateway.yaml
+kubectl -n llm-gateway port-forward svc/llm-gateway 8787:8787
+```
+
+Replicas share nothing. Prefer `hooks.jsonl.output: stdout` (default in the manifest) and your cluster log shipper, or set `hooks.webhook.url` for multi-replica billing.
+
+### Windows PowerShell client smoke
+
+```powershell
+$env:KEY = "sk-..."
+.\examples\curl-openai.ps1
+```
 
 Example config:
 
@@ -166,8 +215,8 @@ Single YAML file. Unknown fields are rejected (`KnownFields(true)`).
 | `defaults.anthropic_dialect` | no | Provider name for bare models on Anthropic ingress |
 | `aliases` | no | Map of public id → `provider/upstream-model` |
 | `hooks.jsonl.output` | no | `stdout`, `stderr`, or a file path (append mode) |
-| `hooks.webhook.url` | no | Reserved; webhook delivery is roadmap |
-| `hooks.webhook.timeout` | no | Reserved |
+| `hooks.webhook.url` | no | Async POST of each usage event as JSON |
+| `hooks.webhook.timeout` | no | Per-post timeout; default `3s` |
 
 ### Provider kinds
 
@@ -261,10 +310,12 @@ Local estimate: roughly **one token per four characters** of system text, messag
 | Hook | Config | Behavior |
 |---|---|---|
 | JSONL | `hooks.jsonl.output: stdout \| stderr \| /path` | One JSON line per chat request; file opened append mode |
-| Webhook | `hooks.webhook.url` | Config accepted; delivery **not implemented** |
+| Webhook | `hooks.webhook.url` (+ optional `timeout`, default 3s) | Async POST of the same JSON event; failures are logged only |
 | Go | `gateway.WithHook(h)` | In-process; called after the response completes |
 
-Multiple hooks fan out via `hooks.Multi`. Implementations of `OnUsage` **must not block** — the proxy calls them synchronously on the request path after the response finishes (or aborts).
+Multiple hooks fan out via `hooks.Multi`. The proxy calls `OnUsage` after the response finishes (or aborts). **JSONL/Go hooks must not block.** The webhook sink posts in a background goroutine so a slow billing endpoint never stalls the client.
+
+**Cloud metering:** use `stdout` (or webhook), never a shared local file across replicas.
 
 ### Invariant
 
@@ -388,6 +439,18 @@ Same-dialect path: rewrite `model` (+ stream usage option) → forward bytes.
 
 ---
 
+## Deploy layout
+
+```
+Dockerfile              multi-stage distroless image (non-root)
+docker-compose.yml      one-command local stack
+deploy/k8s/gateway.yaml Namespace + ConfigMap + Deployment + Service
+cmd/gateway             binary entrypoint (graceful shutdown)
+gateway.example.yaml    sample config
+```
+
+Same binary and config shape everywhere. No special cloud mode.
+
 ## Development
 
 ```bash
@@ -395,6 +458,7 @@ go test ./...
 go test -race ./...
 go test ./... -coverprofile=coverage.out && go tool cover -func=coverage.out | tail -1
 go vet ./...
+docker build -t llm-gateway:dev .
 ```
 
 CI (`.github/workflows/ci.yml`) on every push/PR:
@@ -402,6 +466,7 @@ CI (`.github/workflows/ci.yml`) on every push/PR:
 - `go build`, `go vet`, `go test -race`
 - coverage profile with a **≥ 90%** gate
 - binary smoke: start the server and hit `/healthz`
+- Docker image build
 
 Release (`.github/workflows/release.yml`) on `v*` tags: multi-arch binaries
 (`linux`/`darwin`/`windows` × `amd64`/`arm64`) + checksums attached to a

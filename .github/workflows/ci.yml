@@ -88,3 +88,37 @@ jobs:
           done
           echo "gateway did not become healthy"
           exit 1
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t llm-gateway:ci .
+      - name: Run container healthz
+        run: |
+          cat > /tmp/gw.yaml <<'YAML'
+          listen: ":8787"
+          providers:
+            mock: { kind: openai_compat, base_url: "http://127.0.0.1:9" }
+          defaults:
+            openai_dialect: mock
+          hooks:
+            jsonl: { output: stdout }
+          YAML
+          docker run -d --name gw -p 18788:8787 \
+            -v /tmp/gw.yaml:/config/gateway.yaml:ro \
+            -e GATEWAY_LISTEN=:8787 \
+            llm-gateway:ci
+          for i in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:18788/healthz" | grep -q ok; then
+              echo "container healthz ok"
+              docker rm -f gw
+              exit 0
+            fi
+            sleep 0.2
+          done
+          docker logs gw || true
+          docker rm -f gw || true
+          exit 1

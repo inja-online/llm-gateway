@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/inja-online/llm-gateway/config"
 )
@@ -16,8 +17,8 @@ providers:
   up: { kind: openai_compat, base_url: "https://example.com/v1" }
 listen: ":0"
 `)
-	oldServe := listenAndServe
-	listenAndServe = func(addr string, h http.Handler) error {
+	oldServe := serve
+	serve = func(addr string, h http.Handler) error {
 		if addr != ":0" {
 			t.Errorf("addr = %q", addr)
 		}
@@ -26,7 +27,7 @@ listen: ":0"
 		}
 		return nil
 	}
-	t.Cleanup(func() { listenAndServe = oldServe })
+	t.Cleanup(func() { serve = oldServe })
 
 	if err := run([]string{"-config", path}); err != nil {
 		t.Fatal(err)
@@ -57,9 +58,9 @@ func TestRunListenError(t *testing.T) {
 providers:
   up: { kind: openai, base_url: "https://example.com/v1" }
 `)
-	oldServe := listenAndServe
-	listenAndServe = func(string, http.Handler) error { return errors.New("bind failed") }
-	t.Cleanup(func() { listenAndServe = oldServe })
+	oldServe := serve
+	serve = func(string, http.Handler) error { return errors.New("bind failed") }
+	t.Cleanup(func() { serve = oldServe })
 
 	if err := run([]string{"-config", path}); err == nil || err.Error() != "bind failed" {
 		t.Fatalf("got %v", err)
@@ -73,7 +74,6 @@ func TestRunFlagError(t *testing.T) {
 }
 
 func TestLoadConfigOverride(t *testing.T) {
-	// exercise default loadConfig wiring by temporarily swapping
 	old := loadConfig
 	called := false
 	loadConfig = func(path string) (*config.Config, error) {
@@ -83,9 +83,9 @@ func TestLoadConfigOverride(t *testing.T) {
 	t.Cleanup(func() { loadConfig = old })
 
 	path := writeCfg(t, `providers: { up: { kind: openai, base_url: "https://x" } }`)
-	oldServe := listenAndServe
-	listenAndServe = func(string, http.Handler) error { return nil }
-	t.Cleanup(func() { listenAndServe = oldServe })
+	oldServe := serve
+	serve = func(string, http.Handler) error { return nil }
+	t.Cleanup(func() { serve = oldServe })
 
 	if err := run([]string{"-config", path}); err != nil {
 		t.Fatal(err)
@@ -95,26 +95,27 @@ func TestLoadConfigOverride(t *testing.T) {
 	}
 }
 
-func writeCfg(t *testing.T, body string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "gateway.yaml")
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
+func TestEnvOrAndConfigDefault(t *testing.T) {
+	if envOr("GATEWAY_CONFIG_UNSET_XYZ", "fallback") != "fallback" {
+		t.Fatal()
 	}
-	return path
+	t.Setenv("GATEWAY_CONFIG_UNSET_XYZ", "set")
+	if envOr("GATEWAY_CONFIG_UNSET_XYZ", "fallback") != "set" {
+		t.Fatal()
+	}
 }
 
 func TestMainEntrySuccess(t *testing.T) {
 	path := writeCfg(t, `providers: { up: { kind: openai, base_url: "https://x" } }`)
 	oldArgs := os.Args
 	os.Args = []string{"gateway", "-config", path}
-	oldServe := listenAndServe
-	listenAndServe = func(string, http.Handler) error { return nil }
+	oldServe := serve
+	serve = func(string, http.Handler) error { return nil }
 	oldFatal := fatal
 	fatal = func(v ...any) { t.Fatalf("fatal called: %v", v) }
 	t.Cleanup(func() {
 		os.Args = oldArgs
-		listenAndServe = oldServe
+		serve = oldServe
 		fatal = oldFatal
 	})
 	main()
@@ -134,4 +135,49 @@ func TestMainEntryFatal(t *testing.T) {
 	if !fatalCalled {
 		t.Fatal("expected fatal on bad config")
 	}
+}
+
+func TestServeGracefulShutdown(t *testing.T) {
+	// Real serve() with a fake signal that fires immediately.
+	oldNotify := notifySignals
+	notifySignals = func() (<-chan os.Signal, func()) {
+		ch := make(chan os.Signal, 1)
+		ch <- os.Interrupt
+		return ch, func() {}
+	}
+	t.Cleanup(func() { notifySignals = oldNotify })
+
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	})
+	// Bind an ephemeral port.
+	err := serve("127.0.0.1:0", h)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestServeListenError(t *testing.T) {
+	oldNotify := notifySignals
+	// Never signal; listen on an invalid address so ListenAndServe fails.
+	notifySignals = func() (<-chan os.Signal, func()) {
+		return make(chan os.Signal), func() {}
+	}
+	t.Cleanup(func() { notifySignals = oldNotify })
+
+	err := serve("not a valid address!!!", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	if err == nil {
+		t.Fatal("expected listen error")
+	}
+	// Give the goroutine a moment if any.
+	time.Sleep(10 * time.Millisecond)
+}
+
+func writeCfg(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "gateway.yaml")
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

@@ -1,0 +1,29 @@
+# Local / laptop / Windows Docker Desktop.
+#
+#   docker compose up --build
+#   curl http://localhost:8787/healthz
+#
+# Put secrets in a .env file next to this compose file (never commit it):
+#   OPENAI_API_KEY=sk-...
+#   ANTHROPIC_API_KEY=sk-ant-...
+
+services:
+  gateway:
+    build: .
+    image: llm-gateway:local
+    ports:
+      - "8787:8787"
+    environment:
+      GATEWAY_LISTEN: ":8787"
+      # Optional server-held keys (match api_key_env in your config):
+      # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      # Mount your real config over the image default.
+      - ./gateway.example.yaml:/config/gateway.yaml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/llm-gateway", "-config", "/config/gateway.yaml"]
+      # distroless has no curl/wget; rely on the process staying up.
+      # Compose still restarts on crash via restart policy.
+      disable: true

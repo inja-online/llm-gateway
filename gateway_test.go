@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	gateway "github.com/inja-online/llm-gateway"
 	"github.com/inja-online/llm-gateway/config"
@@ -127,5 +128,62 @@ providers:
 	}
 	if h == nil {
 		t.Fatal("nil handler")
+	}
+}
+
+func TestNewWiresWebhook(t *testing.T) {
+	var mu sync.Mutex
+	var got hooks.UsageEvent
+	done := make(chan struct{})
+	hookSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		json.Unmarshal(body, &got)
+		mu.Unlock()
+		close(done)
+		w.WriteHeader(204)
+	}))
+	t.Cleanup(hookSrv.Close)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`)
+	}))
+	t.Cleanup(upstream.Close)
+
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  up: { kind: openai_compat, base_url: %q }
+defaults:
+  openai_dialect: up
+hooks:
+  webhook: { url: %q, timeout: 2s }
+`, upstream.URL, hookSrv.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := gateway.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Post(srv.URL+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook not received")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if got.Status != hooks.StatusOK || got.TokensIn != 1 {
+		t.Fatalf("%+v", got)
 	}
 }

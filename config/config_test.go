@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestParseValid(t *testing.T) {
@@ -84,5 +85,35 @@ hooks:
 	}
 	if _, err := Load(dir + "/missing.yaml"); err == nil {
 		t.Fatal("expected missing file error")
+	}
+}
+
+func TestGatewayListenEnvOverride(t *testing.T) {
+	t.Setenv("GATEWAY_LISTEN", "0.0.0.0:9999")
+	cfg, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+listen: ":8787"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Listen != "0.0.0.0:9999" {
+		t.Fatalf("listen = %q", cfg.Listen)
+	}
+}
+
+func TestWebhookDefaultTimeout(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+hooks:
+  webhook: { url: "https://example.com/hook" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Hooks.Webhook.Timeout != 3*time.Second {
+		t.Fatalf("timeout = %v", cfg.Hooks.Webhook.Timeout)
 	}
 }

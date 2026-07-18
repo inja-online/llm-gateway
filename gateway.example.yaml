@@ -1,31 +1,37 @@
 # llm-gateway example config. Copy to gateway.yaml and edit.
-listen: ":8787"
+#
+# Cloud tip: keep hooks.jsonl.output: stdout and ship logs with your platform.
+# Multi-replica billing: set hooks.webhook.url instead of (or in addition to) a file.
+
+listen: ":8787"   # override with env GATEWAY_LISTEN=0.0.0.0:8787
 
 providers:
   openai:
     kind: openai
     base_url: "https://api.openai.com/v1"
+    # api_key_env: OPENAI_API_KEY
   anthropic:
     kind: anthropic
     base_url: "https://api.anthropic.com/v1"
+    # api_key_env: ANTHROPIC_API_KEY
   deepseek:
     kind: openai_compat
     base_url: "https://api.deepseek.com"
-    # api_key_env: DEEPSEEK_API_KEY   # uncomment to hold the key server-side
+    # api_key_env: DEEPSEEK_API_KEY
   openrouter:
     kind: openai_compat
     base_url: "https://openrouter.ai/api/v1"
 
 defaults:
-  openai_dialect: openai       # bare model ids on /v1/chat/completions
-  anthropic_dialect: anthropic # bare model ids on /v1/messages (roadmap)
+  openai_dialect: openai
+  anthropic_dialect: anthropic
 
 aliases:
   fast: deepseek/deepseek-chat
 
 hooks:
   jsonl:
-    output: stdout             # stdout | stderr | /path/to/usage.jsonl
-  # webhook:
+    output: stdout             # stdout | stderr | path  (prefer stdout in containers)
+  # webhook:                   # async POST of the same UsageEvent JSON
   #   url: "https://billing.example.com/ingest"
   #   timeout: 3s

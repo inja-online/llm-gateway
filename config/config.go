@@ -69,15 +69,28 @@ func Parse(raw []byte) (*Config, error) {
 	if err := dec.Decode(&c); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
+	c.applyEnv()
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
+// applyEnv overlays 12-factor env vars. Kept minimal on purpose.
+//
+//	GATEWAY_LISTEN  — bind address (e.g. ":8787" or "0.0.0.0:8787")
+func (c *Config) applyEnv() {
+	if v := os.Getenv("GATEWAY_LISTEN"); v != "" {
+		c.Listen = v
+	}
+}
+
 func (c *Config) validate() error {
 	if c.Listen == "" {
 		c.Listen = ":8787"
+	}
+	if c.Hooks.Webhook != nil && c.Hooks.Webhook.Timeout <= 0 {
+		c.Hooks.Webhook.Timeout = 3 * time.Second
 	}
 	if len(c.Providers) == 0 {
 		return fmt.Errorf("config: at least one provider required")
