@@ -3,7 +3,7 @@ package proxy
 import (
 	"testing"
 
-	"github.com/mamad/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/config"
 )
 
 func testConfig() *config.Config {

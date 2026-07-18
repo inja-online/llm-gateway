@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mamad/llm-gateway/config"
-	"github.com/mamad/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/hooks"
 )
 
 type Server struct {

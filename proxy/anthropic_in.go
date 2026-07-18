@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/mamad/llm-gateway/canonical"
-	"github.com/mamad/llm-gateway/config"
-	openaiegress "github.com/mamad/llm-gateway/egress/openai"
-	"github.com/mamad/llm-gateway/hooks"
-	antingress "github.com/mamad/llm-gateway/ingress/anthropic"
-	"github.com/mamad/llm-gateway/internal/sse"
+	"github.com/inja-online/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/config"
+	openaiegress "github.com/inja-online/llm-gateway/egress/openai"
+	"github.com/inja-online/llm-gateway/hooks"
+	antingress "github.com/inja-online/llm-gateway/ingress/anthropic"
+	"github.com/inja-online/llm-gateway/internal/sse"
 )
 
 // handleAnthropic serves POST /v1/messages — the endpoint Claude Code and the

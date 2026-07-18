@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mamad/llm-gateway/config"
-	"github.com/mamad/llm-gateway/hooks"
-	"github.com/mamad/llm-gateway/internal/sse"
+	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/internal/sse"
 )
 
 const maxBodyBytes = 32 << 20 // 32 MiB

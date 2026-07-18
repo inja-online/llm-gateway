@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // StreamParser converts OpenAI SSE chunk payloads into canonical stream

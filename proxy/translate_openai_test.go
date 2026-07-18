@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mamad/llm-gateway/config"
-	"github.com/mamad/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/hooks"
 )
 
 // newTranslateGateway wires an OpenAI-dialect client to an Anthropic-kind

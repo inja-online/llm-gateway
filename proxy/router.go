@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mamad/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/config"
 )
 
 // Route is the result of resolving a public model id.

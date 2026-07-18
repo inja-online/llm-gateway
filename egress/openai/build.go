@@ -3,7 +3,7 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // BuildRequest converts a canonical request into an OpenAI chat-completions

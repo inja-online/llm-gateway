@@ -12,8 +12,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mamad/llm-gateway/config"
-	"github.com/mamad/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/hooks"
 )
 
 // collector records usage events and enforces the exactly-once invariant.

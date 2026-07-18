@@ -3,7 +3,7 @@ package anthropic
 import (
 	"testing"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 func TestParseBasic(t *testing.T) {

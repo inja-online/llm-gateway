@@ -3,7 +3,7 @@ package anthropic
 import (
 	"testing"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // feed runs raw Anthropic SSE data payloads through the parser and returns all

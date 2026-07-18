@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 func TestSerializeResponseText(t *testing.T) {

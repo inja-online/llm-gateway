@@ -3,7 +3,7 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // stopReasonToFinish maps a canonical stop reason to an OpenAI finish_reason.

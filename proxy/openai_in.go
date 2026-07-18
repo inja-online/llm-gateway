@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	oaingress "github.com/mamad/llm-gateway/ingress/openai"
+	oaingress "github.com/inja-online/llm-gateway/ingress/openai"
 
-	"github.com/mamad/llm-gateway/canonical"
-	"github.com/mamad/llm-gateway/config"
-	anthropicegress "github.com/mamad/llm-gateway/egress/anthropic"
-	"github.com/mamad/llm-gateway/hooks"
-	"github.com/mamad/llm-gateway/internal/sse"
+	"github.com/inja-online/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/config"
+	anthropicegress "github.com/inja-online/llm-gateway/egress/anthropic"
+	"github.com/inja-online/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/internal/sse"
 )
 
 // handleOpenAI serves POST /v1/chat/completions. It routes to a passthrough

@@ -1,17 +1,90 @@
 name: ci
+
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ["1.25.x"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: Build
+        run: go build -o /tmp/llm-gateway ./cmd/gateway
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit + smoke tests (race)
+        run: go test -race -count=1 ./...
+
+      - name: Coverage
+        run: |
+          go test ./... -coverprofile=coverage.out -covermode=atomic -count=1
+          go tool cover -func=coverage.out | tee coverage.txt
+          total=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
+          echo "Total coverage: ${total}%"
+          # Enforce high coverage (canonical is types-only and excluded by go cover).
+          awk -v t="$total" 'BEGIN { if (t+0 < 90.0) { printf "coverage %.1f%% is below 90%% threshold\n", t; exit 1 } }'
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt
+
+  smoke-binary:
+    runs-on: ubuntu-latest
+    needs: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test -race ./...
+          go-version: "1.25.x"
+          cache: true
+
+      - name: Build binary
+        run: go build -o llm-gateway ./cmd/gateway
+
+      - name: Write smoke config
+        run: |
+          cat > gateway.yaml <<'YAML'
+          listen: "127.0.0.1:18787"
+          providers:
+            mock: { kind: openai_compat, base_url: "http://127.0.0.1:9" }
+          defaults:
+            openai_dialect: mock
+          hooks:
+            jsonl: { output: stderr }
+          YAML
+
+      - name: Start gateway and hit healthz
+        run: |
+          ./llm-gateway -config gateway.yaml &
+          pid=$!
+          trap 'kill $pid' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:18787/healthz" | grep -q ok; then
+              echo "healthz ok"
+              exit 0
+            fi
+            sleep 0.1
+          done
+          echo "gateway did not become healthy"
+          exit 1

@@ -8,7 +8,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/mamad/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/hooks"
 )
 
 type Sink struct {

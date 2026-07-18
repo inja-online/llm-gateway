@@ -3,7 +3,7 @@ package openai
 import (
 	"testing"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 func TestParseResponseText(t *testing.T) {

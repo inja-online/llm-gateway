@@ -3,7 +3,7 @@ package anthropic
 import (
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // defaultMaxTokens is injected when the canonical request carries none, since

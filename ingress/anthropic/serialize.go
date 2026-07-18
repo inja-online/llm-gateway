@@ -3,7 +3,7 @@ package anthropic
 import (
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // SerializeResponse renders a canonical response as an Anthropic Messages

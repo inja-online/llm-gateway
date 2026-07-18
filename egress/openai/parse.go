@@ -3,7 +3,7 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // ParseResponse converts a non-streaming OpenAI response into canonical form.

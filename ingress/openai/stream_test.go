@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // collect runs a sequence of canonical events through the serializer and

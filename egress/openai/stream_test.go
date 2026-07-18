@@ -3,7 +3,7 @@ package openai
 import (
 	"testing"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 func feed(p *StreamParser, payloads []string) []canonical.StreamEvent {

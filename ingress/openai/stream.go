@@ -3,7 +3,7 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // StreamSerializer turns canonical stream events into OpenAI SSE chunk bytes.

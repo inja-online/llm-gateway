@@ -5,27 +5,54 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 
-	gateway "github.com/mamad/llm-gateway"
-	"github.com/mamad/llm-gateway/config"
+	gateway "github.com/inja-online/llm-gateway"
+	"github.com/inja-online/llm-gateway/config"
 )
 
-func main() {
-	cfgPath := flag.String("config", "gateway.yaml", "path to config file")
-	flag.Parse()
+// version is set via -ldflags at release time.
+var version = "dev"
 
-	cfg, err := config.Load(*cfgPath)
+// listenAndServe is overridden in tests.
+var listenAndServe = http.ListenAndServe
+
+// loadConfig is overridden in tests.
+var loadConfig = config.Load
+
+// newGateway is overridden in tests.
+var newGateway = gateway.New
+
+// fatal is overridden in tests so main can be exercised without os.Exit.
+var fatal = log.Fatal
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fatal(err)
+	}
+}
+
+func run(args []string) error {
+	fs := flag.NewFlagSet("gateway", flag.ContinueOnError)
+	cfgPath := fs.String("config", "gateway.yaml", "path to config file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		return fmt.Errorf("load config: %w", err)
 	}
-	h, err := gateway.New(cfg)
+	h, err := newGateway(cfg)
 	if err != nil {
-		log.Fatalf("init: %v", err)
+		return fmt.Errorf("init: %w", err)
 	}
-	log.Printf("llm-gateway listening on %s (%d providers)", cfg.Listen, len(cfg.Providers))
-	if err := http.ListenAndServe(cfg.Listen, h); err != nil {
-		log.Fatal(err)
+	log.Printf("llm-gateway %s listening on %s (%d providers)", version, cfg.Listen, len(cfg.Providers))
+	if err := listenAndServe(cfg.Listen, h); err != nil {
+		return err
 	}
+	return nil
 }

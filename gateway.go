@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mamad/llm-gateway/config"
-	"github.com/mamad/llm-gateway/hooks"
-	"github.com/mamad/llm-gateway/hooks/jsonl"
-	"github.com/mamad/llm-gateway/proxy"
+	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/hooks/jsonl"
+	"github.com/inja-online/llm-gateway/proxy"
 )
 
 type Option func(*options)

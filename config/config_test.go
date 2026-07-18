@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestParseValid(t *testing.T) {
 	cfg, err := Parse([]byte(`
@@ -50,5 +53,36 @@ func TestDefaultListen(t *testing.T) {
 	}
 	if cfg.Listen != ":8787" {
 		t.Errorf("default listen = %q", cfg.Listen)
+	}
+}
+
+func TestLoadFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/gw.yaml"
+	if err := os.WriteFile(path, []byte(`
+providers:
+  openai: { kind: openai, base_url: "https://api.openai.com/v1/" }
+  google: { kind: google, base_url: "https://generativelanguage.googleapis.com" }
+defaults:
+  openai_dialect: openai
+hooks:
+  webhook:
+    url: "https://billing.example/hook"
+    timeout: 3s
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers["openai"].BaseURL != "https://api.openai.com/v1" {
+		t.Errorf("base_url trim: %q", cfg.Providers["openai"].BaseURL)
+	}
+	if cfg.Hooks.Webhook == nil || cfg.Hooks.Webhook.URL == "" {
+		t.Fatal("webhook not loaded")
+	}
+	if _, err := Load(dir + "/missing.yaml"); err == nil {
+		t.Fatal("expected missing file error")
 	}
 }

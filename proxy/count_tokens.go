@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	antingress "github.com/mamad/llm-gateway/ingress/anthropic"
+	antingress "github.com/inja-online/llm-gateway/ingress/anthropic"
 )
 
 // charsPerTokenEstimate is a coarse average across English and code. The

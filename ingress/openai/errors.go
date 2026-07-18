@@ -3,7 +3,7 @@ package openai
 import (
 	"strings"
 
-	"github.com/mamad/llm-gateway/canonical"
+	"github.com/inja-online/llm-gateway/canonical"
 )
 
 // ValidationError marks a client request problem (HTTP 400 class).
