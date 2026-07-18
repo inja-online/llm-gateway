@@ -49,7 +49,7 @@ type UsageEvent struct {
 	Provider      string    `json:"provider"`
 	Model         string    `json:"model"`          // public id as the client sent it
 	UpstreamModel string    `json:"upstream_model"` // id sent upstream
-	// Modality is text|image_gen|video_gen|audio_speech|audio_transcribe|realtime.
+	// Modality is text|embedding|image_gen|video_gen|audio_speech|audio_transcribe|realtime.
 	// Empty means legacy text chat (treat as text).
 	Modality string `json:"modality,omitempty"`
 	// Transport is http|websocket. Empty means http.

@@ -44,17 +44,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
-	// OpenAI-shaped model catalog (config/aliases only; no upstream fan-out).
 	mux.HandleFunc("GET /v1/models", s.handleModelsList)
 	mux.HandleFunc("GET /v1/models/{id...}", s.handleModelsGet)
-	// Native Gemini generateContent / streamGenerateContent / countTokens (model in path).
+	mux.HandleFunc("POST /v1/embeddings", s.handleEmbeddings)
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
-	// Native Gemini model discovery (list / get). Provider: ?provider= or defaults.google_dialect.
 	mux.HandleFunc("GET /v1beta/models", s.handleGoogleModelsList)
 	mux.HandleFunc("GET /v1beta/models/{model}", s.handleGoogleModelGet)
-	// OpenAI-compatible image & video generation (passthrough to openai / openai_compat).
-	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
 	mux.HandleFunc("POST /v1/images/edits", s.handleImagesEdits)
+	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
 	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)
 	mux.HandleFunc("POST /v1/videos", s.handleVideosCreate)
 	mux.HandleFunc("GET /v1/videos/{id}", s.handleVideosGet)

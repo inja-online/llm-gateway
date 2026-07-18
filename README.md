@@ -113,10 +113,13 @@ Also shipped:
 - Streaming + non-streaming, tools, multimodal **input** images, system prompts
 - OpenAI-compatible **image generation** (`/v1/images/*`) and **video generation** (`/v1/videos`)
 - Native Gemini model discovery (`GET /v1beta/models`, `GET /v1beta/models/{model}`)
+- **Embeddings**: `POST /v1/embeddings` (OpenAI-compat passthrough + OpenAI→Google map); native Gemini `:embedContent` / `:batchEmbedContents`
 - Dialect-shaped errors
 - One usage event per chat / media request (JSONL / webhook / Go hook)
 - `POST /v1/messages/count_tokens`, `GET /v1/models`, `GET /healthz`
 - `POST /v1/messages/count_tokens` (Anthropic proxy, Google `:countTokens` translate, or estimate), `GET /healthz`
+- One usage event per chat / media / embedding request (JSONL / webhook / Go hook)
+- `POST /v1/messages/count_tokens`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
 ---
@@ -314,11 +317,14 @@ With JSONL → stdout, each chat request logs one line:
 |---|---|---|
 | `POST` | `/v1/chat/completions` | OpenAI dialect (also Gemini OpenAI-compat clients) |
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
+| `POST` | `/v1/embeddings` | OpenAI embeddings (passthrough; OpenAI→Google map when `kind: google`) |
 | `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
 | `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini native streaming (upstream `?alt=sse`) |
 | `POST` | `/v1beta/models/{model}:countTokens` | Gemini native token count (passthrough; no usage event) |
 | `GET` | `/v1beta/models` | List Gemini models (`?provider=` or `defaults.google_dialect`) |
 | `GET` | `/v1beta/models/{model}` | Get one Gemini model |
+| `POST` | `/v1beta/models/{model}:embedContent` | Gemini native embeddings (single) |
+| `POST` | `/v1beta/models/{model}:batchEmbedContents` | Gemini native embeddings (batch) |
 | `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
 | `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
@@ -335,21 +341,32 @@ There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat 
 ### Model discovery (`GET /v1/models`)
 
 OpenAI SDKs call `models.list` / `models.retrieve` on connect. The gateway serves a **config-derived** catalog (no live upstream fan-out):
-
 - **Public ids:** every `aliases` key, plus every unique alias target as stored (e.g. `deepseek/deepseek-chat`)
 - **Shape:** `{"object":"list","data":[{"id","object":"model","created","owned_by"}]}`
 - **`owned_by`:** `"llm-gateway"` for alias keys; provider name for `provider/model` targets
 - **No usage event** (discovery only)
 - Missing id → OpenAI error envelope `404`
-
 **Anthropic models surface:** there is **no** Anthropic-shaped models twin (`/v1/models` under Messages-style envelope). Anthropic / Claude Code clients use aliases or `provider/model` ids on `POST /v1/messages` (and OpenAI-shaped discovery if needed). No fake Anthropic list wire is planned unless a product need appears.
-
 ```bash
 curl -s http://localhost:8787/v1/models
 curl -s http://localhost:8787/v1/models/fast
 curl -s http://localhost:8787/v1/models/deepseek/deepseek-chat
 ```
-
+### Embeddings
+| Route | Providers | Notes |
+|---|---|---|
+| `POST /v1/embeddings` | `openai`, `openai_compat` | Model rewrite + passthrough to `{base}/embeddings` |
+| `POST /v1/embeddings` | `google` | Translates to `:embedContent` (single string) or `:batchEmbedContents` (array); response remapped to OpenAI list shape |
+| `POST /v1beta/models/{model}:embedContent` | `google` | Native Gemini passthrough |
+| `POST /v1beta/models/{model}:batchEmbedContents` | `google` | Native Gemini batch passthrough |
+Usage events use `modality: "embedding"` (prompt tokens when upstream reports them). Anthropic providers are rejected with an OpenAI error envelope (`501`).
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["OPENAI_API_KEY"])
+# OpenAI-family passthrough
+client.embeddings.create(model="openai/text-embedding-3-small", input="hello")
+# Or map to native Gemini when the resolved provider is kind: google
+# client.embeddings.create(model="google/gemini-embedding-001", input=["a","b"])
 ### Image & video generation
 
 Chat multimodal **inputs** (image URL / base64 in messages) are already part of chat translation. **Generation** APIs are separate OpenAI-compatible routes:
@@ -540,6 +557,7 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 
 Invariant: **exactly one** `UsageEvent` per proxied chat, media, embeddings, or audio request (including errors and aborts). Not emitted for `count_tokens`, `GET /v1/models`, or `healthz`.
 Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens`, Gemini `:countTokens`, `GET /v1beta/models*`, or `healthz`.
+Invariant: **exactly one** `UsageEvent` per proxied chat, media, and embeddings request (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
@@ -721,6 +739,8 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
 - [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
 - [x] `GET /v1/models` (+ `GET /v1/models/{id}`) from config/aliases
+- [x] Embeddings (`POST /v1/embeddings`, Gemini `:embedContent` / `:batchEmbedContents`)
+- [ ] `GET /v1/models`
 - [ ] Optional request auth at the gateway edge
 - [ ] Vertex AI (ADC / service-account) auth helper
 - [ ] Cross-dialect image/video generation translation
