@@ -178,7 +178,12 @@ func (s *Server) proxyCountTokens(w http.ResponseWriter, r *http.Request, route 
 		return false
 	}
 	upReq.Header.Set("Content-Type", "application/json")
-	applyAuth(upReq, route.Provider, clientKey(r))
+	key, errMsg := s.resolveUpstreamKey(r, route.ProviderName, route.Provider)
+	if errMsg != "" {
+		return false
+	}
+	applyAuth(upReq, route.Provider, key)
+	copyForwardHeaders(upReq, r)
 
 	resp, err := s.client.Do(upReq)
 	if err != nil {

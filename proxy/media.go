@@ -302,8 +302,20 @@ func asPositiveInt(v any) (int, bool) {
 
 // sendUpstreamRaw posts/gets with an optional Content-Type (for multipart).
 func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte, contentType string) (*http.Response, bool) {
-	key := clientKey(x.r)
-	x.ev.KeyHash = hashKey(key)
+	key, errMsg := x.s.resolveUpstreamKey(x.r, route.ProviderName, route.Provider)
+	if errMsg != "" {
+		x.fail(http.StatusBadGateway, "api_error", errMsg, hooks.StatusUpstreamError)
+		return nil, false
+	}
+	hashSrc := key
+	if route.Provider.AuthMode() == config.AuthAPIKey || route.Provider.AuthMode() == config.AuthBearer {
+		if route.Provider.APIKeyEnv != "" {
+			if env := envLookup(route.Provider.APIKeyEnv); env != "" {
+				hashSrc = env
+			}
+		}
+	}
+	x.ev.KeyHash = hashKey(hashSrc)
 
 	var rdr io.Reader
 	if body != nil {
@@ -320,6 +332,7 @@ func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte
 		upReq.Header.Set("Content-Type", "application/json")
 	}
 	applyAuth(upReq, route.Provider, key)
+	copyForwardHeaders(upReq, x.r)
 
 	resp, err := x.s.client.Do(upReq)
 	if err != nil {

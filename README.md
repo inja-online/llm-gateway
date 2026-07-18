@@ -40,7 +40,7 @@
 
 ---
 
-Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway routes to any upstream (OpenAI, Anthropic, Google, DeepSeek, xAI, Moonshot, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database, no auth layer.
+Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway routes to any upstream (OpenAI, Anthropic, Google, DeepSeek, xAI, Moonshot, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database; optional edge auth only.
 
 ```
   OpenAI SDK / Anthropic SDK / Gemini client / Claude Code / curl
@@ -78,6 +78,7 @@ Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway rou
 - [Model routing](#model-routing)
 - [Configuration](#configuration)
 - [Auth & keys](#auth--keys)
+- [Provider notes](#provider-notes)
 - [Passthrough vs translation](#passthrough-vs-translation)
 - [Hooks & usage events](#hooks--usage-events)
 - [Claude Code](#claude-code)
@@ -88,6 +89,8 @@ Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway rou
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
+
+**Also:** [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/deprecation-policy.md](docs/deprecation-policy.md) · [docs/claude-code-checklist.md](docs/claude-code-checklist.md)
 
 ---
 
@@ -469,10 +472,18 @@ Single YAML file. Unknown fields are rejected.
 | `providers.<n>.base_url` | yes | Origin **with version prefix**; trailing `/` trimmed |
 | `providers.<n>.api_key_env` | no | Env var; when set & non-empty, **replaces** client key |
 | `providers.<n>.capabilities` | no | Override modality flags (`text`, `image_gen`, `video_gen`, `audio_*`, `realtime`). Nil → kind defaults (`openai_compat` = text only) |
+| `providers.<n>.auth` | no | `api_key` (default) \| `adc` \| `service_account` \| `bearer` |
+| `providers.<n>.service_account_file` | no | Operator path for SA JSON (document/mount; TokenSource applies tokens) |
+| `providers.<n>.capabilities` | no | Override kind defaults (`image_gen`, `audio_transcribe`, …) |
 | `defaults.openai_dialect` | no | Provider for bare models on OpenAI ingress |
 | `defaults.anthropic_dialect` | no | Provider for bare models on Anthropic ingress |
 | `defaults.google_dialect` | no | Provider for bare models on Gemini ingress |
 | `aliases` | no | Public id → `provider/upstream-model` |
+| `edge_auth.enabled` | no | Default `false`. When true, require edge key (see Auth) |
+| `edge_auth.keys` | no | Inline edge keys (prefer env in production) |
+| `edge_auth.keys_env` | no | Env var with **comma-separated** edge keys |
+| `realtime.max_sessions` | no | Default `1024` (process-local WS cap when realtime lands) |
+| `realtime.max_session_minutes` | no | Default `60` |
 | `hooks.jsonl.output` | no | `stdout` \| `stderr` \| file path |
 | `hooks.webhook.url` | no | Async POST of each usage event |
 | `hooks.webhook.timeout` | no | Default `3s` |
@@ -498,17 +509,156 @@ Single YAML file. Unknown fields are rejected.
 
 ## Auth & keys
 
-The gateway **does not authenticate callers**. It reads:
+### Upstream credentials (always)
+
+The gateway reads a client credential from:
 
 1. `Authorization: Bearer <key>`, or
 2. `x-api-key: <key>`, or
 3. `x-goog-api-key: <key>`
 
-…and forwards that credential using the provider’s auth scheme. **The key must be valid for the target provider.** An OpenAI key routed to `anthropic/...` will be rejected upstream.
+…and forwards it using the provider’s auth scheme — unless replaced by `api_key_env` or ADC (below). **The upstream key must be valid for the target provider.** An OpenAI key routed to `anthropic/...` will be rejected upstream.
 
-With `api_key_env` set and the env non-empty, the **server-held key replaces** the client key (clients can send a dummy).
+| Mode (`providers.<n>.auth`) | Behavior |
+|---|---|
+| `api_key` (default / empty) | Kind scheme: OpenAI Bearer, Anthropic `x-api-key`, Google `x-goog-api-key`. `api_key_env` replaces client key when set. |
+| `bearer` | Always `Authorization: Bearer` (useful for some Google-compatible hosts). |
+| `adc` / `service_account` | `Authorization: Bearer` from a **TokenSource** registered on the server (`SetTokenSource` in library mode). No Google cloud SDK is bundled; inject tokens from ADC, a refresh sidecar, or tests (`StaticTokenSource` / `CachingTokenSource`). |
 
-Usage events include `key_hash`: first 12 hex chars of SHA-256 of the forwarded credential — correlate without storing secrets.
+Usage events include `key_hash`: first 12 hex chars of SHA-256 of the **upstream** credential (after `api_key_env` / token source) — correlate without storing secrets. Edge keys are not hashed separately.
+
+### Optional edge auth (gateway gate)
+
+By default the gateway **does not authenticate callers** (trusted network / external auth assumed). To require a shared secret at the edge:
+
+```yaml
+edge_auth:
+  enabled: true
+  keys_env: GATEWAY_EDGE_KEYS   # comma-separated, e.g. "key1,key2"
+  # keys: ["dev-only"]          # optional inline
+```
+
+When enabled:
+
+- Every route **except** `GET /healthz` requires a matching key via `Authorization: Bearer …` or `x-api-key`
+- Missing/invalid → **401** OpenAI-shaped `authentication_error` / `invalid_edge_auth`
+- Constant-time compare; keys are never logged
+- **Distinct from upstream keys:** with `api_key_env` on providers, clients only need the edge key; the server substitutes the provider secret
+
+See [SECURITY.md](SECURITY.md).
+
+### Forwarded client headers
+
+On upstream requests the gateway copies (when present): `HTTP-Referer`, `Referer`, `X-Title`, `OpenAI-Organization`, `OpenAI-Project`, `anthropic-beta`, and client `anthropic-version` (Anthropic egress may still set a default version when applying API-key auth).
+
+---
+
+## Provider notes
+
+Full sample comments live in [`gateway.example.yaml`](gateway.example.yaml). Compatibility overview: [docs/compatibility-matrix.md](docs/compatibility-matrix.md).
+
+### OpenRouter
+
+| | |
+|---|---|
+| Kind | `openai_compat` |
+| Base | `https://openrouter.ai/api/v1` |
+| Models | `openrouter/<author>/<model>` (gateway strips the provider prefix upstream) |
+| Auth | Bearer (`OPENROUTER_API_KEY`) |
+| Headers | `HTTP-Referer`, `X-Title` forwarded (OpenRouter ranking / app attribution) |
+| Body | Extra fields (`provider`, `plugins`, `route`, …) **passthrough** — not stripped |
+| Media | `capabilities.image_gen: true` (etc.) required; defaults text-only for `openai_compat` |
+
+```bash
+curl http://localhost:8787/v1/chat/completions \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+  -H "HTTP-Referer: https://example.com" \
+  -H "X-Title: My App" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"openrouter/anthropic/claude-3.5-sonnet","messages":[{"role":"user","content":"hi"}]}'
+```
+
+### xAI (Grok)
+
+| | |
+|---|---|
+| Kind | `openai_compat` |
+| Base | `https://api.x.ai/v1` |
+| Alias | `grok` → `xai/grok-3` (example) |
+| Routes | Chat Completions today; Responses / images when those gateway routes + host support exist (passthrough only; no xAI-specific IR) |
+| Media | Opt-in `capabilities.image_gen` if using Imagine-style models via OpenAI images API |
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["XAI_API_KEY"])
+client.chat.completions.create(model="xai/grok-3", messages=[{"role":"user","content":"hi"}])
+```
+
+### Z.AI / Zhipu (GLM)
+
+Pick the **regional** OpenAI-compat base that matches your key (confirm in current Z.AI / BigModel docs; bases change). Examples (2026-07):
+
+| Region | Example `base_url` |
+|---|---|
+| International | `https://api.z.ai/api/paas/v4` |
+| CN (BigModel) | `https://open.bigmodel.cn/api/paas/v4` |
+
+`kind: openai_compat`, text-only unless capabilities set. Use one provider block per region/key.
+
+### Qwen (DashScope)
+
+OpenAI-compatible mode path includes `compatible-mode`:
+
+| Region | Example `base_url` |
+|---|---|
+| CN | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| International | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
+
+Models: bare ids (`qwen-turbo`) with `defaults.openai_dialect: qwen`, or `qwen/qwen-turbo`, or aliases (`qwen-turbo: qwen/qwen-turbo`).
+
+### Groq (STT-oriented routing)
+
+Groq is `openai_compat` at `https://api.groq.com/openai/v1`. For **chat on provider A, STT on Groq** (when audio routes ship):
+
+```yaml
+providers:
+  openai: { kind: openai, base_url: "https://api.openai.com/v1", api_key_env: OPENAI_API_KEY }
+  groq:
+    kind: openai_compat
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: GROQ_API_KEY
+    capabilities:
+      text: true
+      audio_transcribe: true
+defaults:
+  openai_dialect: openai
+aliases:
+  whisper-fast: groq/whisper-large-v3
+```
+
+Call STT with `model: groq/whisper-large-v3` or the alias. Multipart body limit **32 MiB**. See matrix for shipped audio status.
+
+### Vertex AI (ADC)
+
+```yaml
+providers:
+  vertex:
+    kind: google
+    base_url: "https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/google"
+    auth: adc
+    # service_account_file: /secrets/vertex-sa.json  # mount read-only
+```
+
+Library mode: register a token source before serving:
+
+```go
+srv := proxy.NewServer(cfg, hook)
+srv.SetTokenSource("vertex", proxy.StaticTokenSource{AccessToken: accessToken})
+// or CachingTokenSource wrapping your refresh function
+http.ListenAndServe(cfg.Listen, srv.Handler())
+```
+
+Air-gapped tests use fakes only; production ADC/SA JWT exchange is your injector’s job (optional Google auth libraries outside this module).
 
 ---
 
@@ -634,6 +784,8 @@ claude
 
 Or [`examples/claude-code.sh`](examples/claude-code.sh). Anthropic upstream = byte passthrough; OpenAI-compat = full translation (see stream token caveat).
 
+Release / regression checklist: [docs/claude-code-checklist.md](docs/claude-code-checklist.md).
+
 ---
 
 ## Library use
@@ -740,16 +892,19 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
 - [x] `GET /v1/models` (+ `GET /v1/models/{id}`) from config/aliases
 - [x] Embeddings (`POST /v1/embeddings`, Gemini `:embedContent` / `:batchEmbedContents`)
+- [x] Optional edge auth (`edge_auth`)
+- [x] Vertex / ADC **TokenSource** helper (interface + fakes; real ADC injectable)
 - [ ] `GET /v1/models`
-- [ ] Optional request auth at the gateway edge
-- [ ] Vertex AI (ADC / service-account) auth helper
 - [ ] Cross-dialect image/video generation translation
+- [ ] HTTP audio (TTS/STT) and Realtime WebSocket passthrough
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) (includes **adding a modality** guide).  
+Security: [SECURITY.md](SECURITY.md). Changelog: [CHANGELOG.md](CHANGELOG.md).  
+Matrix: [docs/compatibility-matrix.md](docs/compatibility-matrix.md). Field drops: [docs/deprecation-policy.md](docs/deprecation-policy.md).
 
 ---
 
