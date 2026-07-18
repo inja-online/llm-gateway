@@ -31,6 +31,7 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 		Stream:        in.Stream,
 		Temperature:   in.Temperature,
 		TopP:          in.TopP,
+		TopK:          in.TopK,
 		StopSequences: in.StopSequences,
 	}
 	sys, err := parseSystem(in.System)
@@ -47,11 +48,27 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 		})
 	}
 	if in.ToolChoice != nil {
-		tc, err := parseToolChoice(in.ToolChoice)
+		tc, parallel, err := parseToolChoice(in.ToolChoice)
 		if err != nil {
 			return nil, err
 		}
 		req.ToolChoice = tc
+		req.ParallelToolCalls = parallel
+	}
+	if in.Thinking != nil {
+		req.Thinking = parseThinking(in.Thinking)
+	}
+	if in.OutputConfig != nil {
+		req.ResponseFormat = parseOutputConfig(in.OutputConfig)
+		// Adaptive thinking effort may ride on output_config.effort.
+		if in.OutputConfig.Effort != "" {
+			if req.Thinking == nil {
+				req.Thinking = &canonical.ThinkingConfig{}
+			}
+			if req.Thinking.Effort == "" {
+				req.Thinking.Effort = in.OutputConfig.Effort
+			}
+		}
 	}
 	for _, m := range in.Messages {
 		blocks, err := parseContent(m.Content)
@@ -61,6 +78,46 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 		req.Messages = append(req.Messages, canonical.Message{Role: m.Role, Content: blocks})
 	}
 	return req, nil
+}
+
+func parseThinking(tw *thinkingWire) *canonical.ThinkingConfig {
+	if tw == nil {
+		return nil
+	}
+	tc := &canonical.ThinkingConfig{BudgetTokens: tw.BudgetTokens}
+	switch tw.Type {
+	case "enabled":
+		tc.Mode = canonical.ThinkingEnabled
+	case "disabled":
+		tc.Mode = canonical.ThinkingDisabled
+	case "adaptive":
+		tc.Mode = canonical.ThinkingAdaptive
+	default:
+		if tw.BudgetTokens != nil {
+			tc.Mode = canonical.ThinkingEnabled
+		}
+	}
+	return tc
+}
+
+func parseOutputConfig(oc *outputConfigWire) *canonical.ResponseFormat {
+	if oc == nil || oc.Format == nil {
+		return nil
+	}
+	f := oc.Format
+	switch f.Type {
+	case "json_schema":
+		return &canonical.ResponseFormat{
+			Kind:   canonical.ResponseFormatJSONSchema,
+			Name:   f.Name,
+			Schema: f.Schema,
+		}
+	case "json_object":
+		// Not native Anthropic; accept if a client sends it via translate.
+		return &canonical.ResponseFormat{Kind: canonical.ResponseFormatJSONObject}
+	default:
+		return nil
+	}
 }
 
 func parseSystem(raw json.RawMessage) ([]canonical.Block, error) {
@@ -124,6 +181,13 @@ func parseBlock(b block) (canonical.Block, bool) {
 			img.Data = b.Source.URL
 		}
 		return canonical.Block{Type: canonical.BlockImage, Image: img}, true
+	case "document":
+		if b.Source == nil {
+			return canonical.Block{}, false
+		}
+		doc := documentFromSource(b.Source)
+		doc.Title = b.Title
+		return canonical.Block{Type: canonical.BlockDocument, Document: doc}, true
 	case "tool_use":
 		return canonical.Block{Type: canonical.BlockToolUse, ID: b.ID, Name: b.Name, Input: b.Input}, true
 	case "tool_result":
@@ -137,8 +201,44 @@ func parseBlock(b block) (canonical.Block, bool) {
 		}, true
 	case "thinking":
 		return canonical.Block{Type: canonical.BlockThinking, Text: b.Thinking, Signature: b.Signature}, true
+	case "redacted_thinking":
+		// Preserve opaque data so multi-turn Claude thinking history stays valid.
+		return canonical.Block{
+			Type:     canonical.BlockThinking,
+			Text:     b.Data,
+			Redacted: true,
+		}, true
 	}
 	return canonical.Block{}, false
+}
+
+func documentFromSource(src *imageSourceWire) *canonical.DocumentSource {
+	doc := &canonical.DocumentSource{MediaType: src.MediaType}
+	switch src.Type {
+	case "base64":
+		doc.Kind = "base64"
+		doc.Data = src.Data
+	case "url":
+		doc.Kind = "url"
+		doc.Data = src.URL
+	case "file", "file_id":
+		doc.Kind = "file"
+		if src.FileID != "" {
+			doc.Data = src.FileID
+		} else {
+			doc.Data = src.Data
+		}
+	default:
+		doc.Kind = src.Type
+		if src.Data != "" {
+			doc.Data = src.Data
+		} else if src.URL != "" {
+			doc.Data = src.URL
+		} else {
+			doc.Data = src.FileID
+		}
+	}
+	return doc
 }
 
 // toolResultText is the plain-string view of tool_result content (tests + compat).
@@ -193,23 +293,36 @@ func parseToolResultContent(raw json.RawMessage) (string, []canonical.Block) {
 	return text, out
 }
 
-func parseToolChoice(raw json.RawMessage) (*canonical.ToolChoice, error) {
+// parseToolChoice maps Anthropic tool_choice and optional disable_parallel_tool_use.
+// Polarity: disable_parallel_tool_use=true ↔ ParallelToolCalls=false.
+// Unset disable field leaves ParallelToolCalls nil (omit on egress).
+func parseToolChoice(raw json.RawMessage) (*canonical.ToolChoice, *bool, error) {
 	var obj struct {
-		Type string `json:"type"`
-		Name string `json:"name"`
+		Type                   string `json:"type"`
+		Name                   string `json:"name"`
+		DisableParallelToolUse *bool  `json:"disable_parallel_tool_use"`
 	}
 	if json.Unmarshal(raw, &obj) != nil {
-		return nil, &ValidationError{Msg: "invalid tool_choice"}
+		return nil, nil, &ValidationError{Msg: "invalid tool_choice"}
 	}
+	var parallel *bool
+	if obj.DisableParallelToolUse != nil {
+		// invert: disable=true → parallel=false
+		v := !*obj.DisableParallelToolUse
+		parallel = &v
+	}
+	var tc *canonical.ToolChoice
 	switch obj.Type {
 	case "auto":
-		return &canonical.ToolChoice{Mode: canonical.ToolAuto}, nil
+		tc = &canonical.ToolChoice{Mode: canonical.ToolAuto}
 	case "none":
-		return &canonical.ToolChoice{Mode: canonical.ToolNone}, nil
+		tc = &canonical.ToolChoice{Mode: canonical.ToolNone}
 	case "any":
-		return &canonical.ToolChoice{Mode: canonical.ToolRequired}, nil
+		tc = &canonical.ToolChoice{Mode: canonical.ToolRequired}
 	case "tool":
-		return &canonical.ToolChoice{Mode: canonical.ToolSpecific, Name: obj.Name}, nil
+		tc = &canonical.ToolChoice{Mode: canonical.ToolSpecific, Name: obj.Name}
+	default:
+		return nil, nil, &ValidationError{Msg: fmt.Sprintf("unknown tool_choice type %q", obj.Type)}
 	}
-	return nil, &ValidationError{Msg: fmt.Sprintf("unknown tool_choice type %q", obj.Type)}
+	return tc, parallel, nil
 }

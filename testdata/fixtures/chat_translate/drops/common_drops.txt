@@ -6,14 +6,22 @@
 openai.n>1
 google.generation_config.candidate_count>1
 
-# Sampling / determinism extras not yet modeled in canonical
+# Sampling / determinism extras
 openai.logprobs
 openai.top_logprobs
-openai.seed
-openai.frequency_penalty
-openai.presence_penalty
 openai.logit_bias
-openai.response_format
+
+# Seed / penalties: preserved on OpenAI (and Google seed); Anthropic Messages
+# has no equivalent — Anthropic egress omits without error (#38/#39).
+# openai.seed, openai.frequency_penalty, openai.presence_penalty are canonical
+# fields; they appear on OpenAI egress but are dropped on Anthropic egress.
+anthropic.egress.seed
+anthropic.egress.frequency_penalty
+anthropic.egress.presence_penalty
+
+# response_format / output_config: json_schema maps; bare json_object has no
+# Anthropic native equivalent without a schema (dropped on Anthropic egress).
+anthropic.egress.response_format.json_object
 
 # Anthropic prompt caching breakpoints — passthrough only (#41 Option B)
 anthropic.system[].cache_control

@@ -45,13 +45,16 @@ func (s *StreamSerializer) Event(ev canonical.StreamEvent) []byte {
 
 	case canonical.EventBlockStart:
 		cb := map[string]any{}
-		switch ev.BlockType {
-		case canonical.BlockToolUse:
+		switch {
+		case ev.BlockType == canonical.BlockToolUse:
 			cb["type"] = "tool_use"
 			cb["id"] = ev.ToolID
 			cb["name"] = ev.ToolName
 			cb["input"] = map[string]any{}
-		case canonical.BlockThinking:
+		case ev.BlockType == canonical.BlockThinking && ev.Redacted:
+			cb["type"] = "redacted_thinking"
+			cb["data"] = ev.Text // opaque payload; full on start, no deltas
+		case ev.BlockType == canonical.BlockThinking:
 			cb["type"] = "thinking"
 			cb["thinking"] = ""
 		default:

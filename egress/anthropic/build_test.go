@@ -65,13 +65,14 @@ func TestBuildToolUseAndResult(t *testing.T) {
 
 func TestBuildToolChoice(t *testing.T) {
 	cases := []struct {
-		tc   *canonical.ToolChoice
-		want string
+		tc       *canonical.ToolChoice
+		wantType string
+		wantName string
 	}{
-		{&canonical.ToolChoice{Mode: canonical.ToolAuto}, `{"type":"auto"}`},
-		{&canonical.ToolChoice{Mode: canonical.ToolNone}, `{"type":"none"}`},
-		{&canonical.ToolChoice{Mode: canonical.ToolRequired}, `{"type":"any"}`},
-		{&canonical.ToolChoice{Mode: canonical.ToolSpecific, Name: "f"}, `{"name":"f","type":"tool"}`},
+		{&canonical.ToolChoice{Mode: canonical.ToolAuto}, "auto", ""},
+		{&canonical.ToolChoice{Mode: canonical.ToolNone}, "none", ""},
+		{&canonical.ToolChoice{Mode: canonical.ToolRequired}, "any", ""},
+		{&canonical.ToolChoice{Mode: canonical.ToolSpecific, Name: "f"}, "tool", "f"},
 	}
 	for _, c := range cases {
 		req := &canonical.Request{ToolChoice: c.tc, Messages: []canonical.Message{
@@ -81,8 +82,13 @@ func TestBuildToolChoice(t *testing.T) {
 			ToolChoice json.RawMessage `json:"tool_choice"`
 		}
 		json.Unmarshal(body, &out)
-		if string(out.ToolChoice) != c.want {
-			t.Errorf("%v -> %s, want %s", c.tc.Mode, out.ToolChoice, c.want)
+		var tc struct {
+			Type string `json:"type"`
+			Name string `json:"name"`
+		}
+		json.Unmarshal(out.ToolChoice, &tc)
+		if tc.Type != c.wantType || tc.Name != c.wantName {
+			t.Errorf("%v -> %+v, want type=%s name=%s", c.tc.Mode, tc, c.wantType, c.wantName)
 		}
 	}
 }

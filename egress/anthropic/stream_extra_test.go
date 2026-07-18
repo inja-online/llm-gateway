@@ -57,7 +57,7 @@ func TestFinalStopEmpty(t *testing.T) {
 }
 
 func TestBuildToolChoiceDefaultNil(t *testing.T) {
-	if buildToolChoice(&canonical.ToolChoice{Mode: "zzz"}) != nil {
+	if buildToolChoice(&canonical.ToolChoice{Mode: "zzz"}, nil) != nil {
 		t.Fatal()
 	}
 }

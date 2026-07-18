@@ -56,6 +56,12 @@ func parseBlock(b block) (canonical.Block, bool) {
 		return canonical.Block{Type: canonical.BlockText, Text: b.Text}, true
 	case "thinking":
 		return canonical.Block{Type: canonical.BlockThinking, Text: b.Thinking, Signature: b.Signature}, true
+	case "redacted_thinking":
+		return canonical.Block{
+			Type:     canonical.BlockThinking,
+			Text:     b.Data,
+			Redacted: true,
+		}, true
 	case "tool_use":
 		return canonical.Block{
 			Type:  canonical.BlockToolUse,
@@ -63,6 +69,42 @@ func parseBlock(b block) (canonical.Block, bool) {
 			Name:  b.Name,
 			Input: b.Input,
 		}, true
+	case "document":
+		if b.Source == nil {
+			return canonical.Block{}, false
+		}
+		doc := documentFromSource(b.Source)
+		doc.Title = b.Title
+		return canonical.Block{Type: canonical.BlockDocument, Document: doc}, true
 	}
 	return canonical.Block{}, false
+}
+
+func documentFromSource(src *imageSourceWire) *canonical.DocumentSource {
+	doc := &canonical.DocumentSource{MediaType: src.MediaType}
+	switch src.Type {
+	case "base64":
+		doc.Kind = "base64"
+		doc.Data = src.Data
+	case "url":
+		doc.Kind = "url"
+		doc.Data = src.URL
+	case "file", "file_id":
+		doc.Kind = "file"
+		if src.FileID != "" {
+			doc.Data = src.FileID
+		} else {
+			doc.Data = src.Data
+		}
+	default:
+		doc.Kind = src.Type
+		if src.Data != "" {
+			doc.Data = src.Data
+		} else if src.URL != "" {
+			doc.Data = src.URL
+		} else {
+			doc.Data = src.FileID
+		}
+	}
+	return doc
 }

@@ -694,19 +694,26 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 |---|---|
 | Text, system / developer | yes |
 | Images (URL / base64) | yes |
+| Documents / PDF (`BlockDocument`; Anthropic `document`) | yes (Anthropic ↔ Google; OpenAI chat drops unless file part maps) |
 | Tools + tool choice (`required` ↔ `any`) | yes |
+| Parallel tools (`parallel_tool_calls` ↔ `disable_parallel_tool_use`) | yes (inverted polarity; unset omits) |
 | Tool result multimodal content (text + image) | yes (best-effort on Google) |
 | Streaming | yes |
-| temperature, top_p, stop | yes |
+| temperature, top_p, top_k, stop | yes (`top_k` Anthropic/Google; OpenAI egress omits) |
 | `max_tokens` / `max_completion_tokens` | yes |
-| Thinking blocks (Anthropic) | carried when present |
+| Thinking blocks (Anthropic, incl. `redacted_thinking`) | carried when present |
+| Thinking config (`thinking` / budget / adaptive ↔ effort) | yes (best-effort effort↔budget table) |
+| Structured outputs (`response_format` ↔ `output_config.format`) | yes (`json_schema`; Anthropic has no bare `json_object`) |
 | Usage details (`cached_tokens`, `reasoning_tokens`, Anthropic cache write) | yes when upstream reports them |
 | OpenAI `service_tier` / `system_fingerprint` | optional OpenAI-only metadata |
 | Google `safetySettings` | yes on Google egress only |
+| OpenAI `seed` / Google `generationConfig.seed` | yes (field-level; not bit-identical across providers) |
+| OpenAI frequency/presence penalties | yes on OpenAI; **dropped on Anthropic egress** (no error) |
 | OpenAI `n` / Google `candidateCount` | **n=1 only** (`n>1` → `bad_request`) |
 | Non-function OpenAI tools (`type` ≠ `function`) | **rejected** (`bad_request`) |
 | Anthropic `cache_control` | **passthrough-only** (stripped on translate rebuild) |
-| OpenAI `logprobs`, `response_format`, `seed`, penalties, … | **dropped** (see golden drop list) |
+| OpenAI `logprobs`, `logit_bias`, … | **dropped** (see golden drop list) |
+| Anthropic: seed / penalties | **dropped** on Anthropic egress without error (documented) |
 
 **Caveats**
 
@@ -715,6 +722,10 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 - Gateway errors use the **caller** dialect envelope; translation path reshapes upstream errors the same way.
 - Prompt caching (`cache_control`) is preserved only on **Anthropic→Anthropic passthrough**. Cross-dialect translate rebuilds messages from canonical and drops breakpoints.
 - Multi-choice (`n` / `candidateCount` > 1) is not supported on translate; use passthrough to a same-family provider if you need multiple candidates.
+- **Thinking effort ↔ budget** (best-effort): `low`/`minimal`≈1024, `medium`≈8192, `high`≈16384 tokens. Adaptive mode uses Anthropic `thinking.type=adaptive` (+ optional `output_config.effort`).
+- **Parallel tools polarity**: OpenAI `parallel_tool_calls=false` ↔ Anthropic `tool_choice.disable_parallel_tool_use=true`. Unset omits the field (provider default).
+- **Anthropic drop policy**: `seed`, `frequency_penalty`, `presence_penalty` are omitted on Anthropic egress without error (no Messages API equivalent).
+- **redacted_thinking**: preserved as `BlockThinking{Redacted:true}` with opaque `data` so multi-turn Claude thinking history stays valid.
 - Golden drop lists: [`testdata/fixtures/chat_translate/`](testdata/fixtures/chat_translate/).
 
 ---
