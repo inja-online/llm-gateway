@@ -15,9 +15,10 @@ import (
 )
 
 type Server struct {
-	cfg    *config.Config
-	hook   hooks.Hook
-	client *http.Client
+	cfg      *config.Config
+	hook     hooks.Hook
+	client   *http.Client
+	sessions *sessionLimiter
 }
 
 func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
@@ -27,6 +28,7 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 	return &Server{
 		cfg:  cfg,
 		hook: hook,
+		sessions: newSessionLimiter(cfg.Realtime.MaxSessions, cfg.Realtime.MaxSessionMinutes),
 		client: &http.Client{
 			// No overall timeout: streams are long-lived. Per-request contexts
 			// propagate client disconnects; the transport bounds dials.
@@ -52,11 +54,37 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)
 	mux.HandleFunc("POST /v1/videos", s.handleVideosCreate)
 	mux.HandleFunc("GET /v1/videos/{id}", s.handleVideosGet)
+	// OpenAI Responses API (create + stored resource lifecycle).
+	mux.HandleFunc("POST /v1/responses", s.handleResponses)
+	mux.HandleFunc("GET /v1/responses/{id}", s.handleResponsesGet)
+	mux.HandleFunc("DELETE /v1/responses/{id}", s.handleResponsesDelete)
+	// OpenAI Files API (no gateway persistence).
+	mux.HandleFunc("POST /v1/files", s.handleFilesUpload)
+	mux.HandleFunc("GET /v1/files", s.handleFilesList)
+	mux.HandleFunc("GET /v1/files/{id}", s.handleFilesGet)
+	mux.HandleFunc("DELETE /v1/files/{id}", s.handleFilesDelete)
+	mux.HandleFunc("GET /v1/files/{id}/content", s.handleFilesContent)
+	// Moderations.
+	mux.HandleFunc("POST /v1/moderations", s.handleModerations)
+	// Realtime WebSocket (OpenAI Realtime + Google Live skeleton).
+	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
+	mux.HandleFunc("GET /v1beta/models/{action}", s.handleGoogleLiveRoute)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	return mux
+}
+
+// handleGoogleLiveRoute dispatches GET /v1beta/models/{action} for Live WS only.
+// Non-bidi actions return 404 (POST generateContent uses the POST handler).
+func (s *Server) handleGoogleLiveRoute(w http.ResponseWriter, r *http.Request) {
+	action := r.PathValue("action")
+	if strings.HasSuffix(action, ":bidiGenerateContent") {
+		s.handleGoogleLive(w, r)
+		return
+	}
+	http.NotFound(w, r)
 }
 
 // clientKey extracts the credential the client sent (OpenAI Bearer, Anthropic

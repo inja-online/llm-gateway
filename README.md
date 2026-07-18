@@ -111,8 +111,11 @@ Also shipped:
 
 - Streaming + non-streaming, tools, multimodal **input** images, system prompts
 - OpenAI-compatible **image generation** (`/v1/images/*`) and **video generation** (`/v1/videos`)
-- Dialect-shaped errors
-- One usage event per chat / media request (JSONL / webhook / Go hook)
+- OpenAI **Responses** API (`/v1/responses`, streaming SSE, GET/DELETE by id)
+- OpenAI **Files** API proxy (`/v1/files*`) and **Moderations** (`/v1/moderations`)
+- Realtime WebSocket skeleton (`/v1/realtime`, Google Live path) with session limits
+- Dialect-shaped errors; rate-limit + OpenAI org/project header passthrough
+- One usage event per chat / media / responses / files request (JSONL / webhook / Go hook)
 - `POST /v1/messages/count_tokens`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
@@ -312,15 +315,67 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
 | `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
 | `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini native streaming (upstream `?alt=sse`) |
+| `POST` | `/v1/responses` | OpenAI Responses create (passthrough; `stream:true` SSE) |
+| `GET` | `/v1/responses/{id}` | Retrieve stored response (proxy only; no gateway storage) |
+| `DELETE` | `/v1/responses/{id}` | Delete stored response upstream |
+| `POST` | `/v1/files` | Upload file (multipart passthrough) |
+| `GET` | `/v1/files` | List files |
+| `GET` | `/v1/files/{id}` | Retrieve file metadata |
+| `DELETE` | `/v1/files/{id}` | Delete file upstream |
+| `GET` | `/v1/files/{id}/content` | Download file content (streamed) |
+| `POST` | `/v1/moderations` | OpenAI Moderations passthrough |
 | `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
 | `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
 | `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
 | `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
+| `GET` | `/v1/realtime` | OpenAI Realtime WebSocket upgrade (skeleton passthrough) |
+| `GET` | `/v1beta/models/{model}:bidiGenerateContent` | Google Live WebSocket (skeleton) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
+
+**Not exposed:** OpenAI Conversations / Assistants threads — prefer **Responses** + client-side state (or Files). The gateway stays stateless.
+
+### Responses API
+
+OpenAI-family only (`kind: openai` or `openai_compat`). Same model routing as chat (`aliases` / `provider/model` / `defaults.openai_dialect`).
+
+| Call | Notes |
+|---|---|
+| `POST /v1/responses` | Rewrites `model`; preserves unknown JSON fields; one usage event (`input_tokens` / `output_tokens` when present) |
+| `stream: true` | Byte-faithful SSE of typed events (`response.created`, `response.completed`, …); usage from completed event |
+| `GET` / `DELETE /v1/responses/{id}` | Provider: `?provider=` **or** `X-Provider` **or** `defaults.openai_dialect` — gateway does **not** store bodies |
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8787/v1", api_key="sk-...")
+r = client.responses.create(model="openai/gpt-4o", input="hello")
+```
+
+### Files API
+
+OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**).
+
+Provider selection (no model field): `?provider=` → `X-Provider` → `defaults.openai_dialect`.
+
+Usage: one operational event per call (`estimated: true`, zero tokens).
+
+### Moderations
+
+`POST /v1/moderations` — OpenAI-family only; rewrites `model` when present; otherwise uses default OpenAI-family provider.
+
+### Realtime (WebSocket, skeleton)
+
+| Path | Provider | Capability |
+|---|---|---|
+| `GET /v1/realtime?model=…` | `openai` / `openai_compat` with `capabilities.realtime` | OpenAI Realtime |
+| `GET /v1beta/models/{model}:bidiGenerateContent` | `kind: google` with `realtime` | Google Live |
+
+Process limits from config (`realtime.max_sessions`, `realtime.max_session_minutes`). One usage event on session end (`modality=realtime`, `transport=websocket`, `media.unit_kind=session_minute`).
+
+**Gaps (TODO):** production TLS/`wss` dial, full protocol edge cases, OpenAI Realtime ↔ Google Live bridge. Hermetic tests cover upgrade + limits + capability deny.
 
 ### Image & video generation
 
@@ -441,7 +496,32 @@ The gateway **does not authenticate callers**. It reads:
 
 With `api_key_env` set and the env non-empty, the **server-held key replaces** the client key (clients can send a dummy).
 
+### OpenAI org / project headers
+
+On **OpenAI-family** egress only (`openai`, `openai_compat`), the gateway forwards:
+
+| Request header | Forwarded? |
+|---|---|
+| `OpenAI-Organization` | yes |
+| `OpenAI-Project` | yes |
+| `OpenAI-Beta` | yes (Realtime / beta surfaces) |
+
+These are **not** sent to Anthropic or Google kinds. Still forwarded when `api_key_env` replaces the API key (org/project are orthogonal to the secret).
+
 Usage events include `key_hash`: first 12 hex chars of SHA-256 of the forwarded credential — correlate without storing secrets.
+
+### Rate-limit & correlation header policy
+
+Response headers are **allowlisted** (not full copy). Hop-by-hop and `Set-Cookie` are never relayed.
+
+| Direction | Headers |
+|---|---|
+| **Upstream → client** | `Content-Type`, `Content-Length`, `Content-Encoding`, `Retry-After`, `X-Request-Id` / `Request-Id`, `x-ratelimit-*`, `anthropic-ratelimit-*`, `x-goog-*` (rate/quota style), `Openai-Processing-Ms`, `Openai-Version`, `Openai-Organization` |
+| **Gateway → client** | `X-Gateway-Request-Id` (gateway correlation id; does **not** remove upstream `x-request-id`) |
+| **Client → OpenAI-family** | `OpenAI-Organization`, `OpenAI-Project`, `OpenAI-Beta` (plus auth) |
+| **Never** | `Set-Cookie`, `Connection`, `Transfer-Encoding`, `Upgrade` (except intentional WS handshake), upstream mid-proxy auth challenges |
+
+Applies to chat, Responses, Files, Moderations, media, Anthropic messages, and Google generateContent passthrough/stream paths.
 
 ---
 
@@ -643,6 +723,10 @@ git tag v0.1.0 && git push origin v0.1.0
 
 - [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
 - [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
+- [x] OpenAI Responses + Files + Moderations passthrough
+- [x] Rate-limit / OpenAI org-project header policy
+- [x] Realtime WS skeleton (OpenAI + Google Live) + session limits
+- [ ] Production TLS `wss` dial + Realtime ↔ Live bridge
 - [ ] `GET /v1/models`
 - [ ] Optional request auth at the gateway edge
 - [ ] Vertex AI (ADC / service-account) auth helper

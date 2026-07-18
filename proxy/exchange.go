@@ -75,36 +75,23 @@ func (x *exchange) readBody() ([]byte, bool) {
 // forwarded (or env-override) key. On transport failure it records the event
 // and writes a dialect error, returning ok=false.
 func (x *exchange) sendUpstream(route Route, path string, body []byte) (*http.Response, bool) {
-	key := clientKey(x.r)
-	x.ev.KeyHash = hashKey(key)
+	return x.sendUpstreamRaw(route, http.MethodPost, path, body, "application/json")
+}
 
-	upReq, err := http.NewRequestWithContext(x.r.Context(), http.MethodPost, route.Provider.BaseURL+path, bytes.NewReader(body))
-	if err != nil {
-		x.fail(http.StatusBadGateway, "api_error", "failed to build upstream request", hooks.StatusUpstreamError)
-		return nil, false
-	}
-	upReq.Header.Set("Content-Type", "application/json")
-	applyAuth(upReq, route.Provider, key)
-
-	resp, err := x.s.client.Do(upReq)
-	if err != nil {
-		if errors.Is(x.r.Context().Err(), context.Canceled) {
-			x.ev.Status = hooks.StatusClientAbort
-			x.ev.HTTPStatus = 499
-			return nil, false
-		}
-		x.fail(http.StatusBadGateway, "api_error", "upstream request failed: "+err.Error(), hooks.StatusUpstreamError)
-		return nil, false
-	}
-	return resp, true
+// prepareResponseHeaders copies allowlisted upstream headers and sets the
+// gateway correlation id before WriteHeader.
+func (x *exchange) prepareResponseHeaders(resp *http.Response) {
+	copyAllowlistedResponseHeaders(x.w.Header(), resp.Header)
+	setGatewayRequestID(x.w, x.ev.RequestID)
 }
 
 // forwardErrorResponse relays a >=400 upstream response verbatim.
 func (x *exchange) forwardErrorResponse(resp *http.Response) {
 	x.ev.Status = hooks.StatusUpstreamError
 	x.ev.HTTPStatus = resp.StatusCode
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		x.w.Header().Set("Content-Type", ct)
+	x.prepareResponseHeaders(resp)
+	if x.w.Header().Get("Content-Type") == "" {
+		x.w.Header().Set("Content-Type", "application/json")
 	}
 	x.w.WriteHeader(resp.StatusCode)
 	io.Copy(x.w, io.LimitReader(resp.Body, maxBodyBytes))
@@ -122,7 +109,10 @@ func (x *exchange) passthroughStream(resp *http.Response, extract usageExtractor
 		x.fail(http.StatusInternalServerError, "api_error", "streaming unsupported by server", hooks.StatusUpstreamError)
 		return
 	}
-	x.w.Header().Set("Content-Type", "text/event-stream")
+	x.prepareResponseHeaders(resp)
+	if x.w.Header().Get("Content-Type") == "" {
+		x.w.Header().Set("Content-Type", "text/event-stream")
+	}
 	x.w.Header().Set("Cache-Control", "no-cache")
 	x.w.WriteHeader(resp.StatusCode)
 	x.ev.HTTPStatus = resp.StatusCode

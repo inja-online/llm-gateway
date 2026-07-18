@@ -311,3 +311,35 @@ defaults:
 		t.Fatalf("%+v", ev)
 	}
 }
+
+func TestImagesVariations(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/images/variations" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"created":1,"data":[{"url":"https://example/v.png"}]}`)
+	}))
+	t.Cleanup(upstream.Close)
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai: { kind: openai, base_url: %q }
+defaults:
+  openai_dialect: openai
+`, upstream.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	gw := httptest.NewServer(NewServer(cfg, col).Handler())
+	t.Cleanup(gw.Close)
+	resp, err := http.Post(gw.URL+"/v1/images/variations", "application/json",
+		strings.NewReader(`{"model":"openai/dall-e-2","n":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	col.one(t)
+}

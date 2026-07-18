@@ -151,28 +151,19 @@ func (s *Server) handleOpenAIMediaGET(w http.ResponseWriter, r *http.Request, up
 	x := s.newExchange(w, r, DialectOpenAI, writeOpenAIError)
 	defer x.emit()
 
-	// Prefer explicit provider query; else openai dialect default.
-	provName := r.URL.Query().Get("provider")
-	if provName == "" {
-		provName = s.cfg.Defaults.OpenAIDialect
-	}
-	if provName == "" {
-		x.fail(http.StatusBadRequest, "invalid_request_error",
-			"video status requires ?provider=NAME or defaults.openai_dialect", hooks.StatusBadRequest)
+	route, err := s.resolveOpenAIFamilyProvider(r)
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.HasPrefix(err.Error(), "unknown provider") {
+			status = http.StatusNotFound
+		}
+		if strings.Contains(err.Error(), "requires an openai") {
+			status = http.StatusNotImplemented
+		}
+		x.fail(status, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
-	p, ok := s.cfg.Providers[provName]
-	if !ok {
-		x.fail(http.StatusNotFound, "invalid_request_error", "unknown provider "+provName, hooks.StatusBadRequest)
-		return
-	}
-	if !isOpenAIFamily(p) {
-		x.fail(http.StatusNotImplemented, "invalid_request_error",
-			"video status requires an openai or openai_compat provider", hooks.StatusBadRequest)
-		return
-	}
-	route := Route{ProviderName: provName, Provider: p, UpstreamModel: ""}
-	x.ev.Provider = provName
+	x.ev.Provider = route.ProviderName
 	x.ev.Model = r.PathValue("id")
 	x.ev.UpstreamModel = r.PathValue("id")
 
@@ -198,9 +189,8 @@ func (s *Server) forwardMediaResponse(x *exchange, resp *http.Response) {
 	x.ev.Estimated = true
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = resp.StatusCode
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		x.w.Header().Set("Content-Type", ct)
-	} else {
+	x.prepareResponseHeaders(resp)
+	if x.w.Header().Get("Content-Type") == "" {
 		x.w.Header().Set("Content-Type", "application/json")
 	}
 	x.w.WriteHeader(resp.StatusCode)
@@ -211,7 +201,8 @@ func isOpenAIFamily(p config.Provider) bool {
 	return p.Kind == config.KindOpenAI || p.Kind == config.KindOpenAICompat
 }
 
-// sendUpstreamRaw posts/gets with an optional Content-Type (for multipart).
+// sendUpstreamRaw posts/gets/deletes with an optional Content-Type (for multipart).
+// For OpenAI-family providers it also forwards OpenAI-Organization / OpenAI-Project.
 func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte, contentType string) (*http.Response, bool) {
 	key := clientKey(x.r)
 	x.ev.KeyHash = hashKey(key)
@@ -220,17 +211,21 @@ func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte
 	if body != nil {
 		rdr = bytes.NewReader(body)
 	}
-	upReq, err := http.NewRequestWithContext(x.r.Context(), method, route.Provider.BaseURL+path, rdr)
+	// Preserve query string from the client request when path has none of its own
+	// (Files list filters, etc. attach query on path directly).
+	upURL := route.Provider.BaseURL + path
+	upReq, err := http.NewRequestWithContext(x.r.Context(), method, upURL, rdr)
 	if err != nil {
 		x.fail(http.StatusBadGateway, "api_error", "failed to build upstream request", hooks.StatusUpstreamError)
 		return nil, false
 	}
 	if contentType != "" {
 		upReq.Header.Set("Content-Type", contentType)
-	} else if method != http.MethodGet && body != nil {
+	} else if method != http.MethodGet && method != http.MethodDelete && body != nil {
 		upReq.Header.Set("Content-Type", "application/json")
 	}
 	applyAuth(upReq, route.Provider, key)
+	forwardOpenAIRequestHeaders(upReq, x.r, route.Provider)
 
 	resp, err := x.s.client.Do(upReq)
 	if err != nil {

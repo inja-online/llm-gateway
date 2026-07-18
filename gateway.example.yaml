@@ -7,17 +7,22 @@
 # Client dialects (ingress):
 #   OpenAI     POST /v1/chat/completions
 #              (also used by Gemini OpenAI-compat clients — same wire format)
+#              POST /v1/responses   GET|DELETE /v1/responses/{id}?provider=...
+#              POST|GET|DELETE /v1/files[...]   POST /v1/moderations
 #              POST /v1/images/generations|edits|variations
 #              POST /v1/videos   GET /v1/videos/{id}?provider=...
+#              GET  /v1/realtime?model=...   (WebSocket; requires capabilities.realtime)
 #   Anthropic  POST /v1/messages
 #   Google     POST /v1beta/models/{model}:generateContent          (native chat / image-in-chat)
 #              POST /v1beta/models/{model}:streamGenerateContent    (native)
+#              GET  /v1beta/models/{model}:bidiGenerateContent      (Live WS skeleton)
 #
 # Provider kinds (egress):
-#   openai / openai_compat  — Chat Completions + images + videos
+#   openai / openai_compat  — Chat + Responses + Files + Moderations + images + videos
 #                             (set base_url to Gemini …/v1beta/openai for google_openai)
+#                             openai_compat: set capabilities.realtime/image_gen/... to opt in
 #   anthropic               — Messages API (chat only)
-#   google                  — native Gemini generateContent (chat / multimodal)
+#   google                  — native Gemini generateContent (+ Live when realtime)
 
 listen: ":8787"   # override with env GATEWAY_LISTEN=0.0.0.0:8787
 
@@ -143,6 +148,11 @@ aliases:
   grok: xai/grok-3
   gemini: google/gemini-2.0-flash
   kimi: moonshot/kimi-latest
+
+# Realtime WebSocket process limits (OpenAI Realtime + Google Live)
+realtime:
+  max_sessions: 1024
+  max_session_minutes: 60
 
 hooks:
   jsonl:
