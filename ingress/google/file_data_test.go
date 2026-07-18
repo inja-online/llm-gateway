@@ -52,7 +52,7 @@ func TestParseFileDataImage(t *testing.T) {
 }
 
 func TestParseFileDataPDF(t *testing.T) {
-	// Temporary policy: PDF mime maps to BlockImage until BlockDocument exists.
+	// #32: PDF mime maps to BlockDocument (not BlockImage).
 	body := []byte(`{
 		"model":"g",
 		"contents":[{"parts":[
@@ -64,14 +64,14 @@ func TestParseFileDataPDF(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := req.Messages[0].Content[0]
-	if b.Type != canonical.BlockImage || b.Image == nil {
+	if b.Type != canonical.BlockDocument || b.Document == nil {
 		t.Fatalf("%+v", b)
 	}
-	if b.Image.MediaType != "application/pdf" {
-		t.Fatalf("mime: %s", b.Image.MediaType)
+	if b.Document.MediaType != "application/pdf" {
+		t.Fatalf("mime: %s", b.Document.MediaType)
 	}
-	if !strings.Contains(b.Image.Data, "files/pdf1") {
-		t.Fatalf("uri: %s", b.Image.Data)
+	if !strings.Contains(b.Document.Data, "files/pdf1") {
+		t.Fatalf("uri: %s", b.Document.Data)
 	}
 
 	out, err := googleegress.BuildRequest(req, "g")
@@ -104,9 +104,12 @@ func TestParseInlineDataPDF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	img := req.Messages[0].Content[0].Image
-	if img == nil || img.Kind != "base64" || img.MediaType != "application/pdf" || img.Data != "JVBERi0=" {
-		t.Fatalf("%+v", img)
+	doc := req.Messages[0].Content[0]
+	if doc.Type != canonical.BlockDocument || doc.Document == nil {
+		t.Fatalf("%+v", doc)
+	}
+	if doc.Document.Kind != "base64" || doc.Document.MediaType != "application/pdf" || doc.Document.Data != "JVBERi0=" {
+		t.Fatalf("%+v", doc.Document)
 	}
 	out, err := googleegress.BuildRequest(req, "g")
 	if err != nil {

@@ -15,6 +15,9 @@ import (
 //  1. Kind base64 (or data: URL) → inline_data
 //  2. Kind url / http(s) / Files API URI → file_data.file_uri pass-through (no fetch, no SSRF)
 //  3. Unusable image sources are omitted (no silent "[image: …]" text placeholder)
+//
+// Document policy (#32): BlockDocument (PDF) maps the same way as images —
+// inline_data or file_data with application/pdf.
 func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	out := generateRequest{}
 	if sys := concatText(req.System); sys != "" {
@@ -23,13 +26,8 @@ func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	if len(req.SafetySettings) > 0 {
 		out.SafetySettings = req.SafetySettings
 	}
-	if req.Temperature != nil || req.TopP != nil || req.MaxTokens > 0 || len(req.StopSequences) > 0 {
-		out.GenerationConfig = &generationConfig{
-			Temperature:     req.Temperature,
-			TopP:            req.TopP,
-			MaxOutputTokens: req.MaxTokens,
-			StopSequences:   req.StopSequences,
-		}
+	if gc := buildGenerationConfig(req); gc != nil {
+		out.GenerationConfig = gc
 	}
 	if len(req.Tools) > 0 {
 		var decls []functionDeclaration
@@ -64,6 +62,109 @@ func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	return json.Marshal(out)
 }
 
+// buildGenerationConfig assembles generation_config from sampling, structured
+// output (#28), thinking (#30), top_k (#37), and seed (#39).
+func buildGenerationConfig(req *canonical.Request) *generationConfig {
+	if req == nil {
+		return nil
+	}
+	need := req.Temperature != nil || req.TopP != nil || req.MaxTokens > 0 ||
+		len(req.StopSequences) > 0 || req.TopK != nil || req.Seed != nil ||
+		req.ResponseFormat != nil || req.Thinking != nil
+	if !need {
+		return nil
+	}
+	gc := &generationConfig{
+		Temperature:     req.Temperature,
+		TopP:            req.TopP,
+		MaxOutputTokens: req.MaxTokens,
+		StopSequences:   req.StopSequences,
+		TopK:            req.TopK,
+		Seed:            req.Seed,
+	}
+	applyResponseFormat(gc, req.ResponseFormat)
+	if tc := buildThinkingConfig(req.Thinking); tc != nil {
+		gc.ThinkingConfig = tc
+	}
+	return gc
+}
+
+// applyResponseFormat maps canonical ResponseFormat → response_mime_type +
+// response_schema (#28).
+//
+//	json_object → application/json (no schema)
+//	json_schema → application/json + response_schema body
+//	text        → text/plain (explicit free-form)
+func applyResponseFormat(gc *generationConfig, rf *canonical.ResponseFormat) {
+	if gc == nil || rf == nil {
+		return
+	}
+	switch rf.Kind {
+	case canonical.ResponseFormatJSONObject:
+		gc.ResponseMIMEType = "application/json"
+	case canonical.ResponseFormatJSONSchema:
+		gc.ResponseMIMEType = "application/json"
+		if len(rf.Schema) > 0 {
+			gc.ResponseSchema = rf.Schema
+		}
+	case canonical.ResponseFormatText:
+		gc.ResponseMIMEType = "text/plain"
+	}
+}
+
+// buildThinkingConfig maps ThinkingConfig → thinking_config (#30).
+//
+//	disabled → thinking_budget: 0
+//	budget set → thinking_budget
+//	effort only → best-effort budget table (same as Anthropic egress)
+//	include_thoughts passthrough
+//
+// Nil / empty config yields nil (omit; no accidental enable).
+func buildThinkingConfig(tc *canonical.ThinkingConfig) *thinkingConfigWire {
+	if tc == nil {
+		return nil
+	}
+	if tc.Type == "" && tc.BudgetTokens == nil && tc.IncludeThoughts == nil && tc.Effort == "" {
+		return nil
+	}
+	out := &thinkingConfigWire{
+		IncludeThoughts: tc.IncludeThoughts,
+	}
+	switch tc.Type {
+	case "disabled":
+		zero := 0
+		out.ThinkingBudget = &zero
+	default:
+		budget := tc.BudgetTokens
+		if budget == nil && tc.Effort != "" {
+			budget = effortToBudget(tc.Effort)
+		}
+		out.ThinkingBudget = budget
+	}
+	// If we still have nothing concrete, omit rather than send {}.
+	if out.ThinkingBudget == nil && out.IncludeThoughts == nil {
+		return nil
+	}
+	return out
+}
+
+// effortToBudget is the documented best-effort OpenAI/Anthropic effort → token
+// budget table shared with Anthropic egress.
+func effortToBudget(effort string) *int {
+	var n int
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "minimal", "low":
+		n = 1024
+	case "medium":
+		n = 8192
+	case "high", "xhigh", "max":
+		n = 16384
+	default:
+		return nil
+	}
+	return &n
+}
+
 func buildContent(m canonical.Message, toolNames map[string]string) content {
 	role := "user"
 	if m.Role == canonical.RoleAssistant {
@@ -81,6 +182,10 @@ func buildContent(m canonical.Message, toolNames map[string]string) content {
 				c.Parts = append(c.Parts, p)
 			}
 			// Unusable image: omit part (no text placeholder).
+		case canonical.BlockDocument:
+			if p, ok := buildDocumentPart(b.Document); ok {
+				c.Parts = append(c.Parts, p)
+			}
 		case canonical.BlockToolUse:
 			args := b.Input
 			if len(args) == 0 {
@@ -110,26 +215,43 @@ func buildImagePart(img *canonical.ImageSource) (part, bool) {
 	if img == nil || img.Data == "" {
 		return part{}, false
 	}
+	return buildMediaPart(img.Kind, img.MediaType, img.Data)
+}
+
+// buildDocumentPart maps BlockDocument (primarily PDF) to inline_data / file_data (#32).
+func buildDocumentPart(doc *canonical.DocumentSource) (part, bool) {
+	if doc == nil || doc.Data == "" {
+		return part{}, false
+	}
+	mt := doc.MediaType
+	if mt == "" {
+		mt = "application/pdf"
+	}
+	return buildMediaPart(doc.Kind, mt, doc.Data)
+}
+
+// buildMediaPart shared path for images and documents.
+func buildMediaPart(kind, mediaType, data string) (part, bool) {
 	// data: URLs (sometimes carried as Kind "url") → inline_data, no network I/O.
-	if mt, data, ok := parseDataURL(img.Data); ok {
+	if mt, payload, ok := parseDataURL(data); ok {
 		if mt == "" {
-			mt = img.MediaType
+			mt = mediaType
 		}
+		if mt == "" {
+			mt = "application/octet-stream"
+		}
+		return part{InlineData: &blob{MIMEType: mt, Data: payload}}, true
+	}
+	if kind == "base64" {
+		mt := mediaType
 		if mt == "" {
 			mt = "application/octet-stream"
 		}
 		return part{InlineData: &blob{MIMEType: mt, Data: data}}, true
 	}
-	if img.Kind == "base64" {
-		mt := img.MediaType
-		if mt == "" {
-			mt = "application/octet-stream"
-		}
-		return part{InlineData: &blob{MIMEType: mt, Data: img.Data}}, true
-	}
-	// URL / Files API URI → file_data pass-through (preferred over fetch).
-	uri := img.Data
-	mt := img.MediaType
+	// URL / Files API URI / file_uri → file_data pass-through (preferred over fetch).
+	uri := data
+	mt := mediaType
 	if mt == "" {
 		mt = guessMIMEFromURI(uri)
 	}

@@ -77,6 +77,21 @@ type generationConfig struct {
 	TopP            *float64 `json:"top_p,omitempty"`
 	MaxOutputTokens int      `json:"max_output_tokens,omitempty"`
 	StopSequences   []string `json:"stop_sequences,omitempty"`
+	// TopK sampling (#37).
+	TopK *int `json:"top_k,omitempty"`
+	// Seed for deterministic sampling (#39).
+	Seed *int64 `json:"seed,omitempty"`
+	// Structured outputs (#28).
+	ResponseMIMEType string          `json:"response_mime_type,omitempty"`
+	ResponseSchema   json.RawMessage `json:"response_schema,omitempty"`
+	// Thinking (#30): thinking_config.thinking_budget / include_thoughts.
+	ThinkingConfig *thinkingConfigWire `json:"thinking_config,omitempty"`
+}
+
+// thinkingConfigWire is generation_config.thinking_config on Gemini.
+type thinkingConfigWire struct {
+	IncludeThoughts *bool `json:"include_thoughts,omitempty"`
+	ThinkingBudget  *int  `json:"thinking_budget,omitempty"`
 }
 
 // --- response wire types ---
