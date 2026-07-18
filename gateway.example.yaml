@@ -1,4 +1,5 @@
-# llm-gateway example config. Copy to gateway.yaml and edit.
+# Inja LLM Gateway (llm-gateway) example config.
+# Copy to gateway.yaml and edit providers / keys / hooks.
 #
 # Cloud tip: keep hooks.jsonl.output: stdout and ship logs with your platform.
 # Multi-replica billing: set hooks.webhook.url instead of (or in addition to) a file.

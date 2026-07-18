@@ -2,7 +2,7 @@
 
 ## Reporting
 
-If you find a vulnerability in **llm-gateway**, please open a **private** security advisory on the GitHub repository (or contact the maintainers) rather than filing a public issue.
+If you find a vulnerability in **Inja LLM Gateway** (`llm-gateway`), please open a **private** [security advisory](https://github.com/inja-online/llm-gateway/security/advisories/new) on the GitHub repository rather than filing a public issue.
 
 ## Scope notes
 

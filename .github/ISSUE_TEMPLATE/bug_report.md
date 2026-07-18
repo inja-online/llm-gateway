@@ -19,7 +19,7 @@ labels: bug
 
 ## Environment
 
-- llm-gateway version / commit:
+- llm-gateway version / commit (tag or SHA):
 - OS:
 - How you run it (binary / Docker / K8s):
 - Client (OpenAI SDK / Anthropic SDK / Claude Code / curl):

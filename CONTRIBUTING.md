@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping with **llm-gateway**. Keep the bar where it is: small, clear, and boring to operate.
+Thanks for helping with **Inja LLM Gateway** (`llm-gateway`). Keep the bar where it is: small, clear, and boring to operate.
 
 ## Principles
 
