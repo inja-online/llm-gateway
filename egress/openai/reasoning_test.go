@@ -8,6 +8,29 @@ import (
 	"github.com/inja-online/llm-gateway/canonical"
 )
 
+func TestParseResponseReasoningContent(t *testing.T) {
+	resp, err := ParseResponse([]byte(`{
+		"id":"c","model":"m",
+		"choices":[{"message":{
+			"role":"assistant",
+			"reasoning_content":"chain",
+			"content":"answer"
+		},"finish_reason":"stop"}]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Content) < 2 {
+		t.Fatalf("want thinking+text, got %+v", resp.Content)
+	}
+	if resp.Content[0].Type != canonical.BlockThinking || resp.Content[0].Text != "chain" {
+		t.Fatalf("thinking: %+v", resp.Content[0])
+	}
+	if resp.Content[1].Type != canonical.BlockText || resp.Content[1].Text != "answer" {
+		t.Fatalf("text: %+v", resp.Content[1])
+	}
+}
+
 func TestBuildAssistantReasoningAndRedacted(t *testing.T) {
 	req := &canonical.Request{
 		Messages: []canonical.Message{

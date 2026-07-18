@@ -10,23 +10,30 @@ import (
 // StreamParser converts OpenAI SSE chunk payloads into canonical stream
 // events. OpenAI's stream is flat (deltas on one choice) while canonical is
 // block-structured, so the parser synthesizes block boundaries: it opens a
-// text block on the first content delta and one tool_use block per distinct
-// tool_calls ordinal, closing them all at the end.
+// thinking block on the first reasoning_content delta, a text block on the
+// first content delta, and one tool_use block per distinct tool_calls ordinal,
+// closing them all at the end.
 type StreamParser struct {
 	started   bool
 	nextIndex int
 
-	textIndex    int
-	textOpen     bool
-	toolIndexes  map[int]int // OpenAI tool ordinal -> canonical block index
-	openBlocks   []int       // canonical indexes still open, in open order
-	stopReason   string
-	usage        canonical.Usage
-	finishedSeen bool
+	textIndex     int
+	textOpen      bool
+	thinkingIndex int
+	thinkingOpen  bool
+	toolIndexes   map[int]int // OpenAI tool ordinal -> canonical block index
+	openBlocks    []int       // canonical indexes still open, in open order
+	stopReason    string
+	usage         canonical.Usage
+	finishedSeen  bool
 }
 
 func NewStreamParser() *StreamParser {
-	return &StreamParser{toolIndexes: map[int]int{}, textIndex: -1}
+	return &StreamParser{
+		toolIndexes:   map[int]int{},
+		textIndex:     -1,
+		thinkingIndex: -1,
+	}
 }
 
 // Parse consumes one SSE data payload and returns canonical events. The
@@ -58,6 +65,24 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 	}
 	ch := chunk.Choices[0]
 	if ch.Delta != nil {
+		if reason := rawMessageString(ch.Delta.Reasoning); reason != "" {
+			if !p.thinkingOpen {
+				p.thinkingIndex = p.nextIndex
+				p.nextIndex++
+				p.thinkingOpen = true
+				p.openBlocks = append(p.openBlocks, p.thinkingIndex)
+				evs = append(evs, canonical.StreamEvent{
+					Type:      canonical.EventBlockStart,
+					Index:     p.thinkingIndex,
+					BlockType: canonical.BlockThinking,
+				})
+			}
+			evs = append(evs, canonical.StreamEvent{
+				Type:  canonical.EventThinkingDelta,
+				Index: p.thinkingIndex,
+				Text:  reason,
+			})
+		}
 		if ch.Delta.Content != nil && *ch.Delta.Content != "" {
 			if !p.textOpen {
 				p.textIndex = p.nextIndex
@@ -136,3 +161,18 @@ func (p *StreamParser) finish() []canonical.StreamEvent {
 // Finish flushes terminal events when the upstream ends without a [DONE]
 // sentinel (a cut connection, or a provider that omits it).
 func (p *StreamParser) Finish() []canonical.StreamEvent { return p.finish() }
+
+// rawMessageString decodes a JSON string raw message, or returns empty when
+// null/absent/non-string. Used for reasoning_content which is a JSON string
+// on the wire (and json.RawMessage on the Go side).
+func rawMessageString(raw json.RawMessage) string {
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	// Non-string JSON (object/array): not a valid reasoning delta string.
+	return ""
+}

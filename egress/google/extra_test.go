@@ -151,6 +151,46 @@ func TestStreamParserToolsAndThought(t *testing.T) {
 	p3.Parse([]byte(`{"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":0}}`))
 }
 
+// TestStreamParserThoughtThenText uses distinct block indexes so thinking
+// deltas never share an index with visible text.
+func TestStreamParserThoughtThenText(t *testing.T) {
+	p := NewStreamParser()
+	var all []canonical.StreamEvent
+	all = append(all, p.Parse([]byte(`{"candidates":[{"content":{"parts":[{"text":"plan","thought":true}]}}]}`))...)
+	all = append(all, p.Parse([]byte(`{"candidates":[{"content":{"parts":[{"text":"hello"}]},"finishReason":"STOP"}]}`))...)
+	all = append(all, p.Finish()...)
+
+	var thinkIdx, textIdx = -1, -1
+	var thinking, text string
+	for _, e := range all {
+		switch e.Type {
+		case canonical.EventBlockStart:
+			if e.BlockType == canonical.BlockThinking {
+				thinkIdx = e.Index
+			}
+			if e.BlockType == canonical.BlockText {
+				textIdx = e.Index
+			}
+		case canonical.EventThinkingDelta:
+			thinking += e.Text
+			if thinkIdx >= 0 && e.Index != thinkIdx {
+				t.Fatalf("thinking index mismatch %d vs %d", e.Index, thinkIdx)
+			}
+		case canonical.EventTextDelta:
+			text += e.Text
+			if textIdx >= 0 && e.Index != textIdx {
+				t.Fatalf("text index mismatch %d vs %d", e.Index, textIdx)
+			}
+		}
+	}
+	if thinking != "plan" || text != "hello" {
+		t.Fatalf("thinking=%q text=%q", thinking, text)
+	}
+	if thinkIdx < 0 || textIdx < 0 || thinkIdx == textIdx {
+		t.Fatalf("indexes think=%d text=%d", thinkIdx, textIdx)
+	}
+}
+
 func TestWireHelpers(t *testing.T) {
 	u := &usageMetadata{PromptTokensSnake: 1, CandidatesTokensSnake: 2}
 	if u.prompt() != 1 || u.candidates() != 2 {

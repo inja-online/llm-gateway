@@ -15,6 +15,11 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 	resp := &canonical.Response{ID: in.ID, Model: in.Model, StopReason: canonical.StopEndTurn}
 	if len(in.Choices) > 0 {
 		ch := in.Choices[0]
+		// Prefer thinking before text so assemble order matches stream
+		// (reasoning_content deltas typically precede content).
+		if reason := rawMessageString(ch.Message.Reasoning); reason != "" {
+			resp.Content = append(resp.Content, canonical.Block{Type: canonical.BlockThinking, Text: reason})
+		}
 		if ch.Message.Content != nil && *ch.Message.Content != "" {
 			resp.Content = append(resp.Content, canonical.Block{Type: canonical.BlockText, Text: *ch.Message.Content})
 		}

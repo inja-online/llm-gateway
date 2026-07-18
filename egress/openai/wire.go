@@ -115,15 +115,19 @@ type chatChoice struct {
 }
 
 type respMessage struct {
-	Role      string         `json:"role"`
-	Content   *string        `json:"content"`
-	ToolCalls []respToolCall `json:"tool_calls"`
+	Role      string          `json:"role"`
+	Content   *string         `json:"content"`
+	// Reasoning is DeepSeek/Kimi/Z.AI-style reasoning_content (string or JSON string).
+	Reasoning json.RawMessage `json:"reasoning_content,omitempty"`
+	ToolCalls []respToolCall  `json:"tool_calls"`
 }
 
 type respDelta struct {
-	Role      string         `json:"role"`
-	Content   *string        `json:"content"`
-	ToolCalls []respToolCall `json:"tool_calls"`
+	Role      string          `json:"role"`
+	Content   *string         `json:"content"`
+	// Reasoning carries streaming reasoning_content deltas (string JSON value).
+	Reasoning json.RawMessage `json:"reasoning_content,omitempty"`
+	ToolCalls []respToolCall  `json:"tool_calls"`
 }
 
 type respToolCall struct {

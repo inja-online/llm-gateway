@@ -152,3 +152,121 @@ func TestStreamParseUsageOnlyChunkNoChoices(t *testing.T) {
 		t.Errorf("usage from choice-less chunk lost: %+v", fin)
 	}
 }
+
+// TestStreamParseReasoningContent maps OpenAI-compatible reasoning_content
+// deltas (DeepSeek/Kimi/Z.AI style) into BlockThinking + EventThinkingDelta.
+func TestStreamParseReasoningContent(t *testing.T) {
+	p := NewStreamParser()
+	evs := feed(p, []string{
+		`{"id":"c1","model":"deepseek-r1","choices":[{"delta":{"role":"assistant"}}]}`,
+		`{"id":"c1","choices":[{"delta":{"reasoning_content":"step "}}]}`,
+		`{"id":"c1","choices":[{"delta":{"reasoning_content":"one"}}]}`,
+		`{"id":"c1","choices":[{"delta":{"content":"ans"}}]}`,
+		`{"id":"c1","choices":[{"delta":{},"finish_reason":"stop"}]}`,
+		`[DONE]`,
+	})
+
+	var thinking, text string
+	var thinkStart, textStart bool
+	var thinkIdx, textIdx = -1, -1
+	for _, e := range evs {
+		switch e.Type {
+		case canonical.EventBlockStart:
+			switch e.BlockType {
+			case canonical.BlockThinking:
+				thinkStart = true
+				thinkIdx = e.Index
+			case canonical.BlockText:
+				textStart = true
+				textIdx = e.Index
+			}
+		case canonical.EventThinkingDelta:
+			thinking += e.Text
+			if thinkIdx >= 0 && e.Index != thinkIdx {
+				t.Errorf("thinking delta index %d != start %d", e.Index, thinkIdx)
+			}
+		case canonical.EventTextDelta:
+			text += e.Text
+			if textIdx >= 0 && e.Index != textIdx {
+				t.Errorf("text delta index %d != start %d", e.Index, textIdx)
+			}
+		}
+	}
+	if !thinkStart || !textStart {
+		t.Fatalf("missing block starts: think=%v text=%v events=%+v", thinkStart, textStart, evs)
+	}
+	if thinkIdx == textIdx {
+		t.Fatalf("thinking and text must use distinct block indexes: both %d", thinkIdx)
+	}
+	if thinking != "step one" {
+		t.Errorf("thinking = %q", thinking)
+	}
+	if text != "ans" {
+		t.Errorf("text = %q", text)
+	}
+}
+
+// TestStreamParseReasoningThenTool ensures tool_use blocks keep stable
+// ordinals/ids when reasoning deltas precede them (ordering invariant).
+func TestStreamParseReasoningThenTool(t *testing.T) {
+	p := NewStreamParser()
+	evs := feed(p, []string{
+		`{"id":"c","model":"m","choices":[{"delta":{"reasoning_content":"plan"}}]}`,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search","arguments":"{\"q\""}}]}}]}`,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"x\"}"}}]}}]}`,
+		`{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		`[DONE]`,
+	})
+	var toolID, toolName, args, thinking string
+	var toolIdx, thinkIdx = -1, -1
+	var order []string
+	for _, e := range evs {
+		switch e.Type {
+		case canonical.EventBlockStart:
+			if e.BlockType == canonical.BlockThinking {
+				thinkIdx = e.Index
+				order = append(order, "think_start")
+			}
+			if e.BlockType == canonical.BlockToolUse {
+				toolIdx = e.Index
+				toolID = e.ToolID
+				toolName = e.ToolName
+				order = append(order, "tool_start")
+			}
+		case canonical.EventThinkingDelta:
+			thinking += e.Text
+			order = append(order, "think_delta")
+		case canonical.EventJSONDelta:
+			args += e.PartialJSON
+			if e.Index != toolIdx {
+				t.Errorf("json delta index %d != tool %d", e.Index, toolIdx)
+			}
+			order = append(order, "json_delta")
+		}
+	}
+	if thinking != "plan" {
+		t.Errorf("thinking = %q", thinking)
+	}
+	if toolID != "call_1" || toolName != "search" {
+		t.Errorf("tool = %s/%s", toolID, toolName)
+	}
+	if args != `{"q":"x"}` {
+		t.Errorf("args = %q", args)
+	}
+	if thinkIdx < 0 || toolIdx < 0 || thinkIdx == toolIdx {
+		t.Fatalf("indexes think=%d tool=%d", thinkIdx, toolIdx)
+	}
+	// Thinking must appear before tool in the event stream.
+	if len(order) < 2 || order[0] != "think_start" {
+		t.Fatalf("order = %v", order)
+	}
+	sawTool := false
+	for _, o := range order {
+		if o == "tool_start" {
+			sawTool = true
+		}
+		if sawTool && (o == "think_start" || o == "think_delta") {
+			t.Fatalf("thinking reordered after tool: %v", order)
+		}
+	}
+}

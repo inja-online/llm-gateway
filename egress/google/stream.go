@@ -8,11 +8,15 @@ import (
 )
 
 // StreamParser converts Gemini SSE generateContent chunks into canonical events.
+// Thinking (thought parts) and visible text use separate synthetic block indexes
+// so EventThinkingDelta never shares an index with EventTextDelta.
 type StreamParser struct {
 	started    bool
 	nextIndex  int
 	textIndex  int
 	textOpen   bool
+	thinkIndex int
+	thinkOpen  bool
 	toolIndex  map[string]int // name -> block index
 	openBlocks []int
 	stopReason string
@@ -22,7 +26,7 @@ type StreamParser struct {
 }
 
 func NewStreamParser() *StreamParser {
-	return &StreamParser{toolIndex: map[string]int{}, textIndex: -1}
+	return &StreamParser{toolIndex: map[string]int{}, textIndex: -1, thinkIndex: -1}
 }
 
 // Parse consumes one SSE data payload.
@@ -57,20 +61,20 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 		for i, part := range ch.Content.Parts {
 			switch {
 			case part.Thought && part.Text != "":
-				if !p.textOpen {
-					p.textIndex = p.nextIndex
+				if !p.thinkOpen {
+					p.thinkIndex = p.nextIndex
 					p.nextIndex++
-					p.textOpen = true
-					p.openBlocks = append(p.openBlocks, p.textIndex)
+					p.thinkOpen = true
+					p.openBlocks = append(p.openBlocks, p.thinkIndex)
 					evs = append(evs, canonical.StreamEvent{
 						Type:      canonical.EventBlockStart,
-						Index:     p.textIndex,
+						Index:     p.thinkIndex,
 						BlockType: canonical.BlockThinking,
 					})
 				}
 				evs = append(evs, canonical.StreamEvent{
 					Type:  canonical.EventThinkingDelta,
-					Index: p.textIndex,
+					Index: p.thinkIndex,
 					Text:  part.Text,
 				})
 			case part.Text != "":
