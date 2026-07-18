@@ -40,10 +40,18 @@ providers:
     # api_key_env: GEMINI_API_KEY
 
   # Gemini via OpenAI-compatible endpoint. Auth: Bearer
+  # openai_compat defaults to text-only; opt in for image/video media routes.
   google_openai:
     kind: openai_compat
     base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
     # api_key_env: GEMINI_API_KEY
+    capabilities:
+      text: true
+      image_gen: true
+      video_gen: true
+      # audio_speech: false
+      # audio_transcribe: false
+      # realtime: false
 
   # --- OpenAI-compatible hosts (kind: openai_compat) ---
   deepseek:

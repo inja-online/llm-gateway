@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/inja-online/llm-gateway/config"
@@ -20,22 +21,22 @@ import (
 
 // handleImagesGenerations serves POST /v1/images/generations.
 func (s *Server) handleImagesGenerations(w http.ResponseWriter, r *http.Request) {
-	s.handleOpenAIMedia(w, r, "/images/generations", true)
+	s.handleOpenAIMedia(w, r, "/images/generations", true, config.ModalityImageGen)
 }
 
 // handleImagesEdits serves POST /v1/images/edits (JSON or multipart passthrough).
 func (s *Server) handleImagesEdits(w http.ResponseWriter, r *http.Request) {
-	s.handleOpenAIMedia(w, r, "/images/edits", true)
+	s.handleOpenAIMedia(w, r, "/images/edits", true, config.ModalityImageGen)
 }
 
 // handleImagesVariations serves POST /v1/images/variations.
 func (s *Server) handleImagesVariations(w http.ResponseWriter, r *http.Request) {
-	s.handleOpenAIMedia(w, r, "/images/variations", true)
+	s.handleOpenAIMedia(w, r, "/images/variations", true, config.ModalityImageGen)
 }
 
 // handleVideosCreate serves POST /v1/videos (async job create on OpenAI / Gemini OpenAI-compat).
 func (s *Server) handleVideosCreate(w http.ResponseWriter, r *http.Request) {
-	s.handleOpenAIMedia(w, r, "/videos", true)
+	s.handleOpenAIMedia(w, r, "/videos", true, config.ModalityVideoGen)
 }
 
 // handleVideosGet serves GET /v1/videos/{id} (poll job status).
@@ -50,9 +51,12 @@ func (s *Server) handleVideosGet(w http.ResponseWriter, r *http.Request) {
 
 // handleOpenAIMedia is a JSON (or raw-body) passthrough for OpenAI-family media APIs.
 // requireModel rewrites the JSON "model" field when the body is application/json.
-func (s *Server) handleOpenAIMedia(w http.ResponseWriter, r *http.Request, upstreamPath string, requireModel bool) {
+// modality is config.ModalityImageGen or config.ModalityVideoGen.
+func (s *Server) handleOpenAIMedia(w http.ResponseWriter, r *http.Request, upstreamPath string, requireModel bool, modality string) {
 	x := s.newExchange(w, r, DialectOpenAI, writeOpenAIError)
 	defer x.emit()
+	x.ev.Modality = modality
+	x.ev.Transport = hooks.TransportHTTP
 
 	ct := r.Header.Get("Content-Type")
 	isMultipart := strings.Contains(ct, "multipart/")
@@ -90,13 +94,21 @@ func (s *Server) handleOpenAIMedia(w http.ResponseWriter, r *http.Request, upstr
 			model = "default"
 		}
 		x.ev.Model = model
+		x.ev.Media = mediaUsageFromRequest(modality, req)
 
 		route, err := Resolve(s.cfg, DialectOpenAI, model)
 		if err != nil {
 			x.fail(http.StatusNotFound, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 			return
 		}
+		if err := CheckCapability(route.Provider, route.ProviderName, modality); err != nil {
+			x.ev.Provider = route.ProviderName
+			x.ev.UpstreamModel = route.UpstreamModel
+			x.fail(http.StatusBadRequest, "unsupported_provider_capability", err.Error(), hooks.StatusBadRequest)
+			return
+		}
 		if !isOpenAIFamily(route.Provider) {
+			x.ev.Provider = route.ProviderName
 			x.fail(http.StatusNotImplemented, "invalid_request_error",
 				"image/video generation requires an openai or openai_compat provider (got "+route.Provider.Kind+")",
 				hooks.StatusBadRequest)
@@ -120,6 +132,9 @@ func (s *Server) handleOpenAIMedia(w http.ResponseWriter, r *http.Request, upstr
 
 	// Multipart branch
 	x.ev.Model = model
+	if modality == config.ModalityImageGen {
+		x.ev.Media = &hooks.MediaUsage{Units: 1, UnitKind: hooks.MediaUnitImage}
+	}
 	route, err := Resolve(s.cfg, DialectOpenAI, model)
 	if err != nil {
 		// Fall back to openai dialect default with a synthetic bare id.
@@ -130,7 +145,14 @@ func (s *Server) handleOpenAIMedia(w http.ResponseWriter, r *http.Request, upstr
 			return
 		}
 	}
+	if err := CheckCapability(route.Provider, route.ProviderName, modality); err != nil {
+		x.ev.Provider = route.ProviderName
+		x.ev.UpstreamModel = route.UpstreamModel
+		x.fail(http.StatusBadRequest, "unsupported_provider_capability", err.Error(), hooks.StatusBadRequest)
+		return
+	}
 	if !isOpenAIFamily(route.Provider) {
+		x.ev.Provider = route.ProviderName
 		x.fail(http.StatusNotImplemented, "invalid_request_error",
 			"image/video generation requires an openai or openai_compat provider",
 			hooks.StatusBadRequest)
@@ -150,6 +172,10 @@ func (s *Server) handleOpenAIMedia(w http.ResponseWriter, r *http.Request, upstr
 func (s *Server) handleOpenAIMediaGET(w http.ResponseWriter, r *http.Request, upstreamPath string) {
 	x := s.newExchange(w, r, DialectOpenAI, writeOpenAIError)
 	defer x.emit()
+	x.ev.Modality = config.ModalityVideoGen
+	x.ev.Transport = hooks.TransportHTTP
+	// Poll is operational: zero media units (create bills duration).
+	x.ev.Media = &hooks.MediaUsage{Units: 0, UnitKind: hooks.MediaUnitVideoSecond}
 
 	// Prefer explicit provider query; else openai dialect default.
 	provName := r.URL.Query().Get("provider")
@@ -166,13 +192,17 @@ func (s *Server) handleOpenAIMediaGET(w http.ResponseWriter, r *http.Request, up
 		x.fail(http.StatusNotFound, "invalid_request_error", "unknown provider "+provName, hooks.StatusBadRequest)
 		return
 	}
+	x.ev.Provider = provName
+	if err := CheckCapability(p, provName, config.ModalityVideoGen); err != nil {
+		x.fail(http.StatusBadRequest, "unsupported_provider_capability", err.Error(), hooks.StatusBadRequest)
+		return
+	}
 	if !isOpenAIFamily(p) {
 		x.fail(http.StatusNotImplemented, "invalid_request_error",
 			"video status requires an openai or openai_compat provider", hooks.StatusBadRequest)
 		return
 	}
 	route := Route{ProviderName: provName, Provider: p, UpstreamModel: ""}
-	x.ev.Provider = provName
 	x.ev.Model = r.PathValue("id")
 	x.ev.UpstreamModel = r.PathValue("id")
 
@@ -209,6 +239,61 @@ func (s *Server) forwardMediaResponse(x *exchange, resp *http.Response) {
 
 func isOpenAIFamily(p config.Provider) bool {
 	return p.Kind == config.KindOpenAI || p.Kind == config.KindOpenAICompat
+}
+
+// mediaUsageFromRequest builds MediaUsage from a parsed JSON body.
+func mediaUsageFromRequest(modality string, req map[string]any) *hooks.MediaUsage {
+	switch modality {
+	case config.ModalityImageGen:
+		n := 1
+		if v, ok := asPositiveInt(req["n"]); ok {
+			n = v
+		}
+		size, _ := req["size"].(string)
+		format, _ := req["response_format"].(string)
+		return &hooks.MediaUsage{
+			Units:    n,
+			UnitKind: hooks.MediaUnitImage,
+			Size:     size,
+			Format:   format,
+		}
+	case config.ModalityVideoGen:
+		units := 0
+		if v, ok := asPositiveInt(req["seconds"]); ok {
+			units = v
+		} else if v, ok := asPositiveInt(req["duration"]); ok {
+			units = v
+		}
+		return &hooks.MediaUsage{
+			Units:    units,
+			UnitKind: hooks.MediaUnitVideoSecond,
+		}
+	default:
+		return nil
+	}
+}
+
+// asPositiveInt coerces JSON numbers / numeric strings to a positive int.
+func asPositiveInt(v any) (int, bool) {
+	switch t := v.(type) {
+	case float64:
+		if t > 0 {
+			return int(t), true
+		}
+	case int:
+		if t > 0 {
+			return t, true
+		}
+	case json.Number:
+		if i, err := t.Int64(); err == nil && i > 0 {
+			return int(i), true
+		}
+	case string:
+		if i, err := strconv.Atoi(strings.TrimSpace(t)); err == nil && i > 0 {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // sendUpstreamRaw posts/gets with an optional Content-Type (for multipart).

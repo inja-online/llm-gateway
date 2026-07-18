@@ -3,23 +3,28 @@ package config
 import "testing"
 
 func TestDefaultCapabilitiesByKind(t *testing.T) {
+	// Locks design capability matrix: openai/google all-on; anthropic text;
+	// openai_compat text-only (media/realtime opt-in).
 	cases := []struct {
 		kind     string
 		wantText bool
 		wantImg  bool
+		wantVid  bool
+		wantAud  bool
 		wantRT   bool
 	}{
-		{KindOpenAI, true, true, true},
-		{KindGoogle, true, true, true},
-		{KindAnthropic, true, false, false},
-		{KindOpenAICompat, true, false, false},
-		{"unknown", false, false, false},
+		{KindOpenAI, true, true, true, true, true},
+		{KindGoogle, true, true, true, true, true},
+		{KindAnthropic, true, false, false, false, false},
+		{KindOpenAICompat, true, false, false, false, false},
+		{"unknown", false, false, false, false, false},
 	}
 	for _, tc := range cases {
 		c := DefaultCapabilities(tc.kind)
-		if c.Text != tc.wantText || c.ImageGen != tc.wantImg || c.Realtime != tc.wantRT {
-			t.Errorf("kind %s: got text=%v img=%v rt=%v want text=%v img=%v rt=%v",
-				tc.kind, c.Text, c.ImageGen, c.Realtime, tc.wantText, tc.wantImg, tc.wantRT)
+		if c.Text != tc.wantText || c.ImageGen != tc.wantImg || c.VideoGen != tc.wantVid ||
+			c.AudioSpeech != tc.wantAud || c.AudioTranscribe != tc.wantAud || c.Realtime != tc.wantRT {
+			t.Errorf("kind %s: got %+v want text=%v img=%v vid=%v aud=%v rt=%v",
+				tc.kind, c, tc.wantText, tc.wantImg, tc.wantVid, tc.wantAud, tc.wantRT)
 		}
 	}
 }

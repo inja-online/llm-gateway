@@ -328,14 +328,28 @@ Chat multimodal **inputs** (image URL / base64 in messages) are already part of 
 
 | API | Providers | Notes |
 |---|---|---|
-| Images | `openai`, `openai_compat` (incl. `google_openai`) | Rewrite `model`; emit one usage event (`estimated: true` if no tokens) |
-| Videos | same | Create is `POST` with `model`; poll with `GET /v1/videos/{id}?provider=google_openai` |
+| Images | `openai` (on by default); `openai_compat` **with** `capabilities.image_gen: true` | Rewrite `model`; fail closed if modality unsupported; usage `modality=image_gen` |
+| Videos | `openai` (on by default); `openai_compat` **with** `capabilities.video_gen: true` | Create `POST` bills `video_second`; poll `GET /v1/videos/{id}?provider=…` is operational (`units=0`) |
 | Native Gemini image-in-chat | `kind: google` | Via `generateContent` image models / modalities on the Google dialect |
+
+**Capability defaults:** `kind: openai` and `kind: google` allow media; `kind: anthropic` is text-only; `kind: openai_compat` is **text-only until you opt in** (prevents silent routing to hosts that 404). Example for Gemini OpenAI-compat (`gateway.example.yaml`):
+
+```yaml
+google_openai:
+  kind: openai_compat
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+  capabilities:
+    text: true
+    image_gen: true
+    video_gen: true
+```
+
+Without opt-in, image/video routes return an OpenAI error envelope with `type: unsupported_provider_capability` and **never** call upstream.
 
 Not supported (yet): cross-dialect translation of image/video generation (e.g. OpenAI images → Anthropic). Route these to an OpenAI-family provider only.
 
 ```python
-# Image gen via Gemini OpenAI-compat
+# Image gen via Gemini OpenAI-compat (requires capabilities.image_gen on google_openai)
 from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["GEMINI_API_KEY"])
 img = client.images.generate(model="google_openai/gemini-2.5-flash-image", prompt="a sheepadoodle in a cape")
@@ -402,6 +416,7 @@ Single YAML file. Unknown fields are rejected.
 | `providers.<n>.kind` | yes | `openai` \| `openai_compat` \| `anthropic` \| `google` |
 | `providers.<n>.base_url` | yes | Origin **with version prefix**; trailing `/` trimmed |
 | `providers.<n>.api_key_env` | no | Env var; when set & non-empty, **replaces** client key |
+| `providers.<n>.capabilities` | no | Override modality flags (`text`, `image_gen`, `video_gen`, `audio_*`, `realtime`). Nil → kind defaults (`openai_compat` = text only) |
 | `defaults.openai_dialect` | no | Provider for bare models on OpenAI ingress |
 | `defaults.anthropic_dialect` | no | Provider for bare models on Anthropic ingress |
 | `defaults.google_dialect` | no | Provider for bare models on Gemini ingress |
@@ -488,7 +503,7 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
 | **Go** | `gateway.WithHook(h)` | In-process after response |
 
-Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
+Invariant: **exactly one** `UsageEvent` per proxied chat or media request (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
@@ -504,9 +519,18 @@ JSONL/Go must not block the request path. Webhook is non-blocking (background PO
   "provider": "configured name",
   "model": "public id from client",
   "upstream_model": "id sent upstream",
+  "modality": "text | image_gen | video_gen | audio_speech | audio_transcribe | realtime",
+  "transport": "http | websocket",
   "tokens_in": 0,
   "tokens_out": 0,
   "estimated": false,
+  "media": {
+    "units": 1,
+    "unit_kind": "image | video_second | audio_character | audio_minute | session_minute",
+    "duration_ms": 0,
+    "size": "1024x1024",
+    "format": "b64_json"
+  },
   "stream": false,
   "status": "ok | upstream_error | client_abort | bad_request",
   "http_status": 200,
@@ -516,10 +540,27 @@ JSONL/Go must not block the request path. Webhook is non-blocking (background PO
 }
 ```
 
+Empty `modality` / `transport` means legacy text over HTTP. `media` is omitted when unused.
+
+**Media example** (image generations, `n=2`):
+
+```json
+{
+  "modality": "image_gen",
+  "transport": "http",
+  "estimated": true,
+  "media": { "units": 2, "unit_kind": "image", "size": "1024x1024" },
+  "status": "ok",
+  "http_status": 200
+}
+```
+
+Video **create** uses `unit_kind=video_second` with `units` from `seconds`/`duration` when present; video **poll** emits `units=0` (operational). Gateway never multiplies by unit prices.
+
 | `status` | When |
 |---|---|
 | `ok` | Success |
-| `bad_request` | Client / routing / parse error |
+| `bad_request` | Client / routing / parse / capability error |
 | `upstream_error` | Transport failure, HTTP ≥400, broken stream |
 | `client_abort` | Client canceled mid-flight (`http_status` 499 if no response) |
 

@@ -52,3 +52,13 @@ func Resolve(cfg *config.Config, dialect, model string) (Route, error) {
 	}
 	return Route{ProviderName: def, Provider: cfg.Providers[def], UpstreamModel: model}, nil
 }
+
+// CheckCapability fails closed when the provider cannot serve modality.
+// Callers map a non-nil error into a dialect envelope with type
+// unsupported_provider_capability and must not call upstream.
+func CheckCapability(p config.Provider, providerName, modality string) error {
+	if p.Supports(modality) {
+		return nil
+	}
+	return fmt.Errorf("provider %q does not support modality %q", providerName, modality)
+}
