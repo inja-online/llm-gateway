@@ -10,14 +10,17 @@
 #              POST /v1/images/generations|edits|variations
 #              POST /v1/videos   GET /v1/videos/{id}?provider=...
 #   Anthropic  POST /v1/messages
+#              POST /v1/messages/count_tokens  (proxy / Google translate / estimate)
 #   Google     POST /v1beta/models/{model}:generateContent          (native chat / image-in-chat)
 #              POST /v1beta/models/{model}:streamGenerateContent    (native)
+#              POST /v1beta/models/{model}:countTokens              (native; no usage event)
+#              GET  /v1beta/models[/{model}]  (?provider= or defaults.google_dialect)
 #
 # Provider kinds (egress):
 #   openai / openai_compat  — Chat Completions + images + videos
 #                             (set base_url to Gemini …/v1beta/openai for google_openai)
 #   anthropic               — Messages API (chat only)
-#   google                  — native Gemini generateContent (chat / multimodal)
+#   google                  — native Gemini generateContent / countTokens / models list
 
 listen: ":8787"   # override with env GATEWAY_LISTEN=0.0.0.0:8787
 

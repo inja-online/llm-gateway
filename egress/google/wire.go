@@ -155,3 +155,14 @@ func Path(model string, stream bool) string {
 	}
 	return "/models/" + model + ":generateContent"
 }
+
+// CountTokensPath builds the relative path for Gemini countTokens.
+func CountTokensPath(model string) string {
+	return "/models/" + model + ":countTokens"
+}
+
+// ModelsPath is the relative path for listing models (GET).
+func ModelsPath() string { return "/models" }
+
+// ModelPath is the relative path for getting one model (GET).
+func ModelPath(model string) string { return "/models/" + model }
