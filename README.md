@@ -1,81 +1,117 @@
 # llm-gateway
 
-[![ci](https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml)
+[![CI](https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml)
+[![Release](https://github.com/inja-online/llm-gateway/actions/workflows/release.yml/badge.svg)](https://github.com/inja-online/llm-gateway/actions/workflows/release.yml)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/dl/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Coverage ≥90%](https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen)](.github/workflows/ci.yml)
+[![Platforms](https://img.shields.io/badge/OS-linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](#quickstart)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-ready-326CE5?logo=kubernetes&logoColor=white)](deploy/k8s/gateway.yaml)
+[![Stateless](https://img.shields.io/badge/architecture-stateless-success)](#architecture)
+[![Deps](https://img.shields.io/badge/deps-yaml.v3%20only-informational)](go.mod)
 
-A small, dependency-free LLM gateway. Clients speak **OpenAI** or **Anthropic** API dialects; the gateway routes to any upstream provider (OpenAI, Anthropic, DeepSeek, xAI, OpenRouter, any OpenAI-compatible host) and reports token usage through **hooks** — no database, no auth layer, one binary.
+**Small, dependency-free LLM API gateway.**
+
+Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (OpenAI, Anthropic, DeepSeek, xAI, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database, no auth layer, one static binary.
 
 ```
-your app (OpenAI SDK / Anthropic SDK / Claude Code)
-        │
-        ▼
-   llm-gateway  ──► usage events (JSONL stdout / webhook / Go hook)
-        │
-        ▼
-  any upstream provider
+  OpenAI SDK / Anthropic SDK / Claude Code / curl
+                      │
+                      ▼
+              ┌───────────────┐
+              │  llm-gateway  │──► JSONL (stdout) / webhook / Go hook
+              └───────┬───────┘
+                      │
+         ┌────────────┼────────────┐
+         ▼            ▼            ▼
+      OpenAI      Anthropic   OpenAI-compat
+                              (DeepSeek, …)
 ```
 
-**Stateless and cloud-native:** no database, no sessions, no sticky routing. Scale with identical replicas; emit usage to stdout or a webhook. One static binary (or container) runs the same on a laptop, a Windows box, Docker, or Kubernetes.
+| | |
+|---|---|
+| **Stateless** | No DB, sessions, or sticky routing — scale with identical replicas |
+| **Cloud-native** | Distroless Docker, K8s manifests, SIGTERM drain, env overrides |
+| **Local-first** | Single binary on macOS, Linux, or Windows; `docker compose up` |
+| **Deps** | Runtime: `gopkg.in/yaml.v3` only |
+| **Module** | [`github.com/inja-online/llm-gateway`](https://github.com/inja-online/llm-gateway) |
 
-## Design principles
+---
 
-- **No auth.** The gateway validates nothing. Your client's API key is forwarded to the upstream provider as-is (mapped to the provider's auth scheme). Optionally, a provider can be configured with `api_key_env` so the gateway supplies the key server-side.
-- **No database.** Metering is push-only: every request emits exactly one usage event to the configured hooks. Pipe the JSONL anywhere, POST a webhook, or embed the gateway as a Go library and register your own hook.
-- **Stateless.** Any replica can handle any request. Config is load-once; graceful SIGTERM drain is built in.
-- **Modular.** Dialects (ingress wire formats) and providers (egress) are self-contained packages. Adding one doesn't touch the core.
-- **Passthrough first.** When the client dialect matches the upstream dialect, bytes are forwarded near-verbatim — full fidelity, minimal surface for translation bugs.
-- **Simple deploy.** One binary, one YAML file, optional Docker/K8s manifests — no control plane.
+## Table of contents
+
+- [Status](#status)
+- [Quickstart](#quickstart)
+- [Client examples](#client-examples)
+- [HTTP API](#http-api)
+- [Model routing](#model-routing)
+- [Configuration](#configuration)
+- [Auth & keys](#auth--keys)
+- [Passthrough vs translation](#passthrough-vs-translation)
+- [Hooks & usage events](#hooks--usage-events)
+- [Claude Code](#claude-code)
+- [Library use](#library-use)
+- [Architecture](#architecture)
+- [Deploy](#deploy)
+- [Development & CI](#development--ci)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+---
 
 ## Status
 
-Working, early. Two client dialects in, two provider families out — any combination.
+**Working.** Early project; the HTTP surface and config schema below are what you should build against.
 
-| Client speaks | Upstream is | Path |
+| Client dialect | Upstream | Path |
 |---|---|---|
-| OpenAI (`POST /v1/chat/completions`) | `openai` / `openai_compat` | passthrough |
-| OpenAI | `anthropic` | translated |
-| Anthropic (`POST /v1/messages`) | `anthropic` | passthrough |
-| Anthropic | `openai` / `openai_compat` | translated |
+| OpenAI `POST /v1/chat/completions` | `openai` / `openai_compat` | **passthrough** |
+| OpenAI | `anthropic` | **translated** |
+| Anthropic `POST /v1/messages` | `anthropic` | **passthrough** |
+| Anthropic | `openai` / `openai_compat` | **translated** |
 
-Covered on every chat path: streaming and non-streaming, tool calls, images, system prompts, error envelopes reshaped into the caller's dialect, and one usage event per request.
+Also shipped:
 
-Also implemented: `POST /v1/messages/count_tokens`, `GET /healthz`.
-
-**Roadmap:** Google/Gemini egress, `GET /v1/models`. Config already accepts `kind: google`, but chat translation for it is not implemented yet.
+- Streaming + non-streaming, tools, images, system prompts
+- Dialect-shaped errors
+- One usage event per chat request (JSONL / webhook / Go hook)
+- `POST /v1/messages/count_tokens`, `GET /healthz`
+- Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
 ---
 
 ## Quickstart
 
-### Binary (macOS / Linux / Windows)
+### 1. Binary (macOS / Linux / Windows)
 
 ```bash
 git clone https://github.com/inja-online/llm-gateway.git
 cd llm-gateway
-go build -o llm-gateway ./cmd/gateway          # Windows: go build -o llm-gateway.exe ./cmd/gateway
+go build -o llm-gateway ./cmd/gateway
+# Windows: go build -o llm-gateway.exe ./cmd/gateway
+
 cp gateway.example.yaml gateway.yaml
-# edit gateway.yaml
-./llm-gateway -config gateway.yaml            # Windows: .\llm-gateway.exe -config gateway.yaml
+# edit providers / keys / hooks
+./llm-gateway -config gateway.yaml
+# Windows: .\llm-gateway.exe -config gateway.yaml
 ```
 
-Or download a release binary for your OS/arch from GitHub Releases.
+Release binaries (when tagged): GitHub **Releases** → `linux` / `darwin` / `windows` × `amd64` / `arm64`.
 
-Env overrides (optional):
-
-| Env | Meaning |
+| Env | Purpose |
 |---|---|
-| `GATEWAY_CONFIG` | Default path for `-config` |
-| `GATEWAY_LISTEN` | Bind address (overrides `listen:` in YAML) |
+| `GATEWAY_CONFIG` | Default `-config` path |
+| `GATEWAY_LISTEN` | Bind address (overrides YAML `listen`) |
 
-Default listen address is `:8787` if neither YAML nor env sets it. SIGINT / SIGTERM shut down gracefully (30s drain for in-flight requests).
+Default listen: **`:8787`**. SIGINT / SIGTERM drain in-flight work for up to **30s**.
 
-### Docker
+### 2. Docker
 
 ```bash
 docker compose up --build
 curl http://localhost:8787/healthz
 ```
-
-Mount your own config: edit the volume in `docker-compose.yml`, or:
 
 ```bash
 docker build -t llm-gateway .
@@ -85,57 +121,55 @@ docker run --rm -p 8787:8787 \
   llm-gateway
 ```
 
-### Kubernetes
+### 3. Kubernetes
 
 ```bash
-# Point the Deployment image at your registry build, then:
+# Set the Deployment image to your registry build of the Dockerfile, then:
 kubectl apply -f deploy/k8s/gateway.yaml
 kubectl -n llm-gateway port-forward svc/llm-gateway 8787:8787
 ```
 
-Replicas share nothing. Prefer `hooks.jsonl.output: stdout` (default in the manifest) and your cluster log shipper, or set `hooks.webhook.url` for multi-replica billing.
+Replicas share nothing. Prefer `hooks.jsonl.output: stdout` + log shipping, or `hooks.webhook.url`.
 
-### Windows PowerShell client smoke
-
-```powershell
-$env:KEY = "sk-..."
-.\examples\curl-openai.ps1
-```
-
-Example config:
+### Minimal config
 
 ```yaml
 listen: ":8787"
 providers:
-  deepseek:   { kind: openai_compat, base_url: "https://api.deepseek.com" }
-  openrouter: { kind: openai_compat, base_url: "https://openrouter.ai/api/v1" }
-  openai:     { kind: openai,        base_url: "https://api.openai.com/v1" }
-  anthropic:  { kind: anthropic,     base_url: "https://api.anthropic.com/v1" }
+  deepseek:  { kind: openai_compat, base_url: "https://api.deepseek.com" }
+  openai:    { kind: openai,        base_url: "https://api.openai.com/v1" }
+  anthropic: { kind: anthropic,     base_url: "https://api.anthropic.com/v1" }
 defaults:
-  openai_dialect: openai       # bare model ids on /v1/chat/completions
-  anthropic_dialect: anthropic # bare model ids on /v1/messages
+  openai_dialect: openai
+  anthropic_dialect: anthropic
 aliases:
   fast: deepseek/deepseek-chat
 hooks:
   jsonl: { output: stdout }
 ```
 
-Point any OpenAI SDK at it:
+Full sample: [`gateway.example.yaml`](gateway.example.yaml).
+
+---
+
+## Client examples
+
+**OpenAI SDK** (any OpenAI-compatible provider via the gateway):
 
 ```python
 from openai import OpenAI
-client = OpenAI(base_url="http://localhost:8787/v1", api_key="<key valid for target provider>")
+client = OpenAI(base_url="http://localhost:8787/v1", api_key="<key for target provider>")
 r = client.chat.completions.create(
     model="deepseek/deepseek-chat",
     messages=[{"role": "user", "content": "hi"}],
 )
 ```
 
-…or any Anthropic SDK, including against a non-Anthropic model:
+**Anthropic SDK** (including non-Anthropic models — gateway translates):
 
 ```python
 from anthropic import Anthropic
-client = Anthropic(base_url="http://localhost:8787", api_key="<key for the target provider>")
+client = Anthropic(base_url="http://localhost:8787", api_key="<key for target provider>")
 r = client.messages.create(
     model="deepseek/deepseek-chat",
     max_tokens=100,
@@ -143,14 +177,19 @@ r = client.messages.create(
 )
 ```
 
-Shell examples live under [`examples/`](examples/):
+**Shell / PowerShell**
 
 ```bash
 KEY=sk-... MODEL=deepseek/deepseek-chat ./examples/curl-openai.sh
 KEY=sk-ant-... ./examples/claude-code.sh
 ```
 
-Every successful (and failed) chat request prints one usage line when JSONL is configured:
+```powershell
+$env:KEY = "sk-..."
+.\examples\curl-openai.ps1
+```
+
+With JSONL → stdout, each chat request logs one line:
 
 ```json
 {"request_id":"req_1a2b3c","time":"2026-07-18T12:00:00Z","dialect_in":"openai","provider":"deepseek","model":"deepseek/deepseek-chat","upstream_model":"deepseek-chat","tokens_in":12,"tokens_out":5,"estimated":false,"stream":false,"status":"ok","http_status":200,"latency_ms":812,"key_hash":"9f8e7d6c5b4a"}
@@ -165,31 +204,42 @@ Every successful (and failed) chat request prints one usage line when JSONL is c
 | `POST` | `/v1/chat/completions` | OpenAI Chat Completions dialect |
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
-| `GET` | `/healthz` | Liveness: `{"status":"ok"}` |
+| `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
-There is no `/v1/models` yet. Unknown routes return the Go `net/http` default 404.
+No `/v1/models` yet. Unknown routes → standard 404.
 
-### Request size and timeouts
+**Limits**
 
-- Request and response bodies are capped at **32 MiB**.
-- The HTTP client has **no overall request timeout** (streams can be long-lived). Dial and response-header timeouts use the transport defaults (`ResponseHeaderTimeout` is 60s). Client disconnect cancels the upstream context.
-- `count_tokens` proxying to Anthropic uses a **15s** timeout.
+| Limit | Value |
+|---|---|
+| Request / response body | 32 MiB |
+| Overall proxy timeout | none (streams may be long-lived) |
+| Upstream response header wait | 60s |
+| `count_tokens` → Anthropic | 15s |
+| Shutdown drain | 30s |
+
+Client disconnect cancels the upstream context.
+
+### `count_tokens`
+
+| Resolved provider | Behavior |
+|---|---|
+| `anthropic` | Proxy to real `…/messages/count_tokens`; fall back to estimate on failure |
+| other | Local estimate only (~1 token / 4 chars of text & tool schema) |
+
+Estimate is for client compatibility (e.g. Claude Code), **not billing**. No usage event is emitted.
 
 ---
 
 ## Model routing
 
-The public `model` field is resolved in this order:
+Public `model` resolves in order:
 
-1. **Alias table** — exact match in `aliases` (e.g. `fast` → `deepseek/deepseek-chat`).
-2. **`provider/model` prefix** — first path segment must name a configured provider; the rest is the upstream model id (`openai/gpt-4o` → provider `openai`, upstream `gpt-4o`).
-3. **Bare id** — no slash; uses the dialect default:
-   - OpenAI requests → `defaults.openai_dialect`
-   - Anthropic requests → `defaults.anthropic_dialect`
+1. **`aliases`** — exact match (`fast` → `deepseek/deepseek-chat`)
+2. **`provider/model`** — first segment must be a configured provider name
+3. **Bare id** — dialect default (`defaults.openai_dialect` or `defaults.anthropic_dialect`)
 
-If a bare id has no default, the gateway returns **404** with a dialect-shaped error. Unknown providers also return **404**.
-
-Examples with the sample config:
+Missing default or unknown provider → **404** (dialect error envelope).
 
 | Client `model` | Dialect | Provider | Upstream model |
 |---|---|---|---|
@@ -200,51 +250,53 @@ Examples with the sample config:
 
 ---
 
-## Configuration reference
+## Configuration
 
-Single YAML file. Unknown fields are rejected (`KnownFields(true)`).
+Single YAML file. Unknown fields are rejected.
 
 | Field | Required | Description |
 |---|---|---|
 | `listen` | no | Bind address; default `:8787` |
-| `providers` | yes | Map of name → provider (at least one) |
-| `providers.<name>.kind` | yes | `openai`, `openai_compat`, `anthropic`, or `google` |
-| `providers.<name>.base_url` | yes | Origin **including version prefix**; trailing slash is trimmed |
-| `providers.<name>.api_key_env` | no | Env var name; when set and non-empty, replaces the client key |
-| `defaults.openai_dialect` | no | Provider name for bare models on OpenAI ingress |
-| `defaults.anthropic_dialect` | no | Provider name for bare models on Anthropic ingress |
-| `aliases` | no | Map of public id → `provider/upstream-model` |
-| `hooks.jsonl.output` | no | `stdout`, `stderr`, or a file path (append mode) |
-| `hooks.webhook.url` | no | Async POST of each usage event as JSON |
-| `hooks.webhook.timeout` | no | Per-post timeout; default `3s` |
+| `providers` | yes | Map of name → provider (≥1) |
+| `providers.<n>.kind` | yes | `openai` \| `openai_compat` \| `anthropic` \| `google` |
+| `providers.<n>.base_url` | yes | Origin **with version prefix**; trailing `/` trimmed |
+| `providers.<n>.api_key_env` | no | Env var; when set & non-empty, **replaces** client key |
+| `defaults.openai_dialect` | no | Provider for bare models on OpenAI ingress |
+| `defaults.anthropic_dialect` | no | Provider for bare models on Anthropic ingress |
+| `aliases` | no | Public id → `provider/upstream-model` |
+| `hooks.jsonl.output` | no | `stdout` \| `stderr` \| file path |
+| `hooks.webhook.url` | no | Async POST of each usage event |
+| `hooks.webhook.timeout` | no | Default `3s` |
 
 ### Provider kinds
 
-| Kind | Upstream path | Auth header | Notes |
-|---|---|---|---|
-| `openai` | `{base_url}/chat/completions` | `Authorization: Bearer …` | Official OpenAI |
-| `openai_compat` | same | same | DeepSeek, OpenRouter, xAI, vLLM, etc. |
-| `anthropic` | `{base_url}/messages` | `x-api-key` + `anthropic-version: 2023-06-01` | Official Anthropic |
-| `google` | — | `x-goog-api-key` | Config-only today; chat translation not implemented |
+| Kind | Upstream path | Auth |
+|---|---|---|
+| `openai` | `{base_url}/chat/completions` | `Authorization: Bearer …` |
+| `openai_compat` | same | same |
+| `anthropic` | `{base_url}/messages` | `x-api-key` + `anthropic-version: 2023-06-01` |
+| `google` | — | `x-goog-api-key` *(config only; chat egress not implemented)* |
 
-`base_url` must include the API version segment. Examples:
+`base_url` examples:
 
-- `https://api.openai.com/v1` → gateway posts to `…/v1/chat/completions`
-- `https://api.anthropic.com/v1` → gateway posts to `…/v1/messages`
-- `https://api.deepseek.com` → posts to `…/chat/completions` (DeepSeek's layout)
+- `https://api.openai.com/v1` → `…/v1/chat/completions`
+- `https://api.anthropic.com/v1` → `…/v1/messages`
+- `https://api.deepseek.com` → `…/chat/completions`
 
-### Auth and key forwarding
+---
 
-The gateway does **not** authenticate callers. It extracts a credential from:
+## Auth & keys
+
+The gateway **does not authenticate callers**. It reads:
 
 1. `Authorization: Bearer <key>`, or
 2. `x-api-key: <key>`
 
-That value is forwarded to the resolved provider, remapped to the provider's scheme (table above). **The key must be valid for the target provider.** Sending an OpenAI key while routing to `anthropic/...` will fail at the upstream.
+…and forwards that credential using the provider’s auth scheme. **The key must be valid for the target provider.** An OpenAI key routed to `anthropic/...` will be rejected upstream.
 
-If `api_key_env` is set on the provider and the env var is non-empty, that value **replaces** the client key entirely (useful for server-held keys while clients send a dummy or internal token).
+With `api_key_env` set and the env non-empty, the **server-held key replaces** the client key (clients can send a dummy).
 
-`key_hash` on usage events is the first 12 hex chars of SHA-256 of the credential that was selected for forwarding — enough to correlate usage per key without storing the secret.
+Usage events include `key_hash`: first 12 hex chars of SHA-256 of the forwarded credential — correlate without storing secrets.
 
 ---
 
@@ -252,74 +304,50 @@ If `api_key_env` is set on the provider and the env var is non-empty, that value
 
 ### Passthrough (same family)
 
-When the client dialect matches the provider kind:
+1. Parse body as generic JSON  
+2. Rewrite `model` only  
+3. OpenAI streams: inject `stream_options.include_usage` if unset  
+4. Forward bytes; scan SSE for usage  
+5. Upstream ≥400 relayed largely as-is  
 
-1. Body is parsed as generic JSON (not fully re-validated).
-2. Only `model` is rewritten to the upstream model id.
-3. For OpenAI streaming, `stream_options.include_usage` is set to `true` if the client did not already set it (so usage can be metered).
-4. Bytes are forwarded; SSE is relayed line-by-line while scanning for usage.
-5. Upstream HTTP ≥400 responses are relayed with status and body largely unchanged.
-
-This is the full-fidelity path (Claude Code → Anthropic provider).
+Full fidelity (e.g. Claude Code → Anthropic).
 
 ### Translation (cross family)
 
-When dialects differ, the request is parsed into a **canonical** form (Anthropic-shaped content blocks — the structural superset), then built into the upstream wire format. The response (or stream) is converted back into the caller's dialect.
+Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → parse response/stream → serialize caller dialect.
 
-| Feature | Supported in translation |
+| Feature | Translated |
 |---|---|
-| Text messages | yes |
-| System / developer prompts | yes (`developer` → system) |
-| Multimodal images (URL or base64) | yes |
-| Tool definitions + tool choice | yes (`required` ↔ Anthropic `any`) |
-| Tool calls / tool results | yes |
+| Text, system / developer | yes |
+| Images (URL / base64) | yes |
+| Tools + tool choice (`required` ↔ `any`) | yes |
 | Streaming | yes |
-| Temperature, top_p, stop sequences | yes |
-| `max_tokens` / `max_completion_tokens` | yes (OpenAI either field) |
-| Thinking / reasoning blocks | carried when present on Anthropic wire |
-| OpenAI `n`, `logprobs`, `response_format`, `seed`, etc. | **not** mapped — dropped on translate |
-| Non-function OpenAI tools | skipped |
+| temperature, top_p, stop | yes |
+| `max_tokens` / `max_completion_tokens` | yes |
+| Thinking blocks (Anthropic) | carried when present |
+| OpenAI `n`, `logprobs`, `response_format`, `seed`, … | **dropped** |
 
-Canonical is only used on the translation path; same-dialect traffic never touches it.
+**Caveats**
 
-**Streaming token-display caveat (Anthropic client → OpenAI-compatible upstream):** Anthropic clients expect `input_tokens` on `message_start`. OpenAI-wire upstreams typically only report usage at the end of the stream. On that path `message_start` carries `input_tokens: 0`; true counts appear in the final event and in the usage hook. Claude Code works; only its live token display is wrong mid-stream.
-
-**Anthropic requires `max_tokens`:** OpenAI clients that omit it get a default of **4096** when translating to Anthropic.
-
-**Errors:** gateway-generated errors use the caller's dialect envelope. Upstream ≥400 bodies are reshaped into the caller's envelope on the translation path; on passthrough they are forwarded as-is.
+- Anthropic client → OpenAI stream: `message_start.input_tokens` may be `0` until the final event (OpenAI reports usage late). Hooks still get final counts.
+- OpenAI → Anthropic without `max_tokens`: default **4096**.
+- Gateway errors use the **caller** dialect envelope; translation path reshapes upstream errors the same way.
 
 ---
 
-## `count_tokens`
+## Hooks & usage events
 
-`POST /v1/messages/count_tokens` exists so clients that call it before a request (Claude Code among them) do not get a hard 404.
-
-| Resolved provider | Behavior |
-|---|---|
-| `anthropic` | Proxy to `{base_url}/messages/count_tokens` for an exact count; on transport/4xx failure, fall back to local estimate |
-| anything else | Local estimate only |
-
-Local estimate: roughly **one token per four characters** of system text, message text, tool schemas, and tool results. It is **not** for billing — only a usable number for clients that require the endpoint. No usage event is emitted for `count_tokens`.
-
----
-
-## Hooks and usage events
-
-### Sinks
-
-| Hook | Config | Behavior |
+| Sink | Config | Behavior |
 |---|---|---|
-| JSONL | `hooks.jsonl.output: stdout \| stderr \| /path` | One JSON line per chat request; file opened append mode |
-| Webhook | `hooks.webhook.url` (+ optional `timeout`, default 3s) | Async POST of the same JSON event; failures are logged only |
-| Go | `gateway.WithHook(h)` | In-process; called after the response completes |
+| **JSONL** | `hooks.jsonl.output` | One JSON line per chat request |
+| **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
+| **Go** | `gateway.WithHook(h)` | In-process after response |
 
-Multiple hooks fan out via `hooks.Multi`. The proxy calls `OnUsage` after the response finishes (or aborts). **JSONL/Go hooks must not block.** The webhook sink posts in a background goroutine so a slow billing endpoint never stalls the client.
+Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
 
-**Cloud metering:** use `stdout` (or webhook), never a shared local file across replicas.
+JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
-### Invariant
-
-Exactly **one** `UsageEvent` per proxied **chat** request (`/v1/chat/completions` and `/v1/messages`), including error and client-abort paths. `count_tokens` and `/healthz` do not emit events.
+**Multi-replica:** use `stdout` or webhook — not a shared local file.
 
 ### Event schema
 
@@ -328,9 +356,9 @@ Exactly **one** `UsageEvent` per proxied **chat** request (`/v1/chat/completions
   "request_id": "req_<16 hex>",
   "time": "RFC3339",
   "dialect_in": "openai | anthropic",
-  "provider": "configured provider name",
-  "model": "public model id as the client sent it",
-  "upstream_model": "id sent upstream after routing",
+  "provider": "configured name",
+  "model": "public id from client",
+  "upstream_model": "id sent upstream",
   "tokens_in": 0,
   "tokens_out": 0,
   "estimated": false,
@@ -339,45 +367,32 @@ Exactly **one** `UsageEvent` per proxied **chat** request (`/v1/chat/completions
   "http_status": 200,
   "latency_ms": 0,
   "ttft_ms": 0,
-  "key_hash": "12 hex chars or empty"
+  "key_hash": "12 hex or empty"
 }
 ```
 
-| Field | Meaning |
+| `status` | When |
 |---|---|
-| `estimated` | `true` when the upstream reported no usage; token fields are then zero (or incomplete), not measured |
-| `ttft_ms` | Time to first stream byte; omitted / zero for non-stream |
-| `status` | Outcome class (see table) |
-| `http_status` | Status written to the client (`499` for client abort without a response) |
-| `key_hash` | Short hash of the forwarded credential; empty if no key |
+| `ok` | Success |
+| `bad_request` | Client / routing / parse error |
+| `upstream_error` | Transport failure, HTTP ≥400, broken stream |
+| `client_abort` | Client canceled mid-flight (`http_status` 499 if no response) |
 
-`status` values:
-
-| Value | When |
-|---|---|
-| `ok` | Successful completion |
-| `bad_request` | Client/input/routing error (missing model, unknown provider, parse failure, …) |
-| `upstream_error` | Upstream transport failure or HTTP ≥400 / incomplete stream |
-| `client_abort` | Client canceled the request context mid-flight |
-
-Type definition: [`hooks/hooks.go`](hooks/hooks.go) (`UsageEvent`).
+`estimated: true` → upstream reported no usage (tokens not measured).  
+Type source: [`hooks/hooks.go`](hooks/hooks.go).
 
 ---
 
 ## Claude Code
 
-Point it at the gateway — no code changes:
-
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:8787
-export ANTHROPIC_API_KEY=<key valid for whatever provider you route to>
+export ANTHROPIC_API_KEY=<key valid for the routed provider>
 # optional: export ANTHROPIC_MODEL=deepseek/deepseek-chat
 claude
 ```
 
-Or use [`examples/claude-code.sh`](examples/claude-code.sh).
-
-With an Anthropic-kind provider this is byte-exact passthrough. Route to an OpenAI-compatible provider and requests are translated both ways (see streaming token-display caveat above).
+Or [`examples/claude-code.sh`](examples/claude-code.sh). Anthropic upstream = byte passthrough; OpenAI-compat = full translation (see stream token caveat).
 
 ---
 
@@ -410,48 +425,48 @@ func main() {
 }
 ```
 
-YAML-configured hooks (JSONL) are wired automatically; `WithHook` adds more.
-
-Standalone binary: [`cmd/gateway`](cmd/gateway) — `gateway -config gateway.yaml`.
+YAML hooks (JSONL, webhook) wire automatically; `WithHook` adds more.  
+Binary: [`cmd/gateway`](cmd/gateway).
 
 ---
 
 ## Architecture
 
 ```
-cmd/gateway/          standalone binary
-gateway.go            library entry: New(cfg, opts...) → http.Handler
+cmd/gateway/           binary (graceful shutdown, env overrides)
+gateway.go             library New(cfg, opts...) → http.Handler
 
-proxy/                HTTP pipeline: route → forward → meter
-canonical/            dialect-neutral request/response/stream types
-ingress/openai/       OpenAI wire → canonical (+ serialize, stream, errors)
-ingress/anthropic/    Anthropic wire → canonical
-egress/openai/        canonical → OpenAI wire
-egress/anthropic/     canonical → Anthropic wire
-hooks/                UsageEvent + Hook; hooks/jsonl sink
-config/               YAML load and validation
-internal/sse/         SSE line scanner
+proxy/                 route → forward → meter
+canonical/             dialect-neutral types (Anthropic-shaped superset)
+ingress/{openai,anthropic}/
+egress/{openai,anthropic}/
+hooks/                 UsageEvent; jsonl + webhook sinks
+config/                YAML + GATEWAY_* env
+internal/sse/          SSE scan helpers
+deploy/k8s/            Kubernetes manifests
 ```
 
-Cross-dialect path: `ingress.Parse` → `canonical` → `egress.Build` → upstream → `egress.Parse` / stream parser → `ingress.Serialize`.
-
-Same-dialect path: rewrite `model` (+ stream usage option) → forward bytes.
+| Path | Flow |
+|---|---|
+| Cross-dialect | `ingress.Parse` → canonical → `egress.Build` → upstream → parse/stream → `ingress.Serialize` |
+| Same dialect | rewrite `model` (+ stream usage) → forward bytes |
 
 ---
 
-## Deploy layout
+## Deploy
 
-```
-Dockerfile              multi-stage distroless image (non-root)
-docker-compose.yml      one-command local stack
-deploy/k8s/gateway.yaml Namespace + ConfigMap + Deployment + Service
-cmd/gateway             binary entrypoint (graceful shutdown)
-gateway.example.yaml    sample config
-```
+| Artifact | Use |
+|---|---|
+| [`Dockerfile`](Dockerfile) | Multi-stage **distroless** image, non-root |
+| [`docker-compose.yml`](docker-compose.yml) | Local / Docker Desktop |
+| [`deploy/k8s/gateway.yaml`](deploy/k8s/gateway.yaml) | Namespace, ConfigMap, Deployment (×2), Service, probes |
+| [`gateway.example.yaml`](gateway.example.yaml) | Sample config |
 
-Same binary and config shape everywhere. No special cloud mode.
+Same binary and config on a Windows laptop, a Linux VM, or a cluster. No separate “cloud mode.”
 
-## Development
+---
+
+## Development & CI
 
 ```bash
 go test ./...
@@ -461,21 +476,37 @@ go vet ./...
 docker build -t llm-gateway:dev .
 ```
 
-CI (`.github/workflows/ci.yml`) on every push/PR:
+**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on push/PR:
 
-- `go build`, `go vet`, `go test -race`
-- coverage profile with a **≥ 90%** gate
-- binary smoke: start the server and hit `/healthz`
-- Docker image build
+- build, vet, `go test -race`
+- coverage gate **≥ 90%**
+- binary smoke (`/healthz`)
+- Docker image build + container healthz
 
-Release (`.github/workflows/release.yml`) on `v*` tags: multi-arch binaries
-(`linux`/`darwin`/`windows` × `amd64`/`arm64`) + checksums attached to a
-GitHub Release.
+**Release** ([`.github/workflows/release.yml`](.github/workflows/release.yml)) on `v*` tags:
 
-Only runtime dependency: `gopkg.in/yaml.v3`.
+- multi-arch binaries + checksums → GitHub Release
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+---
+
+## Roadmap
+
+- [ ] Google / Gemini chat egress (`kind: google` already accepted in config)
+- [ ] `GET /v1/models`
+- [ ] Optional request auth at the gateway edge
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Mamad / [inja-online](https://github.com/inja-online)
