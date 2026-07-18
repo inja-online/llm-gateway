@@ -1,19 +1,42 @@
-# llm-gateway
+<p align="center">
+  <img src="docs/assets/logo.jpg" alt="llm-gateway" width="120" height="120" />
+</p>
 
-[![CI](https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml)
-[![Release](https://github.com/inja-online/llm-gateway/actions/workflows/release.yml/badge.svg)](https://github.com/inja-online/llm-gateway/actions/workflows/release.yml)
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/dl/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Coverage ≥90%](https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen)](.github/workflows/ci.yml)
-[![Platforms](https://img.shields.io/badge/OS-linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](#quickstart)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-ready-326CE5?logo=kubernetes&logoColor=white)](deploy/k8s/gateway.yaml)
-[![Stateless](https://img.shields.io/badge/architecture-stateless-success)](#architecture)
-[![Deps](https://img.shields.io/badge/deps-yaml.v3%20only-informational)](go.mod)
+<h1 align="center">llm-gateway</h1>
 
-**Small, dependency-free LLM API gateway.**
+<p align="center">
+  <strong>Small, dependency-free LLM API gateway</strong><br/>
+  OpenAI + Anthropic dialects · multi-provider routing · usage hooks<br/>
+  One static binary — laptop, Docker, or Kubernetes
+</p>
 
-Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (OpenAI, Anthropic, DeepSeek, xAI, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database, no auth layer, one static binary.
+<p align="center">
+  <a href="https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml"><img src="https://github.com/inja-online/llm-gateway/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/inja-online/llm-gateway/actions/workflows/release.yml"><img src="https://github.com/inja-online/llm-gateway/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
+  <a href="https://go.dev/dl/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT" /></a>
+  <a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen" alt="Coverage" /></a>
+  <br/>
+  <a href="#quickstart"><img src="https://img.shields.io/badge/OS-linux%20%7C%20macOS%20%7C%20Windows-lightgrey" alt="Platforms" /></a>
+  <a href="Dockerfile"><img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker" /></a>
+  <a href="deploy/k8s/gateway.yaml"><img src="https://img.shields.io/badge/Kubernetes-ready-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes" /></a>
+  <a href="#architecture"><img src="https://img.shields.io/badge/architecture-stateless-success" alt="Stateless" /></a>
+  <a href="go.mod"><img src="https://img.shields.io/badge/deps-yaml.v3%20only-informational" alt="Deps" /></a>
+  <a href="https://github.com/inja-online/llm-gateway/releases"><img src="https://img.shields.io/github/v/release/inja-online/llm-gateway?include_prereleases&sort=semver&display_name=tag&label=release" alt="Release" /></a>
+</p>
+
+<p align="center">
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#http-api">API</a> ·
+  <a href="#configuration">Config</a> ·
+  <a href="#deploy">Deploy</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+---
+
+Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (OpenAI, Anthropic, DeepSeek, xAI, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database, no auth layer.
 
 ```
   OpenAI SDK / Anthropic SDK / Claude Code / curl
@@ -42,6 +65,7 @@ Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (O
 ## Table of contents
 
 - [Status](#status)
+- [Features](#features)
 - [Quickstart](#quickstart)
 - [Client examples](#client-examples)
 - [HTTP API](#http-api)
@@ -56,6 +80,7 @@ Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (O
 - [Deploy](#deploy)
 - [Development & CI](#development--ci)
 - [Roadmap](#roadmap)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -78,6 +103,20 @@ Also shipped:
 - One usage event per chat request (JSONL / webhook / Go hook)
 - `POST /v1/messages/count_tokens`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
+
+---
+
+## Features
+
+| Area | What you get |
+|---|---|
+| **Dual ingress** | `POST /v1/chat/completions` (OpenAI) and `POST /v1/messages` (Anthropic / Claude Code) |
+| **Multi-provider egress** | Native Anthropic + any OpenAI-compatible host (DeepSeek, OpenRouter, xAI, vLLM, …) |
+| **Cross-dialect translation** | OpenAI ↔ Anthropic when client and upstream disagree |
+| **Passthrough-first** | Same dialect → near-verbatim bytes (full fidelity) |
+| **Usage metering** | JSONL (stdout/file), async webhook, or in-process Go hook — one event per chat request |
+| **Ops** | One YAML file, `GATEWAY_LISTEN` / `GATEWAY_CONFIG`, `/healthz`, 30s SIGTERM drain |
+| **Ship anywhere** | Multi-arch release binaries, distroless Docker, K8s sample manifests |
 
 ---
 
