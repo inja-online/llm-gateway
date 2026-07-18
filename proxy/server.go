@@ -15,9 +15,10 @@ import (
 )
 
 type Server struct {
-	cfg    *config.Config
-	hook   hooks.Hook
-	client *http.Client
+	cfg          *config.Config
+	hook         hooks.Hook
+	client       *http.Client
+	tokenSources map[string]TokenSource // provider name → ADC / SA token source
 }
 
 func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
@@ -36,6 +37,7 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 				ResponseHeaderTimeout: 60 * time.Second,
 			},
 		},
+		tokenSources: make(map[string]TokenSource),
 	}
 }
 
@@ -56,7 +58,7 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
-	return mux
+	return s.withEdgeAuth(mux)
 }
 
 // clientKey extracts the credential the client sent (OpenAI Bearer, Anthropic
@@ -73,7 +75,23 @@ func clientKey(r *http.Request) string {
 
 // applyAuth sets the upstream auth header. A configured api_key_env replaces
 // the client key entirely; otherwise the client key is forwarded.
+//
+// Auth modes:
+//   - api_key (default): kind-specific header (Bearer / x-api-key / x-goog-api-key)
+//   - bearer: always Authorization: Bearer
+//   - adc / service_account: Authorization: Bearer from TokenSource (see applyAuthToken)
+//
+// For adc/service_account without a pre-fetched token, use applyAuthWithSource.
 func applyAuth(req *http.Request, p config.Provider, clientKey string) {
+	mode := p.AuthMode()
+	if mode == config.AuthADC || mode == config.AuthServiceAccount {
+		// Token must be supplied as clientKey by the caller (from TokenSource).
+		if clientKey == "" {
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+clientKey)
+		return
+	}
 	key := clientKey
 	if p.APIKeyEnv != "" {
 		if env := envLookup(p.APIKeyEnv); env != "" {
@@ -81,6 +99,10 @@ func applyAuth(req *http.Request, p config.Provider, clientKey string) {
 		}
 	}
 	if key == "" {
+		return
+	}
+	if mode == config.AuthBearer {
+		req.Header.Set("Authorization", "Bearer "+key)
 		return
 	}
 	switch p.Kind {
@@ -91,6 +113,42 @@ func applyAuth(req *http.Request, p config.Provider, clientKey string) {
 		req.Header.Set("x-goog-api-key", key)
 	default:
 		req.Header.Set("Authorization", "Bearer "+key)
+	}
+}
+
+// resolveUpstreamKey returns the credential to send upstream and whether ADC
+// mode failed (token source missing or error). On ADC failure, msg is set.
+func (s *Server) resolveUpstreamKey(r *http.Request, providerName string, p config.Provider) (key string, errMsg string) {
+	mode := p.AuthMode()
+	if mode == config.AuthADC || mode == config.AuthServiceAccount {
+		ts := s.tokenSource(providerName)
+		if ts == nil {
+			return "", "provider " + providerName + ": auth " + mode + " requires a TokenSource (SetTokenSource); real Google ADC is optional — inject a source or use auth: api_key"
+		}
+		tok, err := ts.Token(r.Context())
+		if err != nil {
+			return "", "token source: " + err.Error()
+		}
+		return tok, ""
+	}
+	return clientKey(r), ""
+}
+
+// copyForwardHeaders copies selected client headers to the upstream request.
+// Used for OpenRouter (HTTP-Referer, X-Title), OpenAI org/project, and similar.
+func copyForwardHeaders(dst, src *http.Request) {
+	for _, h := range []string{
+		"HTTP-Referer",
+		"Referer",
+		"X-Title",
+		"OpenAI-Organization",
+		"OpenAI-Project",
+		"anthropic-beta",
+		"anthropic-version",
+	} {
+		if v := src.Header.Get(h); v != "" {
+			dst.Header.Set(h, v)
+		}
 	}
 }
 

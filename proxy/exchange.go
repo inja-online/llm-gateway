@@ -75,8 +75,22 @@ func (x *exchange) readBody() ([]byte, bool) {
 // forwarded (or env-override) key. On transport failure it records the event
 // and writes a dialect error, returning ok=false.
 func (x *exchange) sendUpstream(route Route, path string, body []byte) (*http.Response, bool) {
-	key := clientKey(x.r)
-	x.ev.KeyHash = hashKey(key)
+	key, errMsg := x.s.resolveUpstreamKey(x.r, route.ProviderName, route.Provider)
+	if errMsg != "" {
+		x.fail(http.StatusBadGateway, "api_error", errMsg, hooks.StatusUpstreamError)
+		return nil, false
+	}
+	// key_hash uses the credential that will be applied (after api_key_env
+	// substitution for api_key mode). For ADC, hash the access token.
+	hashSrc := key
+	if route.Provider.AuthMode() == config.AuthAPIKey || route.Provider.AuthMode() == config.AuthBearer {
+		if route.Provider.APIKeyEnv != "" {
+			if env := envLookup(route.Provider.APIKeyEnv); env != "" {
+				hashSrc = env
+			}
+		}
+	}
+	x.ev.KeyHash = hashKey(hashSrc)
 
 	upReq, err := http.NewRequestWithContext(x.r.Context(), http.MethodPost, route.Provider.BaseURL+path, bytes.NewReader(body))
 	if err != nil {
@@ -85,6 +99,7 @@ func (x *exchange) sendUpstream(route Route, path string, body []byte) (*http.Re
 	}
 	upReq.Header.Set("Content-Type", "application/json")
 	applyAuth(upReq, route.Provider, key)
+	copyForwardHeaders(upReq, x.r)
 
 	resp, err := x.s.client.Do(upReq)
 	if err != nil {
