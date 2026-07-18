@@ -5,8 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strconv"
 	"strings"
 
@@ -355,4 +359,127 @@ func peekMultipartModel(body []byte) string {
 		end = len(rest)
 	}
 	return string(bytes.TrimSpace(rest[:end]))
+}
+
+// handleVideosContent serves GET /v1/videos/{id}/content (binary download).
+func (s *Server) handleVideosContent(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "missing video id")
+		return
+	}
+	s.handleOpenAIMediaGET(w, r, "/videos/"+id+"/content")
+}
+
+// rewriteMultipartModel parses a multipart body with mime/multipart.Reader,
+// replaces the "model" text field with upstreamModel, and re-encodes.
+// Binary file parts are preserved byte-for-byte (including filename and
+// Content-Type). Returns the new body, new Content-Type (with boundary),
+// the original model value, and any parse/encode error.
+func rewriteMultipartModel(body []byte, contentType, upstreamModel string) (newBody []byte, newCT, originalModel string, err error) {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("parse content-type: %w", err)
+	}
+	boundary := params["boundary"]
+	if boundary == "" {
+		return nil, "", "", errors.New("multipart: missing boundary")
+	}
+
+	mr := multipart.NewReader(bytes.NewReader(body), boundary)
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	wroteModel := false
+
+	for {
+		part, pErr := mr.NextPart()
+		if pErr == io.EOF {
+			break
+		}
+		if pErr != nil {
+			return nil, "", "", fmt.Errorf("multipart read: %w", pErr)
+		}
+		name := part.FormName()
+		filename := part.FileName()
+		data, rErr := io.ReadAll(part)
+		_ = part.Close()
+		if rErr != nil {
+			return nil, "", "", fmt.Errorf("multipart part %q: %w", name, rErr)
+		}
+
+		if name == "model" && filename == "" {
+			originalModel = string(bytes.TrimSpace(data))
+			if wErr := mw.WriteField("model", upstreamModel); wErr != nil {
+				return nil, "", "", wErr
+			}
+			wroteModel = true
+			continue
+		}
+
+		// Preserve file and non-model fields, including part Content-Type.
+		hdr := textproto.MIMEHeader{}
+		if filename != "" {
+			hdr.Set("Content-Disposition",
+				fmt.Sprintf(`form-data; name="%s"; filename="%s"`, escapeQuotes(name), escapeQuotes(filename)))
+		} else {
+			hdr.Set("Content-Disposition",
+				fmt.Sprintf(`form-data; name="%s"`, escapeQuotes(name)))
+		}
+		if pct := part.Header.Get("Content-Type"); pct != "" {
+			hdr.Set("Content-Type", pct)
+		} else if filename != "" {
+			hdr.Set("Content-Type", "application/octet-stream")
+		}
+		pw, cErr := mw.CreatePart(hdr)
+		if cErr != nil {
+			return nil, "", "", cErr
+		}
+		if _, wErr := pw.Write(data); wErr != nil {
+			return nil, "", "", wErr
+		}
+	}
+
+	if !wroteModel && upstreamModel != "" {
+		if wErr := mw.WriteField("model", upstreamModel); wErr != nil {
+			return nil, "", "", wErr
+		}
+	}
+	if cErr := mw.Close(); cErr != nil {
+		return nil, "", "", cErr
+	}
+	return buf.Bytes(), mw.FormDataContentType(), originalModel, nil
+}
+
+func extractMultipartModel(body []byte, contentType string) (string, error) {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return "", err
+	}
+	boundary := params["boundary"]
+	if boundary == "" {
+		return "", errors.New("multipart: missing boundary")
+	}
+	mr := multipart.NewReader(bytes.NewReader(body), boundary)
+	for {
+		part, pErr := mr.NextPart()
+		if pErr == io.EOF {
+			return "", nil
+		}
+		if pErr != nil {
+			return "", pErr
+		}
+		if part.FormName() == "model" && part.FileName() == "" {
+			data, rErr := io.ReadAll(part)
+			_ = part.Close()
+			if rErr != nil {
+				return "", rErr
+			}
+			return string(bytes.TrimSpace(data)), nil
+		}
+		_ = part.Close()
+	}
+}
+
+func escapeQuotes(s string) string {
+	return strings.ReplaceAll(s, `"`, `\"`)
 }

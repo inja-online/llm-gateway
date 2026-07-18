@@ -55,6 +55,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)
 	mux.HandleFunc("POST /v1/videos", s.handleVideosCreate)
 	mux.HandleFunc("GET /v1/videos/{id}", s.handleVideosGet)
+	mux.HandleFunc("GET /v1/videos/{id}/content", s.handleVideosContent)
+	mux.HandleFunc("POST /v1/audio/speech", s.handleAudioSpeech)
+	mux.HandleFunc("POST /v1/audio/transcriptions", s.handleAudioTranscriptions)
+	mux.HandleFunc("POST /v1/audio/translations", s.handleAudioTranslations)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
