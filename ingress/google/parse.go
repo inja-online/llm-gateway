@@ -3,6 +3,7 @@ package google
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/inja-online/llm-gateway/canonical"
 )
@@ -32,15 +33,27 @@ func ParseRequest(body []byte, modelFromPath string) (*canonical.Request, error)
 	} else if len(in.SafetySettingsCamel) > 0 {
 		req.SafetySettings = in.SafetySettingsCamel
 	}
-	if in.GenerationConfig != nil {
-		req.Temperature = in.GenerationConfig.Temperature
-		req.TopP = in.GenerationConfig.TopP
-		req.MaxTokens = in.GenerationConfig.MaxOutputTokens
-		req.StopSequences = in.GenerationConfig.StopSequences
+	gc := in.GenerationConfig
+	if gc == nil {
+		gc = in.GenerationConfigCamel
+	}
+	if gc != nil {
+		req.Temperature = gc.Temperature
+		req.TopP = gc.topP()
+		req.MaxTokens = gc.maxOutputTokens()
+		req.StopSequences = gc.stopSequences()
+		req.TopK = gc.topK()
+		req.Seed = gc.Seed
+		if rf := parseResponseFormat(gc); rf != nil {
+			req.ResponseFormat = rf
+		}
+		if tc := parseThinkingConfig(gc.thinking()); tc != nil {
+			req.Thinking = tc
+		}
 		// Multi-candidate policy: only candidateCount=1 (or unset) is supported.
-		cc := in.GenerationConfig.CandidateCount
-		if in.GenerationConfig.CandidateCountCamel > 0 {
-			cc = in.GenerationConfig.CandidateCountCamel
+		cc := gc.CandidateCount
+		if gc.CandidateCountCamel > 0 {
+			cc = gc.CandidateCountCamel
 		}
 		if cc > 1 {
 			return nil, &ValidationError{Msg: fmt.Sprintf("candidateCount=%d is not supported on the translation path; only candidateCount=1 is allowed", cc)}
@@ -85,6 +98,80 @@ func ParseRequest(body []byte, modelFromPath string) (*canonical.Request, error)
 	return req, nil
 }
 
+// parseResponseFormat maps responseMimeType + responseSchema/responseJsonSchema
+// into canonical ResponseFormat (#28).
+func parseResponseFormat(gc *generationConfig) *canonical.ResponseFormat {
+	if gc == nil {
+		return nil
+	}
+	mime := strings.ToLower(strings.TrimSpace(gc.responseMIMEType()))
+	schema := gc.responseSchema()
+	hasSchema := len(schema) > 0 && string(schema) != "null"
+
+	switch {
+	case hasSchema:
+		// Schema present → json_schema (mime typically application/json).
+		return &canonical.ResponseFormat{
+			Kind:   canonical.ResponseFormatJSONSchema,
+			Schema: schema,
+		}
+	case mime == "application/json" || mime == "text/x.enum":
+		// JSON mode without schema.
+		return &canonical.ResponseFormat{Kind: canonical.ResponseFormatJSONObject}
+	case mime == "text/plain":
+		return &canonical.ResponseFormat{Kind: canonical.ResponseFormatText}
+	case mime != "":
+		// Unknown mime: treat application/*json-ish already handled; leave unset
+		// rather than invent a kind. text/plain above covers free-form.
+		return nil
+	default:
+		return nil
+	}
+}
+
+// parseThinkingConfig maps generationConfig.thinkingConfig → ThinkingConfig (#30).
+// thinkingBudget 0 → type "disabled". Non-zero budget → "enabled".
+// thinkingLevel maps best-effort onto Effort.
+func parseThinkingConfig(tw *thinkingConfigWire) *canonical.ThinkingConfig {
+	if tw == nil {
+		return nil
+	}
+	budget := tw.thinkingBudget()
+	include := tw.includeThoughts()
+	level := tw.thinkingLevel()
+	if budget == nil && include == nil && level == "" {
+		return nil
+	}
+	tc := &canonical.ThinkingConfig{
+		BudgetTokens:    budget,
+		IncludeThoughts: include,
+	}
+	if budget != nil && *budget == 0 {
+		tc.Type = "disabled"
+	} else if budget != nil || level != "" {
+		tc.Type = "enabled"
+	}
+	if level != "" {
+		tc.Effort = thinkingLevelToEffort(level)
+	}
+	return tc
+}
+
+func thinkingLevelToEffort(level string) string {
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case "MINIMAL", "THINKING_LEVEL_MINIMAL":
+		return "minimal"
+	case "LOW", "THINKING_LEVEL_LOW":
+		return "low"
+	case "MEDIUM", "THINKING_LEVEL_MEDIUM":
+		return "medium"
+	case "HIGH", "THINKING_LEVEL_HIGH":
+		return "high"
+	default:
+		return strings.ToLower(level)
+	}
+}
+
 func parseToolChoice(fc *functionCallingConfig) (*canonical.ToolChoice, error) {
 	switch fc.Mode {
 	case "", "AUTO", "auto":
@@ -116,16 +203,7 @@ func parseContent(c content) (canonical.Message, error) {
 				bl = p.InlineDataCamel
 			}
 			if bl != nil && bl.Data != "" {
-				// Temporary policy until BlockDocument/BlockAudio land: map all
-				// inline blobs (image/*, application/pdf, audio/*) as BlockImage.
-				blocks = append(blocks, canonical.Block{
-					Type: canonical.BlockImage,
-					Image: &canonical.ImageSource{
-						Kind:      "base64",
-						MediaType: bl.mime(),
-						Data:      bl.Data,
-					},
-				})
+				blocks = append(blocks, mediaBlockFromBlob(bl.mime(), "base64", bl.Data))
 			}
 		case p.FileData != nil || p.FileDataCamel != nil:
 			fd := p.FileData
@@ -134,15 +212,7 @@ func parseContent(c content) (canonical.Message, error) {
 			}
 			if uri := fd.uri(); uri != "" {
 				// file_uri → Kind "url" so Google egress can re-emit file_data.
-				// PDF/audio also map to BlockImage until dedicated block types exist.
-				blocks = append(blocks, canonical.Block{
-					Type: canonical.BlockImage,
-					Image: &canonical.ImageSource{
-						Kind:      "url",
-						MediaType: fd.mime(),
-						Data:      uri,
-					},
-				})
+				blocks = append(blocks, mediaBlockFromBlob(fd.mime(), "url", uri))
 			}
 		case p.FunctionCall != nil:
 			args := p.FunctionCall.Args
@@ -171,6 +241,33 @@ func parseContent(c content) (canonical.Message, error) {
 		}
 	}
 	return canonical.Message{Role: role, Content: blocks}, nil
+}
+
+// mediaBlockFromBlob maps inline_data / file_data into BlockDocument for PDF
+// (#32) and BlockImage otherwise (images + temporary policy for non-PDF audio).
+func mediaBlockFromBlob(mime, kind, data string) canonical.Block {
+	if isPDFMIME(mime) {
+		return canonical.Block{
+			Type: canonical.BlockDocument,
+			Document: &canonical.DocumentSource{
+				Kind:      kind,
+				MediaType: mime,
+				Data:      data,
+			},
+		}
+	}
+	return canonical.Block{
+		Type: canonical.BlockImage,
+		Image: &canonical.ImageSource{
+			Kind:      kind,
+			MediaType: mime,
+			Data:      data,
+		},
+	}
+}
+
+func isPDFMIME(mime string) bool {
+	return strings.EqualFold(strings.TrimSpace(mime), "application/pdf")
 }
 
 func mapRoleIn(role string) string {
