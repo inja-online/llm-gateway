@@ -41,7 +41,9 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAIPassthrough)
+	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
+	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
+	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
