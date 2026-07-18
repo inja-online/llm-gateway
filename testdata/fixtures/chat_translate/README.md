@@ -33,7 +33,8 @@ chat_translate/
 | Non-function OpenAI tools | **error** (not silent skip) |
 | Anthropic `cache_control` | **Passthrough-only** — stripped on translate rebuild |
 | Google `safetySettings` | Preserved on Google→Google translate; dropped for other ingress |
-| `logprobs`, `seed`, `response_format`, penalties | Dropped until dedicated fidelity issues land |
+| `logprobs`, `logit_bias`, `top_logprobs` | Dropped |
+| OpenAI `seed` / penalties / `response_format` / `reasoning_effort` | OpenAI→OpenAI preserved; Anthropic/Google may drop or map later |
 | `service_tier` / `system_fingerprint` | Optional OpenAI-only metadata when present |
 
 ## Running

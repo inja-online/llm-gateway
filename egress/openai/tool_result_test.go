@@ -25,7 +25,7 @@ func TestToolResultContentMultimodal(t *testing.T) {
 						{Type: canonical.BlockImage, Image: &canonical.ImageSource{
 							Kind: "base64", MediaType: "image/png", Data: "abc",
 						}},
-						{Type: canonical.BlockImage}, // nil image skipped
+						{Type: canonical.BlockImage},   // nil image skipped
 						{Type: canonical.BlockToolUse}, // ignored type
 					},
 				},

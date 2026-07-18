@@ -145,15 +145,12 @@ func TestParseNullContentParts(t *testing.T) {
 }
 
 func TestParseImageURLNil(t *testing.T) {
-	req, err := ParseRequest([]byte(`{"model":"m","messages":[{"role":"user","content":[
+	// Incomplete image_url parts are validation errors (not silently skipped).
+	_, err := ParseRequest([]byte(`{"model":"m","messages":[{"role":"user","content":[
 		{"type":"image_url"}
 	]}]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// nil image_url skipped
-	if len(req.Messages[0].Content) != 0 {
-		t.Fatalf("%+v", req.Messages[0].Content)
+	if _, ok := err.(*ValidationError); !ok {
+		t.Fatalf("want ValidationError for incomplete image_url, got %v", err)
 	}
 }
 

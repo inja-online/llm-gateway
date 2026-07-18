@@ -12,16 +12,36 @@ import (
 // tool_calls, and tool_result blocks become role:tool messages.
 func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 	out := chatRequest{
-		Model:       model,
-		MaxTokens:   req.MaxTokens,
-		Stream:      req.Stream,
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		Stop:        req.StopSequences,
-		ServiceTier: req.ServiceTier,
+		Model:             model,
+		Stream:            req.Stream,
+		Temperature:       req.Temperature,
+		TopP:              req.TopP,
+		Stop:              req.StopSequences,
+		ServiceTier:       req.ServiceTier,
+		ParallelToolCalls: req.ParallelToolCalls,
+		FrequencyPenalty:  req.FrequencyPenalty,
+		PresencePenalty:   req.PresencePenalty,
+		Seed:              req.Seed,
+	}
+	// Preserve max_tokens vs max_completion_tokens source for reasoning models.
+	// Default (empty / max_tokens): emit max_tokens. Completion source: emit
+	// max_completion_tokens only.
+	if req.MaxTokens > 0 {
+		switch req.MaxTokensField {
+		case canonical.MaxTokensFieldMaxCompletionTokens:
+			out.MaxCompletion = req.MaxTokens
+		default:
+			out.MaxTokens = req.MaxTokens
+		}
 	}
 	if req.Stream {
 		out.StreamOpts = &streamOptions{IncludeUsage: true}
+	}
+	if req.Thinking != nil && req.Thinking.Effort != "" {
+		out.ReasoningEffort = req.Thinking.Effort
+	}
+	if rf := buildResponseFormat(req.ResponseFormat); rf != nil {
+		out.ResponseFormat = rf
 	}
 	// system blocks -> a single system message
 	if sys := concatText(req.System); sys != "" {
@@ -46,6 +66,34 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 	return json.Marshal(out)
 }
 
+func buildResponseFormat(rf *canonical.ResponseFormat) *responseFormatWire {
+	if rf == nil {
+		return nil
+	}
+	switch rf.Kind {
+	case canonical.ResponseFormatText:
+		return &responseFormatWire{Type: "text"}
+	case canonical.ResponseFormatJSONObject:
+		return &responseFormatWire{Type: "json_object"}
+	case canonical.ResponseFormatJSONSchema:
+		w := &responseFormatWire{Type: "json_schema"}
+		w.JSONSchema = &struct {
+			Name        string          `json:"name,omitempty"`
+			Description string          `json:"description,omitempty"`
+			Schema      json.RawMessage `json:"schema,omitempty"`
+			Strict      *bool           `json:"strict,omitempty"`
+		}{
+			Name:        rf.Name,
+			Description: rf.Description,
+			Schema:      rf.Schema,
+			Strict:      rf.Strict,
+		}
+		return w
+	default:
+		return nil
+	}
+}
+
 // buildMessages expands one canonical turn into one or more OpenAI messages.
 // A user turn with tool_result blocks becomes N role:tool messages (plus any
 // text/image as a user message). An assistant turn with tool_use blocks
@@ -66,7 +114,9 @@ func buildAssistant(m canonical.Message) []chatMessage {
 		case canonical.BlockText:
 			text += b.Text
 		case canonical.BlockThinking:
-			// CRITICAL: preserve thinking for multi-turn tool loops (DeepSeek/Kimi/Z.AI).
+			// OpenAI policy for redacted thinking: omit (do not invent opaque
+			// reasoning_content). Non-redacted thinking is preserved for
+			// multi-turn tool loops (DeepSeek/Kimi/Z.AI).
 			if !b.Redacted {
 				reasoning += b.Text
 			}
@@ -101,7 +151,37 @@ func buildUser(m canonical.Message) []chatMessage {
 			parts = append(parts, contentPart{Type: "text", Text: b.Text})
 		case canonical.BlockImage:
 			if b.Image != nil {
-				parts = append(parts, contentPart{Type: "image_url", ImageURL: &imageURLObject{URL: imageDataURL(b.Image)}})
+				parts = append(parts, contentPart{
+					Type: "image_url",
+					ImageURL: &imageURLObject{
+						URL:    imageDataURL(b.Image),
+						Detail: b.Image.Detail,
+					},
+				})
+			}
+		case canonical.BlockAudio:
+			if b.Audio != nil {
+				format := audioMediaTypeFormat(b.Audio.MediaType)
+				if format == "" {
+					format = "wav"
+				}
+				if format == "" && b.Audio.MediaType != "" {
+					format = mediaTypeToAudioFormat(b.Audio.MediaType)
+				}
+				parts = append(parts, contentPart{
+					Type: "input_audio",
+					InputAudio: &inputAudioObject{
+						Data:   b.Audio.Data,
+						Format: format,
+					},
+				})
+			}
+		case canonical.BlockDocument:
+			if b.Document != nil {
+				parts = append(parts, contentPart{
+					Type: "file",
+					File: documentToFile(b.Document),
+				})
 			}
 		case canonical.BlockToolResult:
 			// tool results are separate role:tool messages.
@@ -126,6 +206,42 @@ func buildUser(m canonical.Message) []chatMessage {
 		msgs = append(msgs, userMsg)
 	}
 	return msgs
+}
+
+func documentToFile(d *canonical.DocumentSource) *fileObject {
+	switch d.Kind {
+	case "file_id":
+		return &fileObject{FileID: d.Data, Filename: d.Filename}
+	case "url":
+		// OpenAI file parts do not take remote URLs natively; emit as file_data.
+		return &fileObject{Filename: d.Filename, FileData: d.Data}
+	default: // base64
+		media := d.MediaType
+		if media == "" {
+			media = "application/octet-stream"
+		}
+		return &fileObject{
+			Filename: d.Filename,
+			FileData: "data:" + media + ";base64," + d.Data,
+		}
+	}
+}
+
+func mediaTypeToAudioFormat(mt string) string {
+	switch mt {
+	case "audio/wav", "audio/wave", "audio/x-wav":
+		return "wav"
+	case "audio/mpeg", "audio/mp3":
+		return "mp3"
+	case "audio/flac":
+		return "flac"
+	case "audio/opus":
+		return "opus"
+	case "audio/pcm":
+		return "pcm16"
+	default:
+		return ""
+	}
 }
 
 func buildToolChoice(tc *canonical.ToolChoice) json.RawMessage {
@@ -177,8 +293,11 @@ func toolResultContent(b canonical.Block) json.RawMessage {
 			case canonical.BlockImage:
 				if rb.Image != nil {
 					parts = append(parts, contentPart{
-						Type:     "image_url",
-						ImageURL: &imageURLObject{URL: imageDataURL(rb.Image)},
+						Type: "image_url",
+						ImageURL: &imageURLObject{
+							URL:    imageDataURL(rb.Image),
+							Detail: rb.Image.Detail,
+						},
 					})
 				}
 			}
@@ -189,4 +308,40 @@ func toolResultContent(b canonical.Block) json.RawMessage {
 		}
 	}
 	return jsonString(b.Result)
+}
+
+// audioMediaTypeFormat maps MIME types back to OpenAI input_audio format names.
+func audioMediaTypeFormat(mediaType string) string {
+	switch mediaType {
+	case "audio/wav", "audio/x-wav", "wav":
+		return "wav"
+	case "audio/mpeg", "audio/mp3", "mp3":
+		return "mp3"
+	case "audio/mp4", "audio/m4a", "mp4", "m4a":
+		return "mp4"
+	case "audio/webm", "webm":
+		return "webm"
+	case "audio/ogg", "ogg":
+		return "ogg"
+	case "audio/flac", "flac":
+		return "flac"
+	default:
+		if mediaType == "" {
+			return ""
+		}
+		// Already a short format name
+		if len(mediaType) <= 5 && !containsSlash(mediaType) {
+			return mediaType
+		}
+		return "wav"
+	}
+}
+
+func containsSlash(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '/' {
+			return true
+		}
+	}
+	return false
 }

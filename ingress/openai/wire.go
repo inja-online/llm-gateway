@@ -18,10 +18,32 @@ type chatRequest struct {
 	Stop          json.RawMessage `json:"stop,omitempty"` // string or []string
 	Tools         []chatTool      `json:"tools,omitempty"`
 	ToolChoice    json.RawMessage `json:"tool_choice,omitempty"` // string or object
+	// ParallelToolCalls maps to canonical.ParallelToolCalls.
+	ParallelToolCalls *bool `json:"parallel_tool_calls,omitempty"`
+	// FrequencyPenalty / PresencePenalty are OpenAI sampling penalties.
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
+	// Seed is an optional sampling seed.
+	Seed *int64 `json:"seed,omitempty"`
+	// ResponseFormat is structured-output config.
+	ResponseFormat *responseFormatWire `json:"response_format,omitempty"`
+	// ReasoningEffort is OpenAI reasoning effort (minimal|low|medium|high|…).
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 	// N is multi-choice count. Translation only supports n=1; n>1 is rejected.
 	N *int `json:"n,omitempty"`
 	// ServiceTier is optional OpenAI routing/priority hint.
 	ServiceTier string `json:"service_tier,omitempty"`
+}
+
+// responseFormatWire is the OpenAI chat-completions response_format object.
+type responseFormatWire struct {
+	Type       string `json:"type"`
+	JSONSchema *struct {
+		Name        string          `json:"name,omitempty"`
+		Description string          `json:"description,omitempty"`
+		Schema      json.RawMessage `json:"schema,omitempty"`
+		Strict      *bool           `json:"strict,omitempty"`
+	} `json:"json_schema,omitempty"`
 }
 
 type chatMessage struct {
@@ -30,6 +52,8 @@ type chatMessage struct {
 	Name       string          `json:"name,omitempty"`
 	ToolCalls  []toolCall      `json:"tool_calls,omitempty"`
 	ToolCallID string          `json:"tool_call_id,omitempty"`
+	// Reasoning is assistant reasoning_content (DeepSeek/Kimi/Z.AI tool loops).
+	Reasoning json.RawMessage `json:"reasoning_content,omitempty"`
 }
 
 type toolCall struct {
@@ -56,13 +80,29 @@ type toolFunction struct {
 
 // contentPart is one element of a multimodal content array.
 type contentPart struct {
-	Type     string          `json:"type"`
-	Text     string          `json:"text,omitempty"`
-	ImageURL *imageURLObject `json:"image_url,omitempty"`
+	Type       string            `json:"type"`
+	Text       string            `json:"text,omitempty"`
+	ImageURL   *imageURLObject   `json:"image_url,omitempty"`
+	InputAudio *inputAudioObject `json:"input_audio,omitempty"`
+	File       *fileObject       `json:"file,omitempty"`
 }
 
 type imageURLObject struct {
-	URL string `json:"url"`
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"` // auto | low | high
+}
+
+// inputAudioObject is OpenAI chat input_audio payload.
+type inputAudioObject struct {
+	Data   string `json:"data"`
+	Format string `json:"format"`
+}
+
+// fileObject is an OpenAI chat file content part.
+type fileObject struct {
+	FileID   string `json:"file_id,omitempty"`
+	Filename string `json:"filename,omitempty"`
+	FileData string `json:"file_data,omitempty"` // data URL or base64
 }
 
 // --- response wire types ---
