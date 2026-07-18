@@ -31,14 +31,57 @@ type content struct {
 type part struct {
 	Text             string            `json:"text,omitempty"`
 	InlineData       *blob             `json:"inline_data,omitempty"`
+	FileData         *fileData         `json:"file_data,omitempty"`
+	// camelCase variants used by some Google client libraries / docs.
+	InlineDataCamel  *blob             `json:"inlineData,omitempty"`
+	FileDataCamel    *fileData         `json:"fileData,omitempty"`
 	FunctionCall     *functionCall     `json:"function_call,omitempty"`
 	FunctionResponse *functionResponse `json:"function_response,omitempty"`
 	Thought          bool              `json:"thought,omitempty"`
 }
 
 type blob struct {
-	MIMEType string `json:"mime_type"`
-	Data     string `json:"data"`
+	MIMEType      string `json:"mime_type"`
+	MIMETypeCamel string `json:"mimeType,omitempty"`
+	Data          string `json:"data"`
+}
+
+// fileData is Gemini's file_data part (Files API URI or remote URL).
+type fileData struct {
+	MIMEType      string `json:"mime_type,omitempty"`
+	MIMETypeCamel string `json:"mimeType,omitempty"`
+	FileURI       string `json:"file_uri,omitempty"`
+	FileURICamel  string `json:"fileUri,omitempty"`
+}
+
+func (b *blob) mime() string {
+	if b == nil {
+		return ""
+	}
+	if b.MIMEType != "" {
+		return b.MIMEType
+	}
+	return b.MIMETypeCamel
+}
+
+func (f *fileData) mime() string {
+	if f == nil {
+		return ""
+	}
+	if f.MIMEType != "" {
+		return f.MIMEType
+	}
+	return f.MIMETypeCamel
+}
+
+func (f *fileData) uri() string {
+	if f == nil {
+		return ""
+	}
+	if f.FileURI != "" {
+		return f.FileURI
+	}
+	return f.FileURICamel
 }
 
 type functionCall struct {

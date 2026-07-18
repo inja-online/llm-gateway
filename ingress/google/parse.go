@@ -110,15 +110,40 @@ func parseContent(c content) (canonical.Message, error) {
 			blocks = append(blocks, canonical.Block{Type: canonical.BlockThinking, Text: p.Text})
 		case p.Text != "":
 			blocks = append(blocks, canonical.Block{Type: canonical.BlockText, Text: p.Text})
-		case p.InlineData != nil:
-			blocks = append(blocks, canonical.Block{
-				Type: canonical.BlockImage,
-				Image: &canonical.ImageSource{
-					Kind:      "base64",
-					MediaType: p.InlineData.MIMEType,
-					Data:      p.InlineData.Data,
-				},
-			})
+		case p.InlineData != nil || p.InlineDataCamel != nil:
+			bl := p.InlineData
+			if bl == nil {
+				bl = p.InlineDataCamel
+			}
+			if bl != nil && bl.Data != "" {
+				// Temporary policy until BlockDocument/BlockAudio land: map all
+				// inline blobs (image/*, application/pdf, audio/*) as BlockImage.
+				blocks = append(blocks, canonical.Block{
+					Type: canonical.BlockImage,
+					Image: &canonical.ImageSource{
+						Kind:      "base64",
+						MediaType: bl.mime(),
+						Data:      bl.Data,
+					},
+				})
+			}
+		case p.FileData != nil || p.FileDataCamel != nil:
+			fd := p.FileData
+			if fd == nil {
+				fd = p.FileDataCamel
+			}
+			if uri := fd.uri(); uri != "" {
+				// file_uri → Kind "url" so Google egress can re-emit file_data.
+				// PDF/audio also map to BlockImage until dedicated block types exist.
+				blocks = append(blocks, canonical.Block{
+					Type: canonical.BlockImage,
+					Image: &canonical.ImageSource{
+						Kind:      "url",
+						MediaType: fd.mime(),
+						Data:      uri,
+					},
+				})
+			}
 		case p.FunctionCall != nil:
 			args := p.FunctionCall.Args
 			if len(args) == 0 {
