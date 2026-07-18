@@ -65,6 +65,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1beta/models", s.handleGoogleModelsList)
 	// Single path param — Live WS (:bidiGenerateContent) vs model get.
 	mux.HandleFunc("GET /v1beta/models/{model}", s.handleGoogleModelOrLive)
+	mux.HandleFunc("GET /v1beta/videos/{name...}", s.handleGoogleVideoPoll)
+	mux.HandleFunc("POST /v1/images", s.handleAnthropicImagesGenerate)
 	mux.HandleFunc("POST /v1/images/edits", s.handleImagesEdits)
 	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
 	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)

@@ -33,6 +33,10 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 		s.handleGoogleCountTokens(w, r, model)
 		return
 	}
+	if ok && (method == "generateImages" || method == "predict" || method == "generateVideos" || method == "predictLongRunning") {
+		s.handleGoogleMedia(w, r, model, method)
+		return
+	}
 
 	x := s.newExchange(w, r, DialectGoogle, writeGoogleError)
 	defer x.emit()
@@ -140,6 +144,14 @@ func parseGoogleAction(action string) (model, method string, ok bool) {
 		return strings.TrimSuffix(action, batchEmbed), "batchEmbedContents", true
 	case strings.HasSuffix(action, embed):
 		return strings.TrimSuffix(action, embed), "embedContent", true
+	case strings.HasSuffix(action, ":generateImages"):
+		return strings.TrimSuffix(action, ":generateImages"), "generateImages", true
+	case strings.HasSuffix(action, ":predictLongRunning"):
+		return strings.TrimSuffix(action, ":predictLongRunning"), "predictLongRunning", true
+	case strings.HasSuffix(action, ":predict"):
+		return strings.TrimSuffix(action, ":predict"), "predict", true
+	case strings.HasSuffix(action, ":generateVideos"):
+		return strings.TrimSuffix(action, ":generateVideos"), "generateVideos", true
 	default:
 		return "", "", false
 	}
