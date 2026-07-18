@@ -122,6 +122,11 @@ Also shipped:
 - `POST /v1/messages/count_tokens`, `GET /v1/models`, `GET /healthz`
 - `POST /v1/messages/count_tokens` (Anthropic proxy, Google `:countTokens` translate, or estimate), `GET /healthz`
 - One usage event per chat / media / embedding request (JSONL / webhook / Go hook)
+- OpenAI **Responses** API (`/v1/responses`, streaming SSE, GET/DELETE by id)
+- OpenAI **Files** API proxy (`/v1/files*`) and **Moderations** (`/v1/moderations`)
+- Realtime WebSocket skeleton (`/v1/realtime`, Google Live path) with session limits
+- Dialect-shaped errors; rate-limit + OpenAI org/project header passthrough
+- One usage event per chat / media / responses / files request (JSONL / webhook / Go hook)
 - `POST /v1/messages/count_tokens`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
@@ -328,11 +333,22 @@ With JSONL → stdout, each chat request logs one line:
 | `GET` | `/v1beta/models/{model}` | Get one Gemini model |
 | `POST` | `/v1beta/models/{model}:embedContent` | Gemini native embeddings (single) |
 | `POST` | `/v1beta/models/{model}:batchEmbedContents` | Gemini native embeddings (batch) |
+| `POST` | `/v1/responses` | OpenAI Responses create (passthrough; `stream:true` SSE) |
+| `GET` | `/v1/responses/{id}` | Retrieve stored response (proxy only; no gateway storage) |
+| `DELETE` | `/v1/responses/{id}` | Delete stored response upstream |
+| `POST` | `/v1/files` | Upload file (multipart passthrough) |
+| `GET` | `/v1/files` | List files |
+| `GET` | `/v1/files/{id}` | Retrieve file metadata |
+| `DELETE` | `/v1/files/{id}` | Delete file upstream |
+| `GET` | `/v1/files/{id}/content` | Download file content (streamed) |
+| `POST` | `/v1/moderations` | OpenAI Moderations passthrough |
 | `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
 | `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
 | `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
 | `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
+| `GET` | `/v1/realtime` | OpenAI Realtime WebSocket upgrade (skeleton passthrough) |
+| `GET` | `/v1beta/models/{model}:bidiGenerateContent` | Google Live WebSocket (skeleton) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
 | `GET` | `/v1/models` | OpenAI-shaped catalog (aliases + alias targets from config) |
 | `GET` | `/v1/models/{id}` | Retrieve one catalog entry (supports `provider/model` ids) |
@@ -370,6 +386,28 @@ client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["OPENAI_
 client.embeddings.create(model="openai/text-embedding-3-small", input="hello")
 # Or map to native Gemini when the resolved provider is kind: google
 # client.embeddings.create(model="google/gemini-embedding-001", input=["a","b"])
+**Not exposed:** OpenAI Conversations / Assistants threads — prefer **Responses** + client-side state (or Files). The gateway stays stateless.
+### Responses API
+OpenAI-family only (`kind: openai` or `openai_compat`). Same model routing as chat (`aliases` / `provider/model` / `defaults.openai_dialect`).
+| Call | Notes |
+|---|---|
+| `POST /v1/responses` | Rewrites `model`; preserves unknown JSON fields; one usage event (`input_tokens` / `output_tokens` when present) |
+| `stream: true` | Byte-faithful SSE of typed events (`response.created`, `response.completed`, …); usage from completed event |
+| `GET` / `DELETE /v1/responses/{id}` | Provider: `?provider=` **or** `X-Provider` **or** `defaults.openai_dialect` — gateway does **not** store bodies |
+client = OpenAI(base_url="http://localhost:8787/v1", api_key="sk-...")
+r = client.responses.create(model="openai/gpt-4o", input="hello")
+### Files API
+OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**).
+Provider selection (no model field): `?provider=` → `X-Provider` → `defaults.openai_dialect`.
+Usage: one operational event per call (`estimated: true`, zero tokens).
+### Moderations
+`POST /v1/moderations` — OpenAI-family only; rewrites `model` when present; otherwise uses default OpenAI-family provider.
+### Realtime (WebSocket, skeleton)
+| Path | Provider | Capability |
+| `GET /v1/realtime?model=…` | `openai` / `openai_compat` with `capabilities.realtime` | OpenAI Realtime |
+| `GET /v1beta/models/{model}:bidiGenerateContent` | `kind: google` with `realtime` | Google Live |
+Process limits from config (`realtime.max_sessions`, `realtime.max_session_minutes`). One usage event on session end (`modality=realtime`, `transport=websocket`, `media.unit_kind=session_minute`).
+**Gaps (TODO):** production TLS/`wss` dial, full protocol edge cases, OpenAI Realtime ↔ Google Live bridge. Hermetic tests cover upgrade + limits + capability deny.
 ### Image & video generation
 
 Chat multimodal **inputs** (image URL / base64 in messages) are already part of chat translation. **Generation** APIs are separate OpenAI-compatible routes:
@@ -528,37 +566,25 @@ The gateway reads a client credential from:
 Usage events include `key_hash`: first 12 hex chars of SHA-256 of the **upstream** credential (after `api_key_env` / token source) — correlate without storing secrets. Edge keys are not hashed separately.
 
 ### Optional edge auth (gateway gate)
-
 By default the gateway **does not authenticate callers** (trusted network / external auth assumed). To require a shared secret at the edge:
-
 ```yaml
 edge_auth:
   enabled: true
   keys_env: GATEWAY_EDGE_KEYS   # comma-separated, e.g. "key1,key2"
   # keys: ["dev-only"]          # optional inline
 ```
-
 When enabled:
-
 - Every route **except** `GET /healthz` requires a matching key via `Authorization: Bearer …` or `x-api-key`
 - Missing/invalid → **401** OpenAI-shaped `authentication_error` / `invalid_edge_auth`
 - Constant-time compare; keys are never logged
 - **Distinct from upstream keys:** with `api_key_env` on providers, clients only need the edge key; the server substitutes the provider secret
-
 See [SECURITY.md](SECURITY.md).
-
 ### Forwarded client headers
-
 On upstream requests the gateway copies (when present): `HTTP-Referer`, `Referer`, `X-Title`, `OpenAI-Organization`, `OpenAI-Project`, `anthropic-beta`, and client `anthropic-version` (Anthropic egress may still set a default version when applying API-key auth).
-
 ---
-
 ## Provider notes
-
 Full sample comments live in [`gateway.example.yaml`](gateway.example.yaml). Compatibility overview: [docs/compatibility-matrix.md](docs/compatibility-matrix.md).
-
 ### OpenRouter
-
 | | |
 |---|---|
 | Kind | `openai_compat` |
@@ -568,7 +594,6 @@ Full sample comments live in [`gateway.example.yaml`](gateway.example.yaml). Com
 | Headers | `HTTP-Referer`, `X-Title` forwarded (OpenRouter ranking / app attribution) |
 | Body | Extra fields (`provider`, `plugins`, `route`, …) **passthrough** — not stripped |
 | Media | `capabilities.image_gen: true` (etc.) required; defaults text-only for `openai_compat` |
-
 ```bash
 curl http://localhost:8787/v1/chat/completions \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" \
@@ -576,51 +601,28 @@ curl http://localhost:8787/v1/chat/completions \
   -H "X-Title: My App" \
   -H "Content-Type: application/json" \
   -d '{"model":"openrouter/anthropic/claude-3.5-sonnet","messages":[{"role":"user","content":"hi"}]}'
-```
-
 ### xAI (Grok)
-
-| | |
-|---|---|
-| Kind | `openai_compat` |
 | Base | `https://api.x.ai/v1` |
 | Alias | `grok` → `xai/grok-3` (example) |
 | Routes | Chat Completions today; Responses / images when those gateway routes + host support exist (passthrough only; no xAI-specific IR) |
 | Media | Opt-in `capabilities.image_gen` if using Imagine-style models via OpenAI images API |
-
 ```python
 from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["XAI_API_KEY"])
 client.chat.completions.create(model="xai/grok-3", messages=[{"role":"user","content":"hi"}])
-```
-
 ### Z.AI / Zhipu (GLM)
-
 Pick the **regional** OpenAI-compat base that matches your key (confirm in current Z.AI / BigModel docs; bases change). Examples (2026-07):
-
 | Region | Example `base_url` |
-|---|---|
 | International | `https://api.z.ai/api/paas/v4` |
 | CN (BigModel) | `https://open.bigmodel.cn/api/paas/v4` |
-
 `kind: openai_compat`, text-only unless capabilities set. Use one provider block per region/key.
-
 ### Qwen (DashScope)
-
 OpenAI-compatible mode path includes `compatible-mode`:
-
-| Region | Example `base_url` |
-|---|---|
 | CN | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | International | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
-
 Models: bare ids (`qwen-turbo`) with `defaults.openai_dialect: qwen`, or `qwen/qwen-turbo`, or aliases (`qwen-turbo: qwen/qwen-turbo`).
-
 ### Groq (STT-oriented routing)
-
 Groq is `openai_compat` at `https://api.groq.com/openai/v1`. For **chat on provider A, STT on Groq** (when audio routes ship):
-
-```yaml
 providers:
   openai: { kind: openai, base_url: "https://api.openai.com/v1", api_key_env: OPENAI_API_KEY }
   groq:
@@ -634,31 +636,41 @@ defaults:
   openai_dialect: openai
 aliases:
   whisper-fast: groq/whisper-large-v3
-```
-
 Call STT with `model: groq/whisper-large-v3` or the alias. Multipart body limit **32 MiB**. See matrix for shipped audio status.
-
 ### Vertex AI (ADC)
-
-```yaml
-providers:
   vertex:
     kind: google
     base_url: "https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/google"
     auth: adc
     # service_account_file: /secrets/vertex-sa.json  # mount read-only
-```
-
 Library mode: register a token source before serving:
-
 ```go
 srv := proxy.NewServer(cfg, hook)
 srv.SetTokenSource("vertex", proxy.StaticTokenSource{AccessToken: accessToken})
 // or CachingTokenSource wrapping your refresh function
 http.ListenAndServe(cfg.Listen, srv.Handler())
-```
-
 Air-gapped tests use fakes only; production ADC/SA JWT exchange is your injector’s job (optional Google auth libraries outside this module).
+### OpenAI org / project headers
+On **OpenAI-family** egress only (`openai`, `openai_compat`), the gateway forwards:
+| Request header | Forwarded? |
+| `OpenAI-Organization` | yes |
+| `OpenAI-Project` | yes |
+| `OpenAI-Beta` | yes (Realtime / beta surfaces) |
+These are **not** sent to Anthropic or Google kinds. Still forwarded when `api_key_env` replaces the API key (org/project are orthogonal to the secret).
+Usage events include `key_hash`: first 12 hex chars of SHA-256 of the forwarded credential — correlate without storing secrets.
+
+### Rate-limit & correlation header policy
+
+Response headers are **allowlisted** (not full copy). Hop-by-hop and `Set-Cookie` are never relayed.
+
+| Direction | Headers |
+|---|---|
+| **Upstream → client** | `Content-Type`, `Content-Length`, `Content-Encoding`, `Retry-After`, `X-Request-Id` / `Request-Id`, `x-ratelimit-*`, `anthropic-ratelimit-*`, `x-goog-*` (rate/quota style), `Openai-Processing-Ms`, `Openai-Version`, `Openai-Organization` |
+| **Gateway → client** | `X-Gateway-Request-Id` (gateway correlation id; does **not** remove upstream `x-request-id`) |
+| **Client → OpenAI-family** | `OpenAI-Organization`, `OpenAI-Project`, `OpenAI-Beta` (plus auth) |
+| **Never** | `Set-Cookie`, `Connection`, `Transfer-Encoding`, `Upgrade` (except intentional WS handshake), upstream mid-proxy auth challenges |
+
+Applies to chat, Responses, Files, Moderations, media, Anthropic messages, and Google generateContent passthrough/stream paths.
 
 ---
 
@@ -894,6 +906,10 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] Embeddings (`POST /v1/embeddings`, Gemini `:embedContent` / `:batchEmbedContents`)
 - [x] Optional edge auth (`edge_auth`)
 - [x] Vertex / ADC **TokenSource** helper (interface + fakes; real ADC injectable)
+- [x] OpenAI Responses + Files + Moderations passthrough
+- [x] Rate-limit / OpenAI org-project header policy
+- [x] Realtime WS skeleton (OpenAI + Google Live) + session limits
+- [ ] Production TLS `wss` dial + Realtime ↔ Live bridge
 - [ ] `GET /v1/models`
 - [ ] Cross-dialect image/video generation translation
 - [ ] HTTP audio (TTS/STT) and Realtime WebSocket passthrough

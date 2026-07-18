@@ -339,7 +339,10 @@ func (s *Server) forwardGoogleJSON(x *exchange, resp *http.Response) {
 	}
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = resp.StatusCode
-	x.w.Header().Set("Content-Type", "application/json")
+	x.prepareResponseHeaders(resp)
+	if x.w.Header().Get("Content-Type") == "" {
+		x.w.Header().Set("Content-Type", "application/json")
+	}
 	x.w.WriteHeader(resp.StatusCode)
 	x.w.Write(body)
 }
