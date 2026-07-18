@@ -28,6 +28,7 @@ type streamOptions struct {
 type chatMessage struct {
 	Role       string          `json:"role"`
 	Content    json.RawMessage `json:"content,omitempty"`
+	Reasoning  json.RawMessage `json:"reasoning_content,omitempty"`
 	ToolCalls  []toolCall      `json:"tool_calls,omitempty"`
 	ToolCallID string          `json:"tool_call_id,omitempty"`
 }

@@ -61,6 +61,8 @@ type Block struct {
 	Result       string  // tool_result: plain text (backward compatible)
 	ResultBlocks []Block // tool_result: multimodal content (text/image); not nested tool_use/tool_result
 	IsError      bool    // tool_result
+
+	Redacted bool // thinking: redacted_thinking (Anthropic)
 }
 
 // Message is one turn.

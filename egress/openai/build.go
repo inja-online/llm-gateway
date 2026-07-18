@@ -60,10 +60,16 @@ func buildMessages(m canonical.Message) []chatMessage {
 func buildAssistant(m canonical.Message) []chatMessage {
 	msg := chatMessage{Role: "assistant"}
 	var text string
+	var reasoning string
 	for _, b := range m.Content {
 		switch b.Type {
 		case canonical.BlockText:
 			text += b.Text
+		case canonical.BlockThinking:
+			// CRITICAL: preserve thinking for multi-turn tool loops (DeepSeek/Kimi/Z.AI).
+			if !b.Redacted {
+				reasoning += b.Text
+			}
 		case canonical.BlockToolUse:
 			args := string(b.Input)
 			if args == "" {
@@ -78,6 +84,10 @@ func buildAssistant(m canonical.Message) []chatMessage {
 	}
 	if text != "" {
 		msg.Content = jsonString(text)
+	}
+	if reasoning != "" {
+		raw, _ := json.Marshal(reasoning)
+		msg.Reasoning = raw
 	}
 	return []chatMessage{msg}
 }
