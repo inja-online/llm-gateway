@@ -111,8 +111,9 @@ Also shipped:
 
 - Streaming + non-streaming, tools, multimodal **input** images, system prompts
 - OpenAI-compatible **image generation** (`/v1/images/*`) and **video generation** (`/v1/videos`)
+- **Embeddings**: `POST /v1/embeddings` (OpenAI-compat passthrough + OpenAI→Google map); native Gemini `:embedContent` / `:batchEmbedContents`
 - Dialect-shaped errors
-- One usage event per chat / media request (JSONL / webhook / Go hook)
+- One usage event per chat / media / embedding request (JSONL / webhook / Go hook)
 - `POST /v1/messages/count_tokens`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
@@ -310,8 +311,11 @@ With JSONL → stdout, each chat request logs one line:
 |---|---|---|
 | `POST` | `/v1/chat/completions` | OpenAI dialect (also Gemini OpenAI-compat clients) |
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
+| `POST` | `/v1/embeddings` | OpenAI embeddings (passthrough; OpenAI→Google map when `kind: google`) |
 | `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
 | `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini native streaming (upstream `?alt=sse`) |
+| `POST` | `/v1beta/models/{model}:embedContent` | Gemini native embeddings (single) |
+| `POST` | `/v1beta/models/{model}:batchEmbedContents` | Gemini native embeddings (batch) |
 | `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
 | `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
@@ -321,6 +325,26 @@ With JSONL → stdout, each chat request logs one line:
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
+
+### Embeddings
+
+| Route | Providers | Notes |
+|---|---|---|
+| `POST /v1/embeddings` | `openai`, `openai_compat` | Model rewrite + passthrough to `{base}/embeddings` |
+| `POST /v1/embeddings` | `google` | Translates to `:embedContent` (single string) or `:batchEmbedContents` (array); response remapped to OpenAI list shape |
+| `POST /v1beta/models/{model}:embedContent` | `google` | Native Gemini passthrough |
+| `POST /v1beta/models/{model}:batchEmbedContents` | `google` | Native Gemini batch passthrough |
+
+Usage events use `modality: "embedding"` (prompt tokens when upstream reports them). Anthropic providers are rejected with an OpenAI error envelope (`501`).
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["OPENAI_API_KEY"])
+# OpenAI-family passthrough
+client.embeddings.create(model="openai/text-embedding-3-small", input="hello")
+# Or map to native Gemini when the resolved provider is kind: google
+# client.embeddings.create(model="google/gemini-embedding-001", input=["a","b"])
+```
 
 ### Image & video generation
 
@@ -488,7 +512,7 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
 | **Go** | `gateway.WithHook(h)` | In-process after response |
 
-Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
+Invariant: **exactly one** `UsageEvent` per proxied chat, media, and embeddings request (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
@@ -643,6 +667,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 - [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
 - [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
+- [x] Embeddings (`POST /v1/embeddings`, Gemini `:embedContent` / `:batchEmbedContents`)
 - [ ] `GET /v1/models`
 - [ ] Optional request auth at the gateway edge
 - [ ] Vertex AI (ADC / service-account) auth helper

@@ -11,10 +11,10 @@ import (
 	anthropicegress "github.com/inja-online/llm-gateway/egress/anthropic"
 	googleegress "github.com/inja-online/llm-gateway/egress/google"
 	openaiegress "github.com/inja-online/llm-gateway/egress/openai"
+	"github.com/inja-online/llm-gateway/hooks"
+	antingress "github.com/inja-online/llm-gateway/ingress/anthropic"
 	googleingress "github.com/inja-online/llm-gateway/ingress/google"
 	oaingress "github.com/inja-online/llm-gateway/ingress/openai"
-	antingress "github.com/inja-online/llm-gateway/ingress/anthropic"
-	"github.com/inja-online/llm-gateway/hooks"
 	"github.com/inja-online/llm-gateway/internal/sse"
 )
 
@@ -22,7 +22,8 @@ import (
 //
 //	POST /v1beta/models/{action}
 //
-// where action is "{model}:generateContent" or "{model}:streamGenerateContent".
+// where action is "{model}:generateContent", ":streamGenerateContent",
+// ":embedContent", or ":batchEmbedContents".
 func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 	x := s.newExchange(w, r, DialectGoogle, writeGoogleError)
 	defer x.emit()
@@ -31,11 +32,15 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 	model, method, ok := parseGoogleAction(action)
 	if !ok {
 		x.fail(http.StatusNotFound, "invalid_request_error",
-			"unknown google path; want models/{model}:generateContent or :streamGenerateContent",
+			"unknown google path; want models/{model}:generateContent, :streamGenerateContent, :embedContent, or :batchEmbedContents",
 			hooks.StatusBadRequest)
 		return
 	}
 	stream := method == "streamGenerateContent"
+	embed := isGoogleEmbedMethod(method)
+	if embed {
+		x.ev.Modality = ModalityEmbedding
+	}
 
 	body, ok := x.readBody()
 	if !ok {
@@ -50,7 +55,8 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 	publicModel := model
 	if head.Model != "" {
 		// Body model may be provider/model for gateway routing.
-		publicModel = head.Model
+		// Strip models/ prefix for Resolve (aliases use bare / provider ids).
+		publicModel = strings.TrimPrefix(head.Model, "models/")
 	}
 	x.ev.Model = publicModel
 	x.ev.Stream = stream
@@ -74,17 +80,35 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 	// When routing used body "provider/model" but path had bare model, prefer route.
 	x.ev.Provider = route.ProviderName
-	x.ev.UpstreamModel = route.UpstreamModel
-	if x.ev.UpstreamModel == "" {
-		x.ev.UpstreamModel = model
+	if route.UpstreamModel == "" {
+		route.UpstreamModel = model
 	}
+	// Path/body models never keep the Gemini "models/" resource prefix upstream.
+	route.UpstreamModel = strings.TrimPrefix(route.UpstreamModel, "models/")
+	x.ev.UpstreamModel = route.UpstreamModel
 
 	switch providerKind(route.Provider) {
 	case config.KindGoogle:
+		if embed {
+			s.googleEmbedPassthrough(x, route, body, method)
+			return
+		}
 		s.googlePassthrough(x, route, body, stream)
 	case config.KindOpenAI, config.KindOpenAICompat:
+		if embed {
+			x.fail(http.StatusNotImplemented, "invalid_request_error",
+				"native google embeddings translation to openai is not implemented; use POST /v1/embeddings",
+				hooks.StatusBadRequest)
+			return
+		}
 		s.googleToOpenAI(x, route, body, model, stream)
 	case config.KindAnthropic:
+		if embed {
+			x.fail(http.StatusNotImplemented, "invalid_request_error",
+				"embeddings are not supported for anthropic providers",
+				hooks.StatusBadRequest)
+			return
+		}
 		s.googleToAnthropic(x, route, body, model, stream)
 	default:
 		x.fail(http.StatusNotImplemented, "invalid_request_error",
@@ -93,13 +117,19 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseGoogleAction(action string) (model, method string, ok bool) {
-	const gen = ":generateContent"
 	const stream = ":streamGenerateContent"
+	const gen = ":generateContent"
+	const batchEmbed = ":batchEmbedContents"
+	const embed = ":embedContent"
 	switch {
 	case strings.HasSuffix(action, stream):
 		return strings.TrimSuffix(action, stream), "streamGenerateContent", true
 	case strings.HasSuffix(action, gen):
 		return strings.TrimSuffix(action, gen), "generateContent", true
+	case strings.HasSuffix(action, batchEmbed):
+		return strings.TrimSuffix(action, batchEmbed), "batchEmbedContents", true
+	case strings.HasSuffix(action, embed):
+		return strings.TrimSuffix(action, embed), "embedContent", true
 	default:
 		return "", "", false
 	}
