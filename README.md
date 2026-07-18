@@ -115,13 +115,8 @@ Also shipped:
 - Native Gemini model discovery (`GET /v1beta/models`, `GET /v1beta/models/{model}`)
 - Dialect-shaped errors
 - One usage event per chat / media request (JSONL / webhook / Go hook)
-<<<<<<< HEAD
 - `POST /v1/messages/count_tokens`, `GET /v1/models`, `GET /healthz`
-||||||| ba0200d
-- `POST /v1/messages/count_tokens`, `GET /healthz`
-=======
 - `POST /v1/messages/count_tokens` (Anthropic proxy, Google `:countTokens` translate, or estimate), `GET /healthz`
->>>>>>> 4286b8cb9453397691628cd4c0a6205d46b4115d
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
 ---
@@ -329,15 +324,10 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
 | `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
 | `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
-<<<<<<< HEAD
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
 | `GET` | `/v1/models` | OpenAI-shaped catalog (aliases + alias targets from config) |
 | `GET` | `/v1/models/{id}` | Retrieve one catalog entry (supports `provider/model` ids) |
-||||||| ba0200d
-| `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
-=======
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy, Google translate, or estimate) |
->>>>>>> 4286b8cb9453397691628cd4c0a6205d46b4115d
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
@@ -548,13 +538,8 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
 | **Go** | `gateway.WithHook(h)` | In-process after response |
 
-<<<<<<< HEAD
 Invariant: **exactly one** `UsageEvent` per proxied chat, media, embeddings, or audio request (including errors and aborts). Not emitted for `count_tokens`, `GET /v1/models`, or `healthz`.
-||||||| ba0200d
-Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
-=======
 Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens`, Gemini `:countTokens`, `GET /v1beta/models*`, or `healthz`.
->>>>>>> 4286b8cb9453397691628cd4c0a6205d46b4115d
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 

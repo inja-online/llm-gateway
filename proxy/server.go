@@ -44,16 +44,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
-<<<<<<< HEAD
 	// OpenAI-shaped model catalog (config/aliases only; no upstream fan-out).
 	mux.HandleFunc("GET /v1/models", s.handleModelsList)
 	mux.HandleFunc("GET /v1/models/{id...}", s.handleModelsGet)
-	// Native Gemini generateContent / streamGenerateContent (model in path).
-||||||| ba0200d
-	// Native Gemini generateContent / streamGenerateContent (model in path).
-=======
 	// Native Gemini generateContent / streamGenerateContent / countTokens (model in path).
->>>>>>> 4286b8cb9453397691628cd4c0a6205d46b4115d
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
 	// Native Gemini model discovery (list / get). Provider: ?provider= or defaults.google_dialect.
 	mux.HandleFunc("GET /v1beta/models", s.handleGoogleModelsList)
