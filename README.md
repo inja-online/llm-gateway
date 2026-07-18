@@ -113,7 +113,7 @@ Also shipped:
 - OpenAI-compatible **image generation** (`/v1/images/*`) and **video generation** (`/v1/videos`)
 - Dialect-shaped errors
 - One usage event per chat / media request (JSONL / webhook / Go hook)
-- `POST /v1/messages/count_tokens`, `GET /healthz`
+- `POST /v1/messages/count_tokens`, `GET /v1/models`, `GET /healthz`
 - Graceful shutdown, Docker, Kubernetes, multi-arch releases
 
 ---
@@ -256,13 +256,13 @@ r = client.chat.completions.create(
 )
 ```
 
-**Anthropic SDK** (including non-Anthropic models — gateway translates):
+**Anthropic SDK** (including non-Anthropic models — gateway translates). Use an **alias** or `provider/model` id; model discovery (if any client probes it) is the OpenAI-shaped `GET /v1/models`, not an Anthropic twin:
 
 ```python
 from anthropic import Anthropic
 client = Anthropic(base_url="http://localhost:8787", api_key="<key for target provider>")
 r = client.messages.create(
-    model="deepseek/deepseek-chat",
+    model="fast",  # or "deepseek/deepseek-chat"
     max_tokens=100,
     messages=[{"role": "user", "content": "hi"}],
 )
@@ -318,9 +318,29 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
 | `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
+| `GET` | `/v1/models` | OpenAI-shaped catalog (aliases + alias targets from config) |
+| `GET` | `/v1/models/{id}` | Retrieve one catalog entry (supports `provider/model` ids) |
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
+
+### Model discovery (`GET /v1/models`)
+
+OpenAI SDKs call `models.list` / `models.retrieve` on connect. The gateway serves a **config-derived** catalog (no live upstream fan-out):
+
+- **Public ids:** every `aliases` key, plus every unique alias target as stored (e.g. `deepseek/deepseek-chat`)
+- **Shape:** `{"object":"list","data":[{"id","object":"model","created","owned_by"}]}`
+- **`owned_by`:** `"llm-gateway"` for alias keys; provider name for `provider/model` targets
+- **No usage event** (discovery only)
+- Missing id → OpenAI error envelope `404`
+
+**Anthropic models surface:** there is **no** Anthropic-shaped models twin (`/v1/models` under Messages-style envelope). Anthropic / Claude Code clients use aliases or `provider/model` ids on `POST /v1/messages` (and OpenAI-shaped discovery if needed). No fake Anthropic list wire is planned unless a product need appears.
+
+```bash
+curl -s http://localhost:8787/v1/models
+curl -s http://localhost:8787/v1/models/fast
+curl -s http://localhost:8787/v1/models/deepseek/deepseek-chat
+```
 
 ### Image & video generation
 
@@ -345,7 +365,7 @@ img = client.images.generate(model="google_openai/gemini-2.5-flash-image", promp
 # GET  /v1/videos/{id}?provider=google_openai
 ```
 
-No `/v1/models` yet. Unknown routes → standard 404.
+Unknown routes → standard 404.
 
 **Limits**
 
@@ -488,7 +508,7 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
 | **Go** | `gateway.WithHook(h)` | In-process after response |
 
-Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
+Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens` / `GET /v1/models` / `healthz`.
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
@@ -643,7 +663,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 - [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
 - [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
-- [ ] `GET /v1/models`
+- [x] `GET /v1/models` (+ `GET /v1/models/{id}`) from config/aliases
 - [ ] Optional request auth at the gateway edge
 - [ ] Vertex AI (ADC / service-account) auth helper
 - [ ] Cross-dialect image/video generation translation
