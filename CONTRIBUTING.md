@@ -32,11 +32,17 @@ Coverage gate in CI is **≥ 90%**. Add tests with behavior changes.
 
 | Package | Role |
 |---|---|
-| `proxy/` | HTTP pipeline |
-| `ingress/*` | Client dialect → canonical |
-| `egress/*` | Canonical → upstream |
+| `proxy/` | HTTP pipeline (OpenAI, Anthropic, Google native handlers) |
+| `ingress/openai` | OpenAI dialect (+ Gemini OpenAI-compat clients) |
+| `ingress/anthropic` | Anthropic Messages dialect |
+| `ingress/google` | Gemini **native** `generateContent` dialect |
+| `egress/openai` | OpenAI / `openai_compat` upstream (incl. Gemini OpenAI-compat) |
+| `egress/anthropic` | Anthropic upstream |
+| `egress/google` | Gemini **native** upstream (`kind: google`) |
 | `hooks/*` | Usage sinks |
 | `cmd/gateway` | Binary |
+
+Gemini has two Google APIs: native (`kind: google` + `ingress/google`) and OpenAI-compat (`kind: openai_compat` + OpenAI ingress/egress).
 
 ## Release
 

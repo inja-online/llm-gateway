@@ -18,6 +18,7 @@ type Route struct {
 const (
 	DialectOpenAI    = "openai"
 	DialectAnthropic = "anthropic"
+	DialectGoogle    = "google"
 )
 
 // Resolve maps a public model id to a provider and upstream model id.
@@ -43,6 +44,8 @@ func Resolve(cfg *config.Config, dialect, model string) (Route, error) {
 		def = cfg.Defaults.OpenAIDialect
 	case DialectAnthropic:
 		def = cfg.Defaults.AnthropicDialect
+	case DialectGoogle:
+		def = cfg.Defaults.GoogleDialect
 	}
 	if def == "" {
 		return Route{}, fmt.Errorf("model %q has no provider prefix and no default provider is configured for the %s dialect", model, dialect)

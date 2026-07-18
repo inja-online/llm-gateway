@@ -30,6 +30,7 @@ type Provider struct {
 type Defaults struct {
 	OpenAIDialect    string `yaml:"openai_dialect"`    // provider for bare model ids on /v1/chat/completions
 	AnthropicDialect string `yaml:"anthropic_dialect"` // provider for bare model ids on /v1/messages
+	GoogleDialect    string `yaml:"google_dialect"`    // provider for bare model ids on Gemini generateContent
 }
 
 type JSONLHook struct {
@@ -121,6 +122,7 @@ func (c *Config) validate() error {
 	for dialect, prov := range map[string]string{
 		"openai_dialect":    c.Defaults.OpenAIDialect,
 		"anthropic_dialect": c.Defaults.AnthropicDialect,
+		"google_dialect":    c.Defaults.GoogleDialect,
 	} {
 		if prov == "" {
 			continue

@@ -3,32 +3,144 @@
 #
 # Cloud tip: keep hooks.jsonl.output: stdout and ship logs with your platform.
 # Multi-replica billing: set hooks.webhook.url instead of (or in addition to) a file.
+#
+# Client dialects (ingress):
+#   OpenAI     POST /v1/chat/completions
+#              (also used by Gemini OpenAI-compat clients — same wire format)
+#   Anthropic  POST /v1/messages
+#   Google     POST /v1beta/models/{model}:generateContent          (native)
+#              POST /v1beta/models/{model}:streamGenerateContent    (native)
+#
+# Provider kinds (egress):
+#   openai / openai_compat  — Chat Completions
+#                             (set base_url to Gemini …/v1beta/openai for google_openai)
+#   anthropic               — Messages API
+#   google                  — native Gemini generateContent
 
 listen: ":8787"   # override with env GATEWAY_LISTEN=0.0.0.0:8787
 
 providers:
+  # --- First-party / native kinds ---
   openai:
     kind: openai
     base_url: "https://api.openai.com/v1"
     # api_key_env: OPENAI_API_KEY
+
   anthropic:
     kind: anthropic
     base_url: "https://api.anthropic.com/v1"
     # api_key_env: ANTHROPIC_API_KEY
+
+  # Native Gemini (generateContent). Auth: x-goog-api-key
+  google:
+    kind: google
+    base_url: "https://generativelanguage.googleapis.com/v1beta"
+    # api_key_env: GEMINI_API_KEY
+
+  # Gemini via OpenAI-compatible endpoint. Auth: Bearer
+  google_openai:
+    kind: openai_compat
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    # api_key_env: GEMINI_API_KEY
+
+  # --- OpenAI-compatible hosts (kind: openai_compat) ---
   deepseek:
     kind: openai_compat
     base_url: "https://api.deepseek.com"
     # api_key_env: DEEPSEEK_API_KEY
+
   openrouter:
     kind: openai_compat
     base_url: "https://openrouter.ai/api/v1"
+    # api_key_env: OPENROUTER_API_KEY
+
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    # api_key_env: XAI_API_KEY
+
+  # Moonshot / Kimi (use the regional base that matches your key)
+  moonshot:
+    kind: openai_compat
+    base_url: "https://api.moonshot.ai/v1"
+    # api_key_env: MOONSHOT_API_KEY
+  # moonshot_cn:
+  #   kind: openai_compat
+  #   base_url: "https://api.moonshot.cn/v1"
+
+  # Zhipu / Z.AI (GLM) — confirm current OpenAI-compat base in their docs
+  zai:
+    kind: openai_compat
+    base_url: "https://api.z.ai/api/paas/v4"
+    # api_key_env: ZAI_API_KEY
+
+  groq:
+    kind: openai_compat
+    base_url: "https://api.groq.com/openai/v1"
+    # api_key_env: GROQ_API_KEY
+
+  together:
+    kind: openai_compat
+    base_url: "https://api.together.xyz/v1"
+    # api_key_env: TOGETHER_API_KEY
+
+  fireworks:
+    kind: openai_compat
+    base_url: "https://api.fireworks.ai/inference/v1"
+    # api_key_env: FIREWORKS_API_KEY
+
+  mistral:
+    kind: openai_compat
+    base_url: "https://api.mistral.ai/v1"
+    # api_key_env: MISTRAL_API_KEY
+
+  perplexity:
+    kind: openai_compat
+    base_url: "https://api.perplexity.ai"
+    # api_key_env: PERPLEXITY_API_KEY
+
+  cerebras:
+    kind: openai_compat
+    base_url: "https://api.cerebras.ai/v1"
+    # api_key_env: CEREBRAS_API_KEY
+
+  deepinfra:
+    kind: openai_compat
+    base_url: "https://api.deepinfra.com/v1/openai"
+    # api_key_env: DEEPINFRA_API_KEY
+
+  siliconflow:
+    kind: openai_compat
+    base_url: "https://api.siliconflow.cn/v1"
+    # api_key_env: SILICONFLOW_API_KEY
+
+  # Alibaba DashScope (Qwen) OpenAI-compatible mode
+  qwen:
+    kind: openai_compat
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # api_key_env: DASHSCOPE_API_KEY
+
+  # Local / self-hosted (uncomment and point at your server)
+  # vllm:
+  #   kind: openai_compat
+  #   base_url: "http://127.0.0.1:8000/v1"
+  # ollama:
+  #   kind: openai_compat
+  #   base_url: "http://127.0.0.1:11434/v1"
+  # lmstudio:
+  #   kind: openai_compat
+  #   base_url: "http://127.0.0.1:1234/v1"
 
 defaults:
   openai_dialect: openai
   anthropic_dialect: anthropic
+  google_dialect: google
 
 aliases:
   fast: deepseek/deepseek-chat
+  grok: xai/grok-3
+  gemini: google/gemini-2.0-flash
+  kimi: moonshot/kimi-latest
 
 hooks:
   jsonl:

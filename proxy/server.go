@@ -44,6 +44,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
+	// Native Gemini generateContent / streamGenerateContent (model in path).
+	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
@@ -51,13 +53,16 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-// clientKey extracts the credential the client sent, from either the OpenAI
-// or the Anthropic auth header. The gateway never validates it — it forwards.
+// clientKey extracts the credential the client sent (OpenAI Bearer, Anthropic
+// x-api-key, or Google x-goog-api-key). The gateway never validates it — it forwards.
 func clientKey(r *http.Request) string {
 	if auth := r.Header.Get("Authorization"); auth != "" {
 		return strings.TrimPrefix(auth, "Bearer ")
 	}
-	return r.Header.Get("x-api-key")
+	if k := r.Header.Get("x-api-key"); k != "" {
+		return k
+	}
+	return r.Header.Get("x-goog-api-key")
 }
 
 // applyAuth sets the upstream auth header. A configured api_key_env replaces

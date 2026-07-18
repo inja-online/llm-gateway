@@ -46,6 +46,8 @@ func (s *Server) handleAnthropic(w http.ResponseWriter, r *http.Request) {
 		s.anthropicPassthrough(x, route, body, head.Stream)
 	case config.KindOpenAI, config.KindOpenAICompat:
 		s.anthropicToOpenAI(x, route, body)
+	case config.KindGoogle:
+		s.anthropicToGoogle(x, route, body)
 	default:
 		x.fail(http.StatusNotImplemented, "invalid_request_error",
 			"translation to provider kind "+route.Provider.Kind+" is not implemented", hooks.StatusBadRequest)

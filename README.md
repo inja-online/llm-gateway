@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Small, dependency-free LLM API gateway</strong><br/>
-  OpenAI + Anthropic dialects · multi-provider routing · usage hooks<br/>
+  OpenAI + Anthropic + Gemini dialects · multi-provider routing · usage hooks<br/>
   One static binary — laptop, Docker, or Kubernetes
 </p>
 
@@ -40,20 +40,20 @@
 
 ---
 
-Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (OpenAI, Anthropic, DeepSeek, xAI, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database, no auth layer.
+Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway routes to any upstream (OpenAI, Anthropic, Google, DeepSeek, xAI, Moonshot, OpenRouter, vLLM, …), translates dialects when needed, and emits **exactly one usage event per chat request** — no database, no auth layer.
 
 ```
-  OpenAI SDK / Anthropic SDK / Claude Code / curl
-                      │
-                      ▼
-              ┌───────────────┐
-              │  llm-gateway  │──► JSONL (stdout) / webhook / Go hook
-              └───────┬───────┘
-                      │
-         ┌────────────┼────────────┐
-         ▼            ▼            ▼
-      OpenAI      Anthropic   OpenAI-compat
-                              (DeepSeek, …)
+  OpenAI SDK / Anthropic SDK / Gemini client / Claude Code / curl
+                            │
+                            ▼
+                    ┌───────────────┐
+                    │  llm-gateway  │──► JSONL (stdout) / webhook / Go hook
+                    └───────┬───────┘
+                            │
+         ┌──────────┬───────┼────────┬────────────┐
+         ▼          ▼       ▼        ▼            ▼
+      OpenAI   Anthropic  Google  OpenAI-compat  …
+                              native   (xAI, …)
 ```
 
 | | |
@@ -71,6 +71,7 @@ Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (O
 
 - [Status](#status)
 - [Features](#features)
+- [Google / Gemini (both APIs)](#google--gemini-both-apis)
 - [Quickstart](#quickstart)
 - [Client examples](#client-examples)
 - [HTTP API](#http-api)
@@ -98,8 +99,13 @@ Clients speak **OpenAI** or **Anthropic**. The gateway routes to any upstream (O
 |---|---|---|
 | OpenAI `POST /v1/chat/completions` | `openai` / `openai_compat` | **passthrough** |
 | OpenAI | `anthropic` | **translated** |
+| OpenAI | `google` (native Gemini) | **translated** |
 | Anthropic `POST /v1/messages` | `anthropic` | **passthrough** |
 | Anthropic | `openai` / `openai_compat` | **translated** |
+| Anthropic | `google` | **translated** |
+| Google `POST /v1beta/models/{model}:generateContent` | `google` | **passthrough** |
+| Google stream `:streamGenerateContent` | `google` | **passthrough** |
+| Google | `openai` / `openai_compat` / `anthropic` | **translated** |
 
 Also shipped:
 
@@ -115,13 +121,46 @@ Also shipped:
 
 | Area | What you get |
 |---|---|
-| **Dual ingress** | `POST /v1/chat/completions` (OpenAI) and `POST /v1/messages` (Anthropic / Claude Code) |
-| **Multi-provider egress** | Native Anthropic + any OpenAI-compatible host (DeepSeek, OpenRouter, xAI, vLLM, …) |
-| **Cross-dialect translation** | OpenAI ↔ Anthropic when client and upstream disagree |
+| **Triple ingress** | OpenAI, Anthropic (Claude Code), and native Gemini `generateContent` |
+| **Multi-provider egress** | Native Anthropic + native Gemini + any OpenAI-compatible host (xAI, Moonshot, DeepSeek, …) |
+| **Cross-dialect translation** | OpenAI ↔ Anthropic ↔ Google when client and upstream disagree |
 | **Passthrough-first** | Same dialect → near-verbatim bytes (full fidelity) |
 | **Usage metering** | JSONL (stdout/file), async webhook, or in-process Go hook — one event per chat request |
 | **Ops** | One YAML file, `GATEWAY_LISTEN` / `GATEWAY_CONFIG`, `/healthz`, 30s SIGTERM drain |
 | **Ship anywhere** | Multi-arch release binaries, distroless Docker, K8s sample manifests |
+
+---
+
+## Google / Gemini (both APIs)
+
+Google exposes **two** wire formats. The gateway supports **both as egress** and accepts clients for **both** (native as its own dialect; OpenAI-compat via the shared OpenAI dialect — same bytes).
+
+| Gemini API | Wire format | Ingress (client → gateway) | Egress (gateway → Google) |
+|---|---|---|---|
+| **Native** | `generateContent` / `streamGenerateContent` | **Yes** — dedicated dialect `POST /v1beta/models/{model}:…` (`ingress/google`) | **Yes** — `kind: google` (`egress/google`), `x-goog-api-key` |
+| **OpenAI-compat** | Chat Completions | **Yes** — OpenAI dialect `POST /v1/chat/completions` (identical wire; no separate Google route) | **Yes** — `kind: openai_compat` + Gemini OpenAI base, Bearer |
+
+Template entries:
+
+```yaml
+# Native Gemini (dialect + provider)
+google:
+  kind: google
+  base_url: "https://generativelanguage.googleapis.com/v1beta"
+  # api_key_env: GEMINI_API_KEY
+
+# Gemini OpenAI-compatible (provider; clients use OpenAI dialect)
+google_openai:
+  kind: openai_compat
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+  # api_key_env: GEMINI_API_KEY
+```
+
+| Client wants | Call the gateway with | Route model like |
+|---|---|---|
+| Native Gemini SDK / REST | `/v1beta/models/…:generateContent` | bare id → `defaults.google_dialect`, or `provider/model` in body |
+| OpenAI SDK against Gemini | `/v1/chat/completions` | `google_openai/gemini-2.0-flash` (passthrough) or `google/gemini-…` (translated to native) |
+| Claude Code / Anthropic SDK against Gemini | `/v1/messages` | `google/…` or `google_openai/…` (translated) |
 
 ---
 
@@ -180,19 +219,25 @@ Replicas share nothing. Prefer `hooks.jsonl.output: stdout` + log shipping, or `
 ```yaml
 listen: ":8787"
 providers:
-  deepseek:  { kind: openai_compat, base_url: "https://api.deepseek.com" }
-  openai:    { kind: openai,        base_url: "https://api.openai.com/v1" }
-  anthropic: { kind: anthropic,     base_url: "https://api.anthropic.com/v1" }
+  openai:        { kind: openai,         base_url: "https://api.openai.com/v1" }
+  anthropic:     { kind: anthropic,      base_url: "https://api.anthropic.com/v1" }
+  google:        { kind: google,         base_url: "https://generativelanguage.googleapis.com/v1beta" }
+  google_openai: { kind: openai_compat,  base_url: "https://generativelanguage.googleapis.com/v1beta/openai" }
+  deepseek:      { kind: openai_compat,  base_url: "https://api.deepseek.com" }
+  xai:           { kind: openai_compat,  base_url: "https://api.x.ai/v1" }
+  moonshot:      { kind: openai_compat,  base_url: "https://api.moonshot.ai/v1" }
 defaults:
   openai_dialect: openai
   anthropic_dialect: anthropic
+  google_dialect: google
 aliases:
   fast: deepseek/deepseek-chat
+  grok: xai/grok-3
 hooks:
   jsonl: { output: stdout }
 ```
 
-Full sample: [`gateway.example.yaml`](gateway.example.yaml).
+Full sample (xAI, Moonshot, Z.AI, Groq, Qwen, …): [`gateway.example.yaml`](gateway.example.yaml).
 
 ---
 
@@ -221,6 +266,22 @@ r = client.messages.create(
 )
 ```
 
+**Gemini native** (path-style `generateContent`):
+
+```bash
+curl "http://localhost:8787/v1beta/models/gemini-2.0-flash:generateContent" \
+  -H "Content-Type: application/json" \
+  -H "x-goog-api-key: $GEMINI_API_KEY" \
+  -d '{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}'
+```
+
+**Gemini OpenAI-compat** (same as OpenAI SDK, different provider name):
+
+```python
+client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["GEMINI_API_KEY"])
+r = client.chat.completions.create(model="google_openai/gemini-2.0-flash", messages=[...])
+```
+
 **Shell / PowerShell**
 
 ```bash
@@ -245,10 +306,14 @@ With JSONL → stdout, each chat request logs one line:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/v1/chat/completions` | OpenAI Chat Completions dialect |
+| `POST` | `/v1/chat/completions` | OpenAI dialect (also Gemini OpenAI-compat clients) |
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
+| `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
+| `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini native streaming (upstream `?alt=sse`) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
 | `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
+
+There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
 
 No `/v1/models` yet. Unknown routes → standard 404.
 
@@ -281,7 +346,7 @@ Public `model` resolves in order:
 
 1. **`aliases`** — exact match (`fast` → `deepseek/deepseek-chat`)
 2. **`provider/model`** — first segment must be a configured provider name
-3. **Bare id** — dialect default (`defaults.openai_dialect` or `defaults.anthropic_dialect`)
+3. **Bare id** — dialect default (`defaults.openai_dialect`, `defaults.anthropic_dialect`, or `defaults.google_dialect`)
 
 Missing default or unknown provider → **404** (dialect error envelope).
 
@@ -291,6 +356,8 @@ Missing default or unknown provider → **404** (dialect error envelope).
 | `fast` | either | `deepseek` | `deepseek-chat` |
 | `gpt-4o` | OpenAI | `openai` (default) | `gpt-4o` |
 | `claude-sonnet-4-20250514` | Anthropic | `anthropic` (default) | `claude-sonnet-4-20250514` |
+| `gemini-2.0-flash` (path) | Google | `google` (default) | `gemini-2.0-flash` |
+| `google/gemini-2.0-flash` | OpenAI | `google` | `gemini-2.0-flash` |
 
 ---
 
@@ -307,6 +374,7 @@ Single YAML file. Unknown fields are rejected.
 | `providers.<n>.api_key_env` | no | Env var; when set & non-empty, **replaces** client key |
 | `defaults.openai_dialect` | no | Provider for bare models on OpenAI ingress |
 | `defaults.anthropic_dialect` | no | Provider for bare models on Anthropic ingress |
+| `defaults.google_dialect` | no | Provider for bare models on Gemini ingress |
 | `aliases` | no | Public id → `provider/upstream-model` |
 | `hooks.jsonl.output` | no | `stdout` \| `stderr` \| file path |
 | `hooks.webhook.url` | no | Async POST of each usage event |
@@ -314,18 +382,20 @@ Single YAML file. Unknown fields are rejected.
 
 ### Provider kinds
 
-| Kind | Upstream path | Auth |
-|---|---|---|
-| `openai` | `{base_url}/chat/completions` | `Authorization: Bearer …` |
-| `openai_compat` | same | same |
-| `anthropic` | `{base_url}/messages` | `x-api-key` + `anthropic-version: 2023-06-01` |
-| `google` | — | `x-goog-api-key` *(config only; chat egress not implemented)* |
+| Kind | Upstream path | Auth | Typical use |
+|---|---|---|---|
+| `openai` | `{base_url}/chat/completions` | `Authorization: Bearer …` | OpenAI |
+| `openai_compat` | same | same | DeepSeek, xAI, Moonshot, **Gemini OpenAI-compat**, vLLM, … |
+| `anthropic` | `{base_url}/messages` | `x-api-key` + `anthropic-version: 2023-06-01` | Anthropic |
+| `google` | `{base_url}/models/{model}:generateContent` (stream: `:streamGenerateContent?alt=sse`) | `x-goog-api-key` | **Gemini native** |
 
 `base_url` examples:
 
 - `https://api.openai.com/v1` → `…/v1/chat/completions`
 - `https://api.anthropic.com/v1` → `…/v1/messages`
-- `https://api.deepseek.com` → `…/chat/completions`
+- `https://generativelanguage.googleapis.com/v1beta` → native Gemini (`kind: google`)
+- `https://generativelanguage.googleapis.com/v1beta/openai` → Gemini OpenAI-compat (`kind: openai_compat`)
+- `https://api.deepseek.com` / `https://api.x.ai/v1` / `https://api.moonshot.ai/v1` / … → OpenAI-compat
 
 ---
 
@@ -334,7 +404,8 @@ Single YAML file. Unknown fields are rejected.
 The gateway **does not authenticate callers**. It reads:
 
 1. `Authorization: Bearer <key>`, or
-2. `x-api-key: <key>`
+2. `x-api-key: <key>`, or
+3. `x-goog-api-key: <key>`
 
 …and forwards that credential using the provider’s auth scheme. **The key must be valid for the target provider.** An OpenAI key routed to `anthropic/...` will be rejected upstream.
 
@@ -399,7 +470,7 @@ JSONL/Go must not block the request path. Webhook is non-blocking (background PO
 {
   "request_id": "req_<16 hex>",
   "time": "RFC3339",
-  "dialect_in": "openai | anthropic",
+  "dialect_in": "openai | anthropic | google",
   "provider": "configured name",
   "model": "public id from client",
   "upstream_model": "id sent upstream",
@@ -477,23 +548,24 @@ Binary: [`cmd/gateway`](cmd/gateway).
 ## Architecture
 
 ```
-cmd/gateway/           binary (graceful shutdown, env overrides)
-gateway.go             library New(cfg, opts...) → http.Handler
+cmd/gateway/                     binary (graceful shutdown, env overrides)
+gateway.go                       library New(cfg, opts...) → http.Handler
 
-proxy/                 route → forward → meter
-canonical/             dialect-neutral types (Anthropic-shaped superset)
-ingress/{openai,anthropic}/
-egress/{openai,anthropic}/
-hooks/                 UsageEvent; jsonl + webhook sinks
-config/                YAML + GATEWAY_* env
-internal/sse/          SSE scan helpers
-deploy/k8s/            Kubernetes manifests
+proxy/                           route → forward → meter
+canonical/                       dialect-neutral types (Anthropic-shaped superset)
+ingress/{openai,anthropic,google}/   client dialects (Gemini OpenAI-compat = openai)
+egress/{openai,anthropic,google}/    upstream adapters (Gemini OpenAI-compat = openai)
+hooks/                           UsageEvent; jsonl + webhook sinks
+config/                          YAML + GATEWAY_* env
+internal/sse/                    SSE scan helpers
+deploy/k8s/                      Kubernetes manifests
 ```
 
 | Path | Flow |
 |---|---|
 | Cross-dialect | `ingress.Parse` → canonical → `egress.Build` → upstream → parse/stream → `ingress.Serialize` |
-| Same dialect | rewrite `model` (+ stream usage) → forward bytes |
+| Same dialect | rewrite `model` (+ stream usage / path) → forward bytes |
+| Gemini OpenAI-compat | OpenAI dialect + `openai_compat` provider (passthrough) |
 
 ---
 
@@ -539,9 +611,10 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ## Roadmap
 
-- [ ] Google / Gemini chat egress (`kind: google` already accepted in config)
+- [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
 - [ ] `GET /v1/models`
 - [ ] Optional request auth at the gateway edge
+- [ ] Vertex AI (ADC / service-account) auth helper
 
 ---
 

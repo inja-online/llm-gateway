@@ -99,67 +99,14 @@ func TestHashKeyEmpty(t *testing.T) {
 	}
 }
 
-func TestUnknownProviderKindOnOpenAI(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("must not call")
-	}))
-	t.Cleanup(upstream.Close)
-	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+func TestUnknownProviderKindRejected(t *testing.T) {
+	// All known kinds are implemented; unknown kinds are rejected at config load.
+	if _, err := config.Parse([]byte(`
 providers:
-  g: { kind: google, base_url: %q }
-defaults:
-  openai_dialect: g
-`, upstream.URL)))
-	if err != nil {
-		t.Fatal(err)
+  x: { kind: nope, base_url: "https://x" }
+`)); err == nil {
+		t.Fatal("expected bad kind error")
 	}
-	col := &collector{}
-	gw := httptest.NewServer(NewServer(cfg, col).Handler())
-	t.Cleanup(gw.Close)
-
-	resp, err := http.Post(gw.URL+"/v1/chat/completions", "application/json",
-		strings.NewReader(`{"model":"gemini","messages":[]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status %d", resp.StatusCode)
-	}
-	ev := col.one(t)
-	if ev.Status != hooks.StatusBadRequest {
-		t.Errorf("%+v", ev)
-	}
-}
-
-func TestUnknownProviderKindOnAnthropic(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("must not call")
-	}))
-	t.Cleanup(upstream.Close)
-	cfg, err := config.Parse([]byte(fmt.Sprintf(`
-providers:
-  g: { kind: google, base_url: %q }
-defaults:
-  anthropic_dialect: g
-`, upstream.URL)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	col := &collector{}
-	gw := httptest.NewServer(NewServer(cfg, col).Handler())
-	t.Cleanup(gw.Close)
-
-	resp, err := http.Post(gw.URL+"/v1/messages", "application/json",
-		strings.NewReader(`{"model":"g","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status %d", resp.StatusCode)
-	}
-	col.one(t)
 }
 
 func TestMissingModelOpenAI(t *testing.T) {

@@ -51,6 +51,8 @@ func (s *Server) handleOpenAI(w http.ResponseWriter, r *http.Request) {
 		s.openAIPassthrough(x, route, body, head.Stream)
 	case config.KindAnthropic:
 		s.openAIToAnthropic(x, route, body)
+	case config.KindGoogle:
+		s.openAIToGoogle(x, route, body)
 	default:
 		x.fail(http.StatusNotImplemented, "invalid_request_error",
 			"translation to provider kind "+route.Provider.Kind+" is not implemented", hooks.StatusBadRequest)
