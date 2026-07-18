@@ -18,7 +18,7 @@ func TestStreamSerializerAllEventTypes(t *testing.T) {
 		{Type: canonical.EventBlockStart, Index: 1, BlockType: canonical.BlockToolUse, ToolID: "t", ToolName: "f"},
 		{Type: canonical.EventJSONDelta, Index: 1, PartialJSON: `{"a":1}`},
 		{Type: canonical.EventBlockStop, Index: 1},
-		{Type: canonical.EventThinkingDelta, Index: 2, Text: "think"}, // may be ignored
+		{Type: canonical.EventThinkingDelta, Index: 2, Text: "think"},
 		{Type: canonical.EventFinish, StopReason: canonical.StopToolUse, Usage: canonical.Usage{InputTokens: 1, OutputTokens: 2, HasUsage: true}},
 	} {
 		if b := s.Event(ev); b != nil {
@@ -27,7 +27,7 @@ func TestStreamSerializerAllEventTypes(t *testing.T) {
 	}
 	out.Write(s.Done())
 	got := out.String()
-	for _, want := range []string{"chat.completion.chunk", "hi", "tool_calls", "[DONE]"} {
+	for _, want := range []string{"chat.completion.chunk", "hi", "tool_calls", "reasoning_content", "[DONE]"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %s", want, got)
 		}
