@@ -1,3 +1,7 @@
 /llm-gateway
-gateway.yaml
+/llm-gateway.exe
+/gateway.yaml
 *.jsonl
+/coverage.out
+/coverage.txt
+/dist/
