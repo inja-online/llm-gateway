@@ -127,11 +127,13 @@ func parseBlock(b block) (canonical.Block, bool) {
 	case "tool_use":
 		return canonical.Block{Type: canonical.BlockToolUse, ID: b.ID, Name: b.Name, Input: b.Input}, true
 	case "tool_result":
+		result, resultBlocks := parseToolResultContent(b.Content)
 		return canonical.Block{
-			Type:      canonical.BlockToolResult,
-			ToolUseID: b.ToolUseID,
-			Result:    toolResultText(b.Content),
-			IsError:   b.IsError,
+			Type:         canonical.BlockToolResult,
+			ToolUseID:    b.ToolUseID,
+			Result:       result,
+			ResultBlocks: resultBlocks,
+			IsError:      b.IsError,
 		}, true
 	case "thinking":
 		return canonical.Block{Type: canonical.BlockThinking, Text: b.Thinking, Signature: b.Signature}, true
@@ -139,27 +141,56 @@ func parseBlock(b block) (canonical.Block, bool) {
 	return canonical.Block{}, false
 }
 
-// toolResultText flattens an Anthropic tool_result content (string, or array of
-// text blocks) into a plain string.
+// toolResultText is the plain-string view of tool_result content (tests + compat).
 func toolResultText(raw json.RawMessage) string {
+	s, _ := parseToolResultContent(raw)
+	return s
+}
+
+// parseToolResultContent maps Anthropic tool_result content (string or array of
+// blocks) into a plain Result string plus optional ResultBlocks for multimodal.
+func parseToolResultContent(raw json.RawMessage) (string, []canonical.Block) {
 	if len(raw) == 0 {
-		return ""
+		return "", nil
 	}
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
-		return s
+		return s, nil
 	}
 	var blocks []block
-	if json.Unmarshal(raw, &blocks) == nil {
-		var out string
-		for _, b := range blocks {
-			if b.Type == "text" {
-				out += b.Text
-			}
-		}
-		return out
+	if json.Unmarshal(raw, &blocks) != nil {
+		return string(raw), nil
 	}
-	return string(raw)
+	var text string
+	var out []canonical.Block
+	multimodal := false
+	for _, b := range blocks {
+		switch b.Type {
+		case "text":
+			text += b.Text
+			out = append(out, canonical.Block{Type: canonical.BlockText, Text: b.Text})
+		case "image":
+			multimodal = true
+			if b.Source == nil {
+				continue
+			}
+			img := &canonical.ImageSource{Kind: b.Source.Type}
+			if b.Source.Type == "base64" {
+				img.MediaType = b.Source.MediaType
+				img.Data = b.Source.Data
+			} else {
+				img.Data = b.Source.URL
+			}
+			out = append(out, canonical.Block{Type: canonical.BlockImage, Image: img})
+		default:
+			// Unknown nested types ignored for tool_result.
+		}
+	}
+	if !multimodal && len(out) <= 1 {
+		// Pure text array collapses to Result only (backward compatible).
+		return text, nil
+	}
+	return text, out
 }
 
 func parseToolChoice(raw json.RawMessage) (*canonical.ToolChoice, error) {

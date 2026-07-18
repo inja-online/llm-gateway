@@ -34,14 +34,27 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 			resp.StopReason = finishToStop(*ch.FinishReason)
 		}
 	}
+	resp.SystemFingerprint = in.SystemFingerprint
+	resp.ServiceTier = in.ServiceTier
 	if in.Usage != nil {
-		resp.Usage = canonical.Usage{
-			InputTokens:  in.Usage.PromptTokens,
-			OutputTokens: in.Usage.CompletionTokens,
-			HasUsage:     true,
-		}
+		resp.Usage = usageFromWire(in.Usage)
 	}
 	return resp, nil
+}
+
+func usageFromWire(u *usage) canonical.Usage {
+	out := canonical.Usage{
+		InputTokens:  u.PromptTokens,
+		OutputTokens: u.CompletionTokens,
+		HasUsage:     true,
+	}
+	if u.PromptTokensDetails != nil {
+		out.CacheReadTokens = u.PromptTokensDetails.CachedTokens
+	}
+	if u.CompletionTokensDetails != nil {
+		out.ReasoningTokens = u.CompletionTokensDetails.ReasoningTokens
+	}
+	return out
 }
 
 // finishToStop maps an OpenAI finish_reason to a canonical stop reason.

@@ -24,13 +24,19 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 		}
 	}
 	if in.Usage != nil {
-		resp.Usage = canonical.Usage{
-			InputTokens:  in.Usage.InputTokens,
-			OutputTokens: in.Usage.OutputTokens,
-			HasUsage:     true,
-		}
+		resp.Usage = usageFromWire(in.Usage)
 	}
 	return resp, nil
+}
+
+func usageFromWire(u *anthropicUsage) canonical.Usage {
+	return canonical.Usage{
+		InputTokens:      u.InputTokens,
+		OutputTokens:     u.OutputTokens,
+		HasUsage:         true,
+		CacheReadTokens:  u.CacheReadInputTokens,
+		CacheWriteTokens: u.CacheCreationInputTokens,
+	}
 }
 
 func normalizeStop(sr string) string {

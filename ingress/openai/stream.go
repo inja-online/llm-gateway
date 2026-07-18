@@ -76,11 +76,7 @@ func (s *StreamSerializer) Event(ev canonical.StreamEvent) []byte {
 		fin := stopReasonToFinish(ev.StopReason)
 		var u *usage
 		if ev.Usage.HasUsage {
-			u = &usage{
-				PromptTokens:     ev.Usage.InputTokens,
-				CompletionTokens: ev.Usage.OutputTokens,
-				TotalTokens:      ev.Usage.InputTokens + ev.Usage.OutputTokens,
-			}
+			u = usageToWire(ev.Usage)
 		}
 		return s.chunk(chatOutMsg{}, &fin, u)
 	}

@@ -42,9 +42,11 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 	}
 	if u := chunk.usage(); u != nil {
 		p.usage = canonical.Usage{
-			InputTokens:  u.prompt(),
-			OutputTokens: u.candidates(),
-			HasUsage:     true,
+			InputTokens:     u.prompt(),
+			OutputTokens:    u.candidates(),
+			HasUsage:        true,
+			CacheReadTokens: u.cached(),
+			ReasoningTokens: u.thoughts(),
 		}
 	}
 	if len(chunk.Candidates) == 0 {

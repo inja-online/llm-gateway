@@ -18,6 +18,7 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 		Temperature: req.Temperature,
 		TopP:        req.TopP,
 		Stop:        req.StopSequences,
+		ServiceTier: req.ServiceTier,
 	}
 	if req.Stream {
 		out.StreamOpts = &streamOptions{IncludeUsage: true}
@@ -97,7 +98,7 @@ func buildUser(m canonical.Message) []chatMessage {
 			msgs = append(msgs, chatMessage{
 				Role:       "tool",
 				ToolCallID: b.ToolUseID,
-				Content:    jsonString(b.Result),
+				Content:    toolResultContent(b),
 			})
 		}
 	}
@@ -152,4 +153,30 @@ func imageDataURL(img *canonical.ImageSource) string {
 		return "data:" + img.MediaType + ";base64," + img.Data
 	}
 	return img.Data
+}
+
+// toolResultContent emits a string when only Result is set, or a multimodal
+// content-part array when ResultBlocks is present.
+func toolResultContent(b canonical.Block) json.RawMessage {
+	if len(b.ResultBlocks) > 0 {
+		var parts []contentPart
+		for _, rb := range b.ResultBlocks {
+			switch rb.Type {
+			case canonical.BlockText:
+				parts = append(parts, contentPart{Type: "text", Text: rb.Text})
+			case canonical.BlockImage:
+				if rb.Image != nil {
+					parts = append(parts, contentPart{
+						Type:     "image_url",
+						ImageURL: &imageURLObject{URL: imageDataURL(rb.Image)},
+					})
+				}
+			}
+		}
+		if len(parts) > 0 {
+			raw, _ := json.Marshal(parts)
+			return raw
+		}
+	}
+	return jsonString(b.Result)
 }

@@ -10,12 +10,17 @@ import "encoding/json"
 type generateRequest struct {
 	// Model is optional on the wire (native API puts it in the URL path).
 	// The gateway accepts it in the body for routing convenience.
-	Model             string             `json:"model,omitempty"`
-	Contents          []content          `json:"contents"`
-	SystemInstruction *content           `json:"system_instruction,omitempty"`
-	Tools             []tool             `json:"tools,omitempty"`
-	ToolConfig        *toolConfig        `json:"tool_config,omitempty"`
-	GenerationConfig  *generationConfig  `json:"generation_config,omitempty"`
+	Model             string            `json:"model,omitempty"`
+	Contents          []content         `json:"contents"`
+	SystemInstruction *content          `json:"system_instruction,omitempty"`
+	Tools             []tool            `json:"tools,omitempty"`
+	ToolConfig        *toolConfig       `json:"tool_config,omitempty"`
+	GenerationConfig  *generationConfig `json:"generation_config,omitempty"`
+	// SafetySettings is Gemini harm category thresholds. Preserved on Google
+	// translate egress only; OpenAI/Anthropic clients have no mapping.
+	SafetySettings json.RawMessage `json:"safety_settings,omitempty"`
+	// Also accept camelCase as used by some clients/docs.
+	SafetySettingsCamel json.RawMessage `json:"safetySettings,omitempty"`
 }
 
 type content struct {
@@ -70,6 +75,10 @@ type generationConfig struct {
 	TopP            *float64 `json:"top_p,omitempty"`
 	MaxOutputTokens int      `json:"max_output_tokens,omitempty"`
 	StopSequences   []string `json:"stop_sequences,omitempty"`
+	// CandidateCount is multi-choice. Translation only supports 1; >1 is rejected.
+	CandidateCount int `json:"candidate_count,omitempty"`
+	// camelCase variant
+	CandidateCountCamel int `json:"candidateCount,omitempty"`
 }
 
 // --- response wire types ---
@@ -88,9 +97,11 @@ type candidate struct {
 }
 
 type usageMetadata struct {
-	PromptTokenCount     int `json:"prompt_token_count"`
-	CandidatesTokenCount int `json:"candidates_token_count"`
-	TotalTokenCount      int `json:"total_token_count"`
+	PromptTokenCount        int `json:"prompt_token_count"`
+	CandidatesTokenCount    int `json:"candidates_token_count"`
+	TotalTokenCount         int `json:"total_token_count"`
+	CachedContentTokenCount int `json:"cached_content_token_count,omitempty"`
+	ThoughtsTokenCount      int `json:"thoughts_token_count,omitempty"`
 }
 
 // ValidationError marks a client request problem.

@@ -344,8 +344,7 @@ func (s *Server) forwardGoogleJSON(x *exchange, resp *http.Response) {
 	}
 	canon, err := googleegress.ParseResponse(body)
 	if err == nil && canon.Usage.HasUsage {
-		x.ev.TokensIn = canon.Usage.InputTokens
-		x.ev.TokensOut = canon.Usage.OutputTokens
+		x.applyCanonUsage(canon.Usage)
 	} else {
 		x.ev.Estimated = true
 	}
@@ -395,9 +394,7 @@ func (s *Server) googleToOpenAI(x *exchange, route Route, body []byte, pathModel
 		return
 	}
 	out, _ := googleingress.SerializeResponse(canon)
-	x.ev.TokensIn = canon.Usage.InputTokens
-	x.ev.TokensOut = canon.Usage.OutputTokens
-	x.ev.Estimated = !canon.Usage.HasUsage
+	x.applyCanonUsage(canon.Usage)
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = http.StatusOK
 	x.w.Header().Set("Content-Type", "application/json")
@@ -441,9 +438,7 @@ func (s *Server) googleToAnthropic(x *exchange, route Route, body []byte, pathMo
 		return
 	}
 	out, _ := googleingress.SerializeResponse(canon)
-	x.ev.TokensIn = canon.Usage.InputTokens
-	x.ev.TokensOut = canon.Usage.OutputTokens
-	x.ev.Estimated = !canon.Usage.HasUsage
+	x.applyCanonUsage(canon.Usage)
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = http.StatusOK
 	x.w.Header().Set("Content-Type", "application/json")
@@ -470,9 +465,7 @@ func (s *Server) streamOpenAIToGoogle(x *exchange, resp *http.Response) {
 	write := func(evs []canonical.StreamEvent) error {
 		for _, cev := range evs {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				if _, werr := x.w.Write(out); werr != nil {
@@ -527,9 +520,7 @@ func (s *Server) streamAnthropicToGoogle(x *exchange, resp *http.Response) {
 		}
 		for _, cev := range parser.Parse(data) {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				if _, werr := x.w.Write(out); werr != nil {
@@ -580,9 +571,7 @@ func (s *Server) openAIToGoogle(x *exchange, route Route, body []byte) {
 		return
 	}
 	out, _ := oaingress.SerializeResponse(canon, created)
-	x.ev.TokensIn = canon.Usage.InputTokens
-	x.ev.TokensOut = canon.Usage.OutputTokens
-	x.ev.Estimated = !canon.Usage.HasUsage
+	x.applyCanonUsage(canon.Usage)
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = http.StatusOK
 	x.w.Header().Set("Content-Type", "application/json")
@@ -626,9 +615,7 @@ func (s *Server) anthropicToGoogle(x *exchange, route Route, body []byte) {
 		return
 	}
 	out, _ := antingress.SerializeResponse(canon)
-	x.ev.TokensIn = canon.Usage.InputTokens
-	x.ev.TokensOut = canon.Usage.OutputTokens
-	x.ev.Estimated = !canon.Usage.HasUsage
+	x.applyCanonUsage(canon.Usage)
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = http.StatusOK
 	x.w.Header().Set("Content-Type", "application/json")
@@ -662,9 +649,7 @@ func (s *Server) streamGoogleToOpenAI(x *exchange, resp *http.Response, created 
 		}
 		for _, cev := range parser.Parse(data) {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				if _, werr := x.w.Write(out); werr != nil {
@@ -678,9 +663,7 @@ func (s *Server) streamGoogleToOpenAI(x *exchange, resp *http.Response, created 
 	if err == nil {
 		for _, cev := range parser.Finish() {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				x.w.Write(out)
@@ -712,9 +695,7 @@ func (s *Server) streamGoogleToAnthropic(x *exchange, resp *http.Response) {
 	write := func(evs []canonical.StreamEvent) error {
 		for _, cev := range evs {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				if _, werr := x.w.Write(out); werr != nil {
@@ -748,26 +729,40 @@ func extractGoogleUsage(data []byte, ev *hooks.UsageEvent) bool {
 		UsageMetadata *struct {
 			PromptTokenCount     int `json:"promptTokenCount"`
 			CandidatesTokenCount int `json:"candidatesTokenCount"`
+			CachedContent        int `json:"cachedContentTokenCount"`
+			Thoughts             int `json:"thoughtsTokenCount"`
 			PromptSnake          int `json:"prompt_token_count"`
 			CandidatesSnake      int `json:"candidates_token_count"`
+			CachedSnake          int `json:"cached_content_token_count"`
+			ThoughtsSnake        int `json:"thoughts_token_count"`
 		} `json:"usageMetadata"`
 		UsageSnake *struct {
 			PromptTokenCount     int `json:"prompt_token_count"`
 			CandidatesTokenCount int `json:"candidates_token_count"`
+			CachedContent        int `json:"cached_content_token_count"`
+			Thoughts             int `json:"thoughts_token_count"`
 		} `json:"usage_metadata"`
 	}
 	if json.Unmarshal(data, &env) != nil {
 		return false
 	}
-	in, out := 0, 0
+	in, out, cached, reasoning := 0, 0, 0, 0
 	if env.UsageMetadata != nil {
 		in = env.UsageMetadata.PromptTokenCount
 		out = env.UsageMetadata.CandidatesTokenCount
+		cached = env.UsageMetadata.CachedContent
+		reasoning = env.UsageMetadata.Thoughts
 		if in == 0 {
 			in = env.UsageMetadata.PromptSnake
 		}
 		if out == 0 {
 			out = env.UsageMetadata.CandidatesSnake
+		}
+		if cached == 0 {
+			cached = env.UsageMetadata.CachedSnake
+		}
+		if reasoning == 0 {
+			reasoning = env.UsageMetadata.ThoughtsSnake
 		}
 	}
 	if env.UsageSnake != nil {
@@ -777,12 +772,24 @@ func extractGoogleUsage(data []byte, ev *hooks.UsageEvent) bool {
 		if out == 0 {
 			out = env.UsageSnake.CandidatesTokenCount
 		}
+		if cached == 0 {
+			cached = env.UsageSnake.CachedContent
+		}
+		if reasoning == 0 {
+			reasoning = env.UsageSnake.Thoughts
+		}
 	}
 	if in == 0 && out == 0 {
 		return false
 	}
 	ev.TokensIn = in
 	ev.TokensOut = out
+	if cached > 0 {
+		ev.CachedTokens = cached
+	}
+	if reasoning > 0 {
+		ev.ReasoningTokens = reasoning
+	}
 	return true
 }
 

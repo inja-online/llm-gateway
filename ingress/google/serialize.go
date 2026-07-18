@@ -19,9 +19,11 @@ func SerializeResponse(resp *canonical.Response) ([]byte, error) {
 	}
 	if resp.Usage.HasUsage {
 		out.UsageMetadata = &usageMetadata{
-			PromptTokenCount:     resp.Usage.InputTokens,
-			CandidatesTokenCount: resp.Usage.OutputTokens,
-			TotalTokenCount:      resp.Usage.InputTokens + resp.Usage.OutputTokens,
+			PromptTokenCount:        resp.Usage.InputTokens,
+			CandidatesTokenCount:    resp.Usage.OutputTokens,
+			TotalTokenCount:         resp.Usage.InputTokens + resp.Usage.OutputTokens,
+			CachedContentTokenCount: resp.Usage.CacheReadTokens,
+			ThoughtsTokenCount:      resp.Usage.ReasoningTokens,
 		}
 	}
 	return json.Marshal(out)

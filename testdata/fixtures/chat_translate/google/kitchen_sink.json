@@ -1,0 +1,60 @@
+{
+  "model": "openai/gpt-test",
+  "contents": [
+    {
+      "role": "user",
+      "parts": [{"text": "hello"}]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {"text": "hi"},
+        {"function_call": {"name": "lookup", "args": {"q": "x"}}}
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "function_response": {
+            "name": "lookup",
+            "response": {"result": "result-text"}
+          }
+        }
+      ]
+    }
+  ],
+  "system_instruction": {
+    "parts": [{"text": "You are concise."}]
+  },
+  "generation_config": {
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "max_output_tokens": 256,
+    "stop_sequences": ["END"],
+    "candidate_count": 1
+  },
+  "safety_settings": [
+    {
+      "category": "HARM_CATEGORY_HATE_SPEECH",
+      "threshold": "BLOCK_NONE"
+    }
+  ],
+  "tools": [
+    {
+      "function_declarations": [
+        {
+          "name": "lookup",
+          "description": "look something up",
+          "parameters": {
+            "type": "object",
+            "properties": {"q": {"type": "string"}}
+          }
+        }
+      ]
+    }
+  ],
+  "tool_config": {
+    "function_calling_config": {"mode": "AUTO"}
+  }
+}
