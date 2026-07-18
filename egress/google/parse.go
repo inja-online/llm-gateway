@@ -47,9 +47,11 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 	}
 	if u := in.usage(); u != nil {
 		resp.Usage = canonical.Usage{
-			InputTokens:  u.prompt(),
-			OutputTokens: u.candidates(),
-			HasUsage:     true,
+			InputTokens:     u.prompt(),
+			OutputTokens:    u.candidates(),
+			HasUsage:        true,
+			CacheReadTokens: u.cached(),
+			ReasoningTokens: u.thoughts(),
 		}
 	}
 	return resp, nil

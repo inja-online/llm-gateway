@@ -51,11 +51,7 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 	}
 	// A usage-only chunk carries no choices.
 	if chunk.Usage != nil {
-		p.usage = canonical.Usage{
-			InputTokens:  chunk.Usage.PromptTokens,
-			OutputTokens: chunk.Usage.CompletionTokens,
-			HasUsage:     true,
-		}
+		p.usage = usageFromWire(chunk.Usage)
 	}
 	if len(chunk.Choices) == 0 {
 		return evs

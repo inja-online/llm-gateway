@@ -7,17 +7,26 @@
 # Client dialects (ingress):
 #   OpenAI     POST /v1/chat/completions
 #              (also used by Gemini OpenAI-compat clients — same wire format)
+#              POST /v1/responses   GET|DELETE /v1/responses/{id}?provider=...
+#              POST|GET|DELETE /v1/files[...]   POST /v1/moderations
 #              POST /v1/images/generations|edits|variations
 #              POST /v1/videos   GET /v1/videos/{id}?provider=...
+#              GET  /v1/realtime?model=...   (WebSocket; requires capabilities.realtime)
 #   Anthropic  POST /v1/messages
+#              POST /v1/messages/count_tokens  (proxy / Google translate / estimate)
 #   Google     POST /v1beta/models/{model}:generateContent          (native chat / image-in-chat)
 #              POST /v1beta/models/{model}:streamGenerateContent    (native)
+#              POST /v1beta/models/{model}:countTokens              (native; no usage event)
+#              GET  /v1beta/models[/{model}]  (?provider= or defaults.google_dialect)
+#              GET  /v1beta/models/{model}:bidiGenerateContent      (Live WS skeleton)
 #
 # Provider kinds (egress):
-#   openai / openai_compat  — Chat Completions + images + videos
+#   openai / openai_compat  — Chat + Responses + Files + Moderations + images + videos
 #                             (set base_url to Gemini …/v1beta/openai for google_openai)
+#                             openai_compat: set capabilities.realtime/image_gen/... to opt in
 #   anthropic               — Messages API (chat only)
-#   google                  — native Gemini generateContent (chat / multimodal)
+#   google                  — native Gemini generateContent / countTokens / models list
+#   google                  — native Gemini generateContent (+ Live when realtime)
 
 listen: ":8787"   # override with env GATEWAY_LISTEN=0.0.0.0:8787
 
@@ -40,10 +49,30 @@ providers:
     # api_key_env: GEMINI_API_KEY
 
   # Gemini via OpenAI-compatible endpoint. Auth: Bearer
+  # openai_compat defaults to text-only; opt in for image/video media routes.
   google_openai:
     kind: openai_compat
     base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
     # api_key_env: GEMINI_API_KEY
+    capabilities:
+      text: true
+      image_gen: true
+      video_gen: true
+      # audio_speech: false
+      # audio_transcribe: false
+      # realtime: false
+
+  # Vertex AI (Gemini on GCP) — native generateContent with OAuth2 / ADC.
+  # Confirm region + project endpoints in Google Cloud docs (dated 2026-07).
+  # auth: adc|service_account uses Authorization: Bearer from a TokenSource
+  # (inject via proxy.Server.SetTokenSource in library mode; real Google ADC
+  # is optional — no cloud SDK bundled). Mount SA JSON read-only when used.
+  # vertex:
+  #   kind: google
+  #   base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
+  #   auth: adc
+  #   # service_account_file: /secrets/vertex-sa.json
+  #   # api_key_env:  # unused for adc
 
   # --- OpenAI-compatible hosts (kind: openai_compat) ---
   deepseek:
@@ -51,15 +80,26 @@ providers:
     base_url: "https://api.deepseek.com"
     # api_key_env: DEEPSEEK_API_KEY
 
+  # OpenRouter — openai_compat; optional client headers HTTP-Referer + X-Title
+  # are forwarded. Body fields (provider, plugins, route, …) pass through.
+  # Image/video models: set capabilities.image_gen / video_gen true (defaults off).
   openrouter:
     kind: openai_compat
     base_url: "https://openrouter.ai/api/v1"
     # api_key_env: OPENROUTER_API_KEY
+    # capabilities:
+    #   text: true
+    #   image_gen: true
 
+  # xAI (Grok) — Chat Completions passthrough; media/Responses when host supports.
+  # Alias example: grok → xai/grok-3. Opt-in capabilities for images if needed.
   xai:
     kind: openai_compat
     base_url: "https://api.x.ai/v1"
     # api_key_env: XAI_API_KEY
+    # capabilities:
+    #   text: true
+    #   image_gen: true
 
   # Moonshot / Kimi (use the regional base that matches your key)
   moonshot:
@@ -70,16 +110,31 @@ providers:
   #   kind: openai_compat
   #   base_url: "https://api.moonshot.cn/v1"
 
-  # Zhipu / Z.AI (GLM) — confirm current OpenAI-compat base in their docs
+  # Zhipu / Z.AI (GLM) — pick the regional OpenAI-compat base that matches your key.
+  # Bases change; confirm in Z.AI / BigModel docs (note written 2026-07).
+  # International (example):
   zai:
     kind: openai_compat
     base_url: "https://api.z.ai/api/paas/v4"
     # api_key_env: ZAI_API_KEY
+  # China / BigModel OpenAI-compat (example alternate — uncomment one region only):
+  # zai_cn:
+  #   kind: openai_compat
+  #   base_url: "https://open.bigmodel.cn/api/paas/v4"
+  #   # api_key_env: ZAI_API_KEY
+  # openai_compat media defaults off (text only) unless capabilities set.
 
+  # Groq — fast openai_compat. Chat and (when audio routes land) STT:
+  # set capabilities.audio_transcribe: true and call models as groq/<whisper-model>.
+  # Keep chat on another provider via defaults.openai_dialect while STT uses groq/.
   groq:
     kind: openai_compat
     base_url: "https://api.groq.com/openai/v1"
     # api_key_env: GROQ_API_KEY
+    # capabilities:
+    #   text: true
+    #   audio_transcribe: true
+    #   audio_speech: false
 
   together:
     kind: openai_compat
@@ -116,11 +171,20 @@ providers:
     base_url: "https://api.siliconflow.cn/v1"
     # api_key_env: SILICONFLOW_API_KEY
 
-  # Alibaba DashScope (Qwen) OpenAI-compatible mode
+  # Alibaba DashScope (Qwen) OpenAI-compatible mode.
+  # Use the region that matches your DashScope key; path includes compatible-mode.
+  # CN (default example):
   qwen:
     kind: openai_compat
     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     # api_key_env: DASHSCOPE_API_KEY
+  # International (example alternate):
+  # qwen_intl:
+  #   kind: openai_compat
+  #   base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+  #   # api_key_env: DASHSCOPE_API_KEY
+  # Model ids are often bare (qwen-turbo, qwen-plus) or with provider prefix:
+  #   qwen/qwen-turbo  |  alias below.
 
   # Local / self-hosted (uncomment and point at your server)
   # vllm:
@@ -143,6 +207,27 @@ aliases:
   grok: xai/grok-3
   gemini: google/gemini-2.0-flash
   kimi: moonshot/kimi-latest
+  # qwen-turbo: qwen/qwen-turbo
+  # whisper-fast: groq/whisper-large-v3  # STT when audio_transcribe routes exist
+
+# Optional edge auth (off by default). When enabled, every route except GET /healthz
+# requires Authorization: Bearer <key> or x-api-key matching keys / keys_env.
+# Prefer keys_env in production (comma-separated). Distinct from provider api_key_env:
+# with api_key_env set, clients only need the edge key; upstream uses the env secret.
+# edge_auth:
+#   enabled: true
+#   keys_env: GATEWAY_EDGE_KEYS
+#   # keys: ["local-dev-only-key"]
+
+# Realtime session caps (process-local; defaults shown)
+# realtime:
+#   max_sessions: 1024
+#   max_session_minutes: 60
+
+# Realtime WebSocket process limits (OpenAI Realtime + Google Live)
+realtime:
+  max_sessions: 1024
+  max_session_minutes: 60
 
 hooks:
   jsonl:

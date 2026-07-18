@@ -24,6 +24,16 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 		Stream:      in.Stream,
 		Temperature: in.Temperature,
 		TopP:        in.TopP,
+		ServiceTier: in.ServiceTier,
+	}
+	// Multi-choice policy: translation only supports a single choice (n=1).
+	// n omitted or n=1 is accepted; n>1 is rejected so clients never silently
+	// receive one of many requested choices.
+	if in.N != nil {
+		if *in.N != 1 {
+			return nil, &ValidationError{Msg: fmt.Sprintf("n=%d is not supported on the translation path; only n=1 is allowed", *in.N)}
+		}
+		req.N = 1
 	}
 	switch {
 	case in.MaxTokens != nil:
@@ -66,10 +76,13 @@ func parseStop(raw json.RawMessage) ([]string, error) {
 	return nil, &ValidationError{Msg: "stop must be a string or array of strings"}
 }
 
+// parseTools accepts function tools (type empty or "function"). Non-function
+// tool types (e.g. custom, built-in) are rejected with bad_request so clients
+// do not believe unsupported tools were registered. Policy: error, not skip.
 func parseTools(tools []chatTool, req *canonical.Request) error {
 	for _, t := range tools {
 		if t.Type != "" && t.Type != "function" {
-			continue // only function tools are representable
+			return &ValidationError{Msg: fmt.Sprintf("unsupported tool type %q; only type \"function\" is supported on the translation path", t.Type)}
 		}
 		if t.Function.Name == "" {
 			return &ValidationError{Msg: "tool function name is required"}
@@ -153,18 +166,13 @@ func parseMessages(msgs []chatMessage, req *canonical.Request) error {
 			req.Messages = append(req.Messages, canonical.Message{Role: canonical.RoleAssistant, Content: blocks})
 
 		case "tool":
-			var result string
-			if len(m.Content) > 0 {
-				// tool content is normally a string; fall back to raw.
-				if json.Unmarshal(m.Content, &result) != nil {
-					result = string(m.Content)
-				}
+			tr, err := parseToolMessageContent(m.Content)
+			if err != nil {
+				return err
 			}
-			appendUserBlocks(req, []canonical.Block{{
-				Type:      canonical.BlockToolResult,
-				ToolUseID: m.ToolCallID,
-				Result:    result,
-			}})
+			tr.Type = canonical.BlockToolResult
+			tr.ToolUseID = m.ToolCallID
+			appendUserBlocks(req, []canonical.Block{tr})
 
 		default:
 			return &ValidationError{Msg: fmt.Sprintf("unsupported message role %q", m.Role)}
@@ -182,6 +190,37 @@ func appendUserBlocks(req *canonical.Request, blocks []canonical.Block) {
 		return
 	}
 	req.Messages = append(req.Messages, canonical.Message{Role: canonical.RoleUser, Content: blocks})
+}
+
+// parseToolMessageContent maps role:tool content into a tool_result block.
+// String content → Result; array of parts → ResultBlocks (+ concatenated Result).
+func parseToolMessageContent(raw json.RawMessage) (canonical.Block, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return canonical.Block{}, nil
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return canonical.Block{Result: s}, nil
+	}
+	blocks, err := parseContentBlocks(raw)
+	if err != nil {
+		// Fall back to raw string for non-standard tool content.
+		return canonical.Block{Result: string(raw)}, nil
+	}
+	if len(blocks) == 0 {
+		return canonical.Block{}, nil
+	}
+	// Single text part collapses to Result for compatibility.
+	if len(blocks) == 1 && blocks[0].Type == canonical.BlockText {
+		return canonical.Block{Result: blocks[0].Text}, nil
+	}
+	var text string
+	for _, b := range blocks {
+		if b.Type == canonical.BlockText {
+			text += b.Text
+		}
+	}
+	return canonical.Block{Result: text, ResultBlocks: blocks}, nil
 }
 
 // parseContentBlocks handles the three OpenAI content shapes: a JSON string,

@@ -1,0 +1,104 @@
+# Claude Code regression checklist
+
+**Last updated:** 2026-07-18
+
+Use this before tagging a release that touches Anthropic ingress/egress, streaming, headers, or routing. Prefer hermetic Go tests over live Claude Code in CI; run the manual block when validating a release candidate.
+
+## Why this exists
+
+Claude Code talks **Anthropic Messages** (`POST /v1/messages`, SSE streams, tools, betas, `count_tokens`). That path is a flagship passthrough when the upstream is `kind: anthropic`. New gateway surfaces (Responses, media, realtime, edge auth) must not break headers, SSE framing, or tool round-trips.
+
+## Automated coverage (link tests by name)
+
+Run:
+
+```bash
+go test ./proxy/ -count=1
+go test ./ingress/anthropic/ ./egress/anthropic/ -count=1
+```
+
+Critical hermetic tests (names may grow; search `Anthropic` / `passthrough`):
+
+| Area | Tests (representative) |
+|---|---|
+| Messages passthrough | `TestAnthropicStreamPassthrough`, non-stream Anthropic server tests in `proxy/*` |
+| Upstream errors | `TestAnthropicUpstreamError`, `TestAnthropicToOpenAIUpstreamErrorTranslated` |
+| Translate path | `TestOpenAIToAnthropic*`, `TestAnthropicToOpenAI*` |
+| count_tokens | `TestCountTokens*`, `proxy/count_tokens_test.go` |
+| Edge auth open healthz | `TestEdgeAuthHealthzOpen` (edge must not break probes) |
+
+Ingress/egress package unit tests cover parse/serialize/stream wire shapes.
+
+## Manual release sign-off
+
+### 1. Config
+
+```yaml
+providers:
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+    api_key_env: ANTHROPIC_API_KEY
+  # optional second provider for translate checks
+  deepseek:
+    kind: openai_compat
+    base_url: "https://api.deepseek.com"
+    api_key_env: DEEPSEEK_API_KEY
+defaults:
+  anthropic_dialect: anthropic
+aliases:
+  # optional
+  # cheap: deepseek/deepseek-chat
+```
+
+### 2. Env + Claude Code
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:8787
+export ANTHROPIC_API_KEY=...   # real Anthropic key, or edge key if edge_auth + api_key_env
+# optional: export ANTHROPIC_MODEL=claude-sonnet-4-20250514
+./llm-gateway -config gateway.yaml
+# other terminal:
+claude
+# or: ./examples/claude-code.sh
+```
+
+With **edge_auth** enabled, set `ANTHROPIC_API_KEY` to a configured edge key and keep upstream in `api_key_env`.
+
+### 3. Functional checks
+
+- [ ] Non-stream short completion
+- [ ] Stream completion (tokens appear incrementally; no truncated SSE)
+- [ ] Tool use / function calling round-trip
+- [ ] Multimodal image input (if used in your workflows)
+- [ ] `count_tokens` still returns a number (proxy or estimate)
+- [ ] Prompt-caching / beta headers: client `anthropic-beta` values reach upstream on passthrough (see header forward list)
+- [ ] Model routing: bare id → anthropic default; `provider/model` and aliases
+- [ ] Translated path (optional): `ANTHROPIC_MODEL=deepseek/deepseek-chat` — expect full translation; stream `input_tokens` may be 0 until final event (documented caveat)
+
+### 4. Negative checks
+
+- [ ] Bad key → Anthropic-shaped error envelope
+- [ ] Unknown model provider → 404 dialect error
+- [ ] Gateway `/healthz` still 200 without credentials
+
+### 5. Sign-off
+
+- [ ] `go test ./... -race` green
+- [ ] CHANGELOG entry if Anthropic surface or caveats changed
+- [ ] No secrets committed
+
+## Known limitations (translated path)
+
+| Topic | Behavior |
+|---|---|
+| Anthropic → openai_compat stream | `message_start.input_tokens` may be 0 until final usage |
+| OpenAI-only fields | Dropped on translate (see [deprecation-policy.md](deprecation-policy.md)) |
+| Files / Batch APIs | Not required for Claude Code chat; track separate issues when proxied |
+| Media Contract Anthropic images | Planned; not required for text Claude Code |
+
+## Related
+
+- [examples/claude-code.sh](../examples/claude-code.sh)
+- [README § Claude Code](../README.md#claude-code)
+- [compatibility-matrix.md](compatibility-matrix.md)

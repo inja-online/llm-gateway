@@ -1,0 +1,36 @@
+{
+  "model": "claude/claude-test",
+  "max_tokens": 256,
+  "temperature": 0.2,
+  "top_p": 0.9,
+  "stop": ["END"],
+  "stream": false,
+  "service_tier": "auto",
+  "messages": [
+    {"role": "system", "content": "You are concise."},
+    {"role": "user", "content": "hello"},
+    {
+      "role": "assistant",
+      "content": "hi",
+      "tool_calls": [
+        {
+          "id": "call_1",
+          "type": "function",
+          "function": {"name": "lookup", "arguments": "{\"q\":\"x\"}"}
+        }
+      ]
+    },
+    {"role": "tool", "tool_call_id": "call_1", "content": "result-text"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "lookup",
+        "description": "look something up",
+        "parameters": {"type": "object", "properties": {"q": {"type": "string"}}}
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}

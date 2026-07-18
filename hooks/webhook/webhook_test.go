@@ -68,3 +68,9 @@ func TestNon2xxLoggedNotPanic(t *testing.T) {
 	s.OnUsage(context.Background(), hooks.UsageEvent{RequestID: "x"})
 	time.Sleep(100 * time.Millisecond) // allow goroutine
 }
+
+func TestPostNetworkError(t *testing.T) {
+	s := New("http://127.0.0.1:1", 50*time.Millisecond)
+	s.OnUsage(context.Background(), hooks.UsageEvent{RequestID: "net"})
+	time.Sleep(150 * time.Millisecond)
+}

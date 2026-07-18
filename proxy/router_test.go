@@ -60,3 +60,21 @@ func TestResolveNoDefault(t *testing.T) {
 		t.Fatal("bare model with no anthropic default: want error")
 	}
 }
+
+func TestCheckCapability(t *testing.T) {
+	openai := config.Provider{Kind: config.KindOpenAI, BaseURL: "https://x"}
+	if err := CheckCapability(openai, "openai", config.ModalityImageGen); err != nil {
+		t.Fatalf("openai should allow image_gen: %v", err)
+	}
+	compat := config.Provider{Kind: config.KindOpenAICompat, BaseURL: "https://x"}
+	if err := CheckCapability(compat, "deepseek", config.ModalityImageGen); err == nil {
+		t.Fatal("openai_compat must deny image_gen without opt-in")
+	}
+	compat.Capabilities = &config.Capabilities{Text: true, ImageGen: true}
+	if err := CheckCapability(compat, "deepseek", config.ModalityImageGen); err != nil {
+		t.Fatalf("opt-in image_gen: %v", err)
+	}
+	if err := CheckCapability(compat, "deepseek", config.ModalityVideoGen); err == nil {
+		t.Fatal("video_gen still off")
+	}
+}

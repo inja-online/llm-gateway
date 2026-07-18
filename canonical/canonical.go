@@ -57,9 +57,12 @@ type Block struct {
 	Name  string          // tool_use name
 	Input json.RawMessage // tool_use arguments (JSON object)
 
-	ToolUseID string // tool_result: the tool_use id it answers
-	Result    string // tool_result content (text)
-	IsError   bool   // tool_result
+	ToolUseID    string  // tool_result: the tool_use id it answers
+	Result       string  // tool_result: plain text (backward compatible)
+	ResultBlocks []Block // tool_result: multimodal content (text/image); not nested tool_use/tool_result
+	IsError      bool    // tool_result
+
+	Redacted bool // thinking: redacted_thinking (Anthropic)
 }
 
 // Message is one turn.
@@ -103,13 +106,42 @@ type Request struct {
 	Tools         []Tool
 	ToolChoice    *ToolChoice
 	Metadata      map[string]string
+
+	// ServiceTier is an optional OpenAI request hint (e.g. "auto", "default").
+	// Other dialects omit it on egress.
+	ServiceTier string
+
+	// SafetySettings is raw Google Gemini safetySettings JSON when present on
+	// Google ingress. Re-emitted only on Google egress; other dialects drop it.
+	// Passthrough Google→Google does not use this field (byte path).
+	SafetySettings json.RawMessage
+
+	// N is the requested multi-choice count (OpenAI n / Google candidateCount).
+	// Translation supports only n=1; see policy in ingress parsers.
+	// 0 means unset (treat as 1). Values >1 are rejected at ingress.
+	N int
 }
 
 // Usage is token accounting from the upstream.
+//
+// Detail fields are optional and zero when unknown. totals (InputTokens /
+// OutputTokens) keep provider-reported totals; reasoning tokens are not
+// double-counted into OutputTokens beyond what the upstream already included.
 type Usage struct {
 	InputTokens  int
 	OutputTokens int
 	HasUsage     bool // false when the upstream reported nothing
+
+	// CacheReadTokens is prompt tokens served from cache
+	// (OpenAI prompt_tokens_details.cached_tokens, Anthropic cache_read_input_tokens).
+	CacheReadTokens int
+	// CacheWriteTokens is tokens written into cache
+	// (Anthropic cache_creation_input_tokens). No standard OpenAI analogue.
+	CacheWriteTokens int
+	// ReasoningTokens is completion-side reasoning/thinking tokens
+	// (OpenAI completion_tokens_details.reasoning_tokens). Included in
+	// OutputTokens when the provider already folded them into completion totals.
+	ReasoningTokens int
 }
 
 // Response is a completed canonical response.
@@ -119,6 +151,11 @@ type Response struct {
 	Content    []Block
 	StopReason string
 	Usage      Usage
+
+	// SystemFingerprint and ServiceTier are optional OpenAI response metadata.
+	// Never invented for non-OpenAI upstreams.
+	SystemFingerprint string
+	ServiceTier       string
 }
 
 // EventType discriminates a StreamEvent.

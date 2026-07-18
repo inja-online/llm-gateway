@@ -16,7 +16,32 @@ const (
 	StatusBadRequest    = "bad_request"
 )
 
-// UsageEvent is emitted exactly once per proxied request.
+// Transport values for UsageEvent.Transport.
+const (
+	TransportHTTP      = "http"
+	TransportWebSocket = "websocket"
+)
+
+// MediaUnitKind values for MediaUsage.UnitKind (billing hooks; not prices).
+const (
+	MediaUnitImage          = "image"
+	MediaUnitVideoSecond    = "video_second"
+	MediaUnitAudioCharacter = "audio_character"
+	MediaUnitAudioMinute    = "audio_minute"
+	MediaUnitSessionMinute  = "session_minute"
+)
+
+// MediaUsage carries non-token billable dimensions for media/realtime requests.
+// Omitted from JSON when empty (all zero / blank).
+type MediaUsage struct {
+	Units      int    `json:"units,omitempty"`
+	UnitKind   string `json:"unit_kind,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+	Size       string `json:"size,omitempty"`
+	Format     string `json:"format,omitempty"`
+}
+
+// UsageEvent is emitted exactly once per proxied request (or realtime session end).
 type UsageEvent struct {
 	RequestID     string    `json:"request_id"`
 	Time          time.Time `json:"time"`
@@ -24,14 +49,30 @@ type UsageEvent struct {
 	Provider      string    `json:"provider"`
 	Model         string    `json:"model"`          // public id as the client sent it
 	UpstreamModel string    `json:"upstream_model"` // id sent upstream
-	TokensIn      int       `json:"tokens_in"`
-	TokensOut     int       `json:"tokens_out"`
-	Estimated     bool      `json:"estimated"` // true when upstream reported no usage
-	Stream        bool      `json:"stream"`
-	Status        string    `json:"status"`
-	HTTPStatus    int       `json:"http_status"`
-	LatencyMS     int64     `json:"latency_ms"`
-	TTFTMS        int64     `json:"ttft_ms,omitempty"`
+	// Modality is text|embedding|image_gen|video_gen|audio_speech|audio_transcribe|realtime.
+	// Empty means legacy text chat (treat as text).
+	Modality string `json:"modality,omitempty"`
+	// Transport is http|websocket. Empty means http.
+	Transport string `json:"transport,omitempty"`
+	TokensIn  int    `json:"tokens_in"`
+	TokensOut int    `json:"tokens_out"`
+	// CachedTokens is prompt tokens served from cache when known
+	// (OpenAI cached_tokens / Anthropic cache_read_input_tokens).
+	CachedTokens int `json:"cached_tokens,omitempty"`
+	// CacheWriteTokens is Anthropic cache_creation_input_tokens when known.
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	// ReasoningTokens is completion reasoning/thinking tokens when known.
+	// tokens_out already includes them when the upstream folds them into
+	// completion totals — do not add again for billing without checking provider.
+	ReasoningTokens int  `json:"reasoning_tokens,omitempty"`
+	Estimated       bool `json:"estimated"` // true when upstream reported no usage
+	// Media is set for image/video/audio/realtime metering when known.
+	Media      *MediaUsage `json:"media,omitempty"`
+	Stream     bool        `json:"stream"`
+	Status     string      `json:"status"`
+	HTTPStatus int         `json:"http_status"`
+	LatencyMS  int64       `json:"latency_ms"`
+	TTFTMS     int64       `json:"ttft_ms,omitempty"`
 	// KeyHash is a short sha256 prefix of the forwarded credential — enough to
 	// correlate usage per key without ever storing the key itself.
 	KeyHash string `json:"key_hash,omitempty"`

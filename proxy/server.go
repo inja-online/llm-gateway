@@ -15,9 +15,11 @@ import (
 )
 
 type Server struct {
-	cfg    *config.Config
-	hook   hooks.Hook
-	client *http.Client
+	cfg          *config.Config
+	hook         hooks.Hook
+	client       *http.Client
+	tokenSources map[string]TokenSource // provider name → ADC / SA token source
+	sessions     *sessionLimiter
 }
 
 func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
@@ -27,6 +29,7 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 	return &Server{
 		cfg:  cfg,
 		hook: hook,
+		sessions: newSessionLimiter(cfg.Realtime.MaxSessions, cfg.Realtime.MaxSessionMinutes),
 		client: &http.Client{
 			// No overall timeout: streams are long-lived. Per-request contexts
 			// propagate client disconnects; the transport bounds dials.
@@ -36,6 +39,7 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 				ResponseHeaderTimeout: 60 * time.Second,
 			},
 		},
+		tokenSources: make(map[string]TokenSource),
 	}
 }
 
@@ -44,19 +48,50 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
-	// Native Gemini generateContent / streamGenerateContent (model in path).
+	mux.HandleFunc("GET /v1/models", s.handleModelsList)
+	mux.HandleFunc("GET /v1/models/{id...}", s.handleModelsGet)
+	mux.HandleFunc("POST /v1/embeddings", s.handleEmbeddings)
+	mux.HandleFunc("POST /v1/responses", s.handleResponses)
+	mux.HandleFunc("GET /v1/responses/{id}", s.handleResponsesGet)
+	mux.HandleFunc("DELETE /v1/responses/{id}", s.handleResponsesDelete)
+	mux.HandleFunc("POST /v1/files", s.handleFilesUpload)
+	mux.HandleFunc("GET /v1/files", s.handleFilesList)
+	mux.HandleFunc("GET /v1/files/{id}", s.handleFilesGet)
+	mux.HandleFunc("GET /v1/files/{id}/content", s.handleFilesContent)
+	mux.HandleFunc("DELETE /v1/files/{id}", s.handleFilesDelete)
+	mux.HandleFunc("POST /v1/moderations", s.handleModerations)
+	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
-	// OpenAI-compatible image & video generation (passthrough to openai / openai_compat).
-	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
+	mux.HandleFunc("GET /v1beta/models", s.handleGoogleModelsList)
+	// Single path param — Live WS (:bidiGenerateContent) vs model get.
+	mux.HandleFunc("GET /v1beta/models/{model}", s.handleGoogleModelOrLive)
+	mux.HandleFunc("GET /v1beta/videos/{name...}", s.handleGoogleVideoPoll)
+	mux.HandleFunc("POST /v1/images", s.handleAnthropicImagesGenerate)
 	mux.HandleFunc("POST /v1/images/edits", s.handleImagesEdits)
+	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
 	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)
 	mux.HandleFunc("POST /v1/videos", s.handleVideosCreate)
 	mux.HandleFunc("GET /v1/videos/{id}", s.handleVideosGet)
+	mux.HandleFunc("GET /v1/videos/{id}/content", s.handleVideosContent)
+	mux.HandleFunc("POST /v1/audio/speech", s.handleAudioSpeech)
+	mux.HandleFunc("POST /v1/audio/transcriptions", s.handleAudioTranscriptions)
+	mux.HandleFunc("POST /v1/audio/translations", s.handleAudioTranslations)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
-	return mux
+	return s.withEdgeAuth(mux)
+}
+
+// handleGoogleLiveRoute dispatches GET /v1beta/models/{action} for Live WS only.
+// Non-bidi actions return 404 (POST generateContent uses the POST handler).
+func (s *Server) handleGoogleLiveRoute(w http.ResponseWriter, r *http.Request) {
+	action := r.PathValue("action")
+	if strings.HasSuffix(action, ":bidiGenerateContent") {
+		s.handleGoogleLive(w, r)
+		return
+	}
+	http.NotFound(w, r)
 }
 
 // clientKey extracts the credential the client sent (OpenAI Bearer, Anthropic
@@ -73,7 +108,23 @@ func clientKey(r *http.Request) string {
 
 // applyAuth sets the upstream auth header. A configured api_key_env replaces
 // the client key entirely; otherwise the client key is forwarded.
+//
+// Auth modes:
+//   - api_key (default): kind-specific header (Bearer / x-api-key / x-goog-api-key)
+//   - bearer: always Authorization: Bearer
+//   - adc / service_account: Authorization: Bearer from TokenSource (see applyAuthToken)
+//
+// For adc/service_account without a pre-fetched token, use applyAuthWithSource.
 func applyAuth(req *http.Request, p config.Provider, clientKey string) {
+	mode := p.AuthMode()
+	if mode == config.AuthADC || mode == config.AuthServiceAccount {
+		// Token must be supplied as clientKey by the caller (from TokenSource).
+		if clientKey == "" {
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+clientKey)
+		return
+	}
 	key := clientKey
 	if p.APIKeyEnv != "" {
 		if env := envLookup(p.APIKeyEnv); env != "" {
@@ -81,6 +132,10 @@ func applyAuth(req *http.Request, p config.Provider, clientKey string) {
 		}
 	}
 	if key == "" {
+		return
+	}
+	if mode == config.AuthBearer {
+		req.Header.Set("Authorization", "Bearer "+key)
 		return
 	}
 	switch p.Kind {
@@ -91,6 +146,41 @@ func applyAuth(req *http.Request, p config.Provider, clientKey string) {
 		req.Header.Set("x-goog-api-key", key)
 	default:
 		req.Header.Set("Authorization", "Bearer "+key)
+	}
+}
+
+// resolveUpstreamKey returns the credential to send upstream and whether ADC
+// mode failed (token source missing or error). On ADC failure, msg is set.
+func (s *Server) resolveUpstreamKey(r *http.Request, providerName string, p config.Provider) (key string, errMsg string) {
+	mode := p.AuthMode()
+	if mode == config.AuthADC || mode == config.AuthServiceAccount {
+		ts := s.tokenSource(providerName)
+		if ts == nil {
+			return "", "provider " + providerName + ": auth " + mode + " requires a TokenSource (SetTokenSource); real Google ADC is optional — inject a source or use auth: api_key"
+		}
+		tok, err := ts.Token(r.Context())
+		if err != nil {
+			return "", "token source: " + err.Error()
+		}
+		return tok, ""
+	}
+	return clientKey(r), ""
+}
+
+// copyForwardHeaders copies selected client headers to the upstream request.
+// OpenAI org/project headers are NOT included here — use forwardOpenAIRequestHeaders
+// so they only reach openai / openai_compat providers.
+func copyForwardHeaders(dst, src *http.Request) {
+	for _, h := range []string{
+		"HTTP-Referer",
+		"Referer",
+		"X-Title",
+		"anthropic-beta",
+		"anthropic-version",
+	} {
+		if v := src.Header.Get(h); v != "" {
+			dst.Header.Set(h, v)
+		}
 	}
 }
 
@@ -106,4 +196,22 @@ func newRequestID() string {
 	var b [8]byte
 	rand.Read(b[:])
 	return "req_" + hex.EncodeToString(b[:])
+}
+
+
+// handleGoogleModelOrLive dispatches GET /v1beta/models/{model}:
+// Live WS when the path ends with :bidiGenerateContent, else model get.
+func (s *Server) handleGoogleModelOrLive(w http.ResponseWriter, r *http.Request) {
+	model := r.PathValue("model")
+	if strings.HasSuffix(model, ":bidiGenerateContent") {
+		r.SetPathValue("action", model)
+		s.handleGoogleLive(w, r)
+		return
+	}
+	// Other method-style suffixes are POST-only; do not treat as model ids.
+	if strings.Contains(model, ":") {
+		http.NotFound(w, r)
+		return
+	}
+	s.handleGoogleModelGet(w, r)
 }

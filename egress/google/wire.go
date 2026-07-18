@@ -13,6 +13,8 @@ type generateRequest struct {
 	Tools             []tool            `json:"tools,omitempty"`
 	ToolConfig        *toolConfig       `json:"tool_config,omitempty"`
 	GenerationConfig  *generationConfig `json:"generation_config,omitempty"`
+	// SafetySettings is re-emitted when present on canonical (Google ingress).
+	SafetySettings json.RawMessage `json:"safety_settings,omitempty"`
 }
 
 type content struct {
@@ -93,10 +95,35 @@ type usageMetadata struct {
 	PromptTokenCount     int `json:"promptTokenCount"`
 	CandidatesTokenCount int `json:"candidatesTokenCount"`
 	TotalTokenCount      int `json:"totalTokenCount"`
+	// Cached / thoughts when present on newer Gemini responses.
+	CachedContentTokenCount int `json:"cachedContentTokenCount"`
+	ThoughtsTokenCount      int `json:"thoughtsTokenCount"`
 	// snake_case
-	PromptTokensSnake     int `json:"prompt_token_count"`
-	CandidatesTokensSnake int `json:"candidates_token_count"`
-	TotalTokensSnake      int `json:"total_token_count"`
+	PromptTokensSnake       int `json:"prompt_token_count"`
+	CandidatesTokensSnake   int `json:"candidates_token_count"`
+	TotalTokensSnake        int `json:"total_token_count"`
+	CachedContentTokenSnake int `json:"cached_content_token_count"`
+	ThoughtsTokenSnake      int `json:"thoughts_token_count"`
+}
+
+func (u *usageMetadata) cached() int {
+	if u == nil {
+		return 0
+	}
+	if u.CachedContentTokenCount != 0 {
+		return u.CachedContentTokenCount
+	}
+	return u.CachedContentTokenSnake
+}
+
+func (u *usageMetadata) thoughts() int {
+	if u == nil {
+		return 0
+	}
+	if u.ThoughtsTokenCount != 0 {
+		return u.ThoughtsTokenCount
+	}
+	return u.ThoughtsTokenSnake
 }
 
 func (u *usageMetadata) prompt() int {
@@ -155,3 +182,14 @@ func Path(model string, stream bool) string {
 	}
 	return "/models/" + model + ":generateContent"
 }
+
+// CountTokensPath builds the relative path for Gemini countTokens.
+func CountTokensPath(model string) string {
+	return "/models/" + model + ":countTokens"
+}
+
+// ModelsPath is the relative path for listing models (GET).
+func ModelsPath() string { return "/models" }
+
+// ModelPath is the relative path for getting one model (GET).
+func ModelPath(model string) string { return "/models/" + model }

@@ -92,10 +92,17 @@ func (s *StreamSerializer) Event(ev canonical.StreamEvent) []byte {
 		})
 
 	case canonical.EventFinish:
+		usage := map[string]any{"output_tokens": ev.Usage.OutputTokens}
+		if ev.Usage.CacheReadTokens > 0 {
+			usage["cache_read_input_tokens"] = ev.Usage.CacheReadTokens
+		}
+		if ev.Usage.CacheWriteTokens > 0 {
+			usage["cache_creation_input_tokens"] = ev.Usage.CacheWriteTokens
+		}
 		delta := sseEvent("message_delta", map[string]any{
 			"type":  "message_delta",
 			"delta": map[string]any{"stop_reason": stopReason(ev.StopReason), "stop_sequence": nil},
-			"usage": map[string]any{"output_tokens": ev.Usage.OutputTokens},
+			"usage": usage,
 		})
 		stop := sseEvent("message_stop", map[string]any{"type": "message_stop"})
 		return append(delta, stop...)
