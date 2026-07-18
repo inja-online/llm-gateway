@@ -25,6 +25,15 @@ type Provider struct {
 	// APIKeyEnv names an env var holding an upstream key. When set, it replaces
 	// the client-forwarded key. When empty, the client's key is forwarded as-is.
 	APIKeyEnv string `yaml:"api_key_env"`
+	// Capabilities overrides kind defaults. Nil → DefaultCapabilities(Kind).
+	// openai_compat defaults to text-only; set image_gen/video_gen/… explicitly.
+	Capabilities *Capabilities `yaml:"capabilities"`
+}
+
+// Realtime holds process-wide WebSocket session limits (PR5+).
+type Realtime struct {
+	MaxSessions        int `yaml:"max_sessions"`
+	MaxSessionMinutes  int `yaml:"max_session_minutes"`
 }
 
 type Defaults struct {
@@ -53,6 +62,7 @@ type Config struct {
 	Defaults  Defaults            `yaml:"defaults"`
 	Aliases   map[string]string   `yaml:"aliases"` // public alias -> "provider/upstream-model"
 	Hooks     Hooks               `yaml:"hooks"`
+	Realtime  Realtime            `yaml:"realtime"`
 }
 
 func Load(path string) (*Config, error) {
@@ -89,6 +99,12 @@ func (c *Config) applyEnv() {
 func (c *Config) validate() error {
 	if c.Listen == "" {
 		c.Listen = ":8787"
+	}
+	if c.Realtime.MaxSessions <= 0 {
+		c.Realtime.MaxSessions = 1024
+	}
+	if c.Realtime.MaxSessionMinutes <= 0 {
+		c.Realtime.MaxSessionMinutes = 60
 	}
 	if c.Hooks.Webhook != nil && c.Hooks.Webhook.Timeout <= 0 {
 		c.Hooks.Webhook.Timeout = 3 * time.Second
