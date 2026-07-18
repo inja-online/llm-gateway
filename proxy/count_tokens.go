@@ -184,6 +184,7 @@ func (s *Server) proxyCountTokens(w http.ResponseWriter, r *http.Request, route 
 	}
 	applyAuth(upReq, route.Provider, key)
 	copyForwardHeaders(upReq, r)
+	forwardOpenAIRequestHeaders(upReq, r, route.Provider)
 
 	resp, err := s.client.Do(upReq)
 	if err != nil {

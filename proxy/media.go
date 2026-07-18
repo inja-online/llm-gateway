@@ -333,6 +333,7 @@ func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte
 	}
 	applyAuth(upReq, route.Provider, key)
 	copyForwardHeaders(upReq, x.r)
+	forwardOpenAIRequestHeaders(upReq, x.r, route.Provider)
 
 	resp, err := x.s.client.Do(upReq)
 	if err != nil {

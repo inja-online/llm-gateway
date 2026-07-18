@@ -63,8 +63,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
 	mux.HandleFunc("GET /v1beta/models", s.handleGoogleModelsList)
-	mux.HandleFunc("GET /v1beta/models/{action}", s.handleGoogleLiveRoute)
-	mux.HandleFunc("GET /v1beta/models/{model}", s.handleGoogleModelGet)
+	// Single path param — Live WS (:bidiGenerateContent) vs model get.
+	mux.HandleFunc("GET /v1beta/models/{model}", s.handleGoogleModelOrLive)
 	mux.HandleFunc("POST /v1/images/edits", s.handleImagesEdits)
 	mux.HandleFunc("POST /v1/images/generations", s.handleImagesGenerations)
 	mux.HandleFunc("POST /v1/images/variations", s.handleImagesVariations)
@@ -166,14 +166,13 @@ func (s *Server) resolveUpstreamKey(r *http.Request, providerName string, p conf
 }
 
 // copyForwardHeaders copies selected client headers to the upstream request.
-// Used for OpenRouter (HTTP-Referer, X-Title), OpenAI org/project, and similar.
+// OpenAI org/project headers are NOT included here — use forwardOpenAIRequestHeaders
+// so they only reach openai / openai_compat providers.
 func copyForwardHeaders(dst, src *http.Request) {
 	for _, h := range []string{
 		"HTTP-Referer",
 		"Referer",
 		"X-Title",
-		"OpenAI-Organization",
-		"OpenAI-Project",
 		"anthropic-beta",
 		"anthropic-version",
 	} {
@@ -195,4 +194,22 @@ func newRequestID() string {
 	var b [8]byte
 	rand.Read(b[:])
 	return "req_" + hex.EncodeToString(b[:])
+}
+
+
+// handleGoogleModelOrLive dispatches GET /v1beta/models/{model}:
+// Live WS when the path ends with :bidiGenerateContent, else model get.
+func (s *Server) handleGoogleModelOrLive(w http.ResponseWriter, r *http.Request) {
+	model := r.PathValue("model")
+	if strings.HasSuffix(model, ":bidiGenerateContent") {
+		r.SetPathValue("action", model)
+		s.handleGoogleLive(w, r)
+		return
+	}
+	// Other method-style suffixes are POST-only; do not treat as model ids.
+	if strings.Contains(model, ":") {
+		http.NotFound(w, r)
+		return
+	}
+	s.handleGoogleModelGet(w, r)
 }
