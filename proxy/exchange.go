@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/inja-online/llm-gateway/canonical"
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
 	"github.com/inja-online/llm-gateway/internal/sse"
@@ -53,6 +54,23 @@ func (x *exchange) emit() {
 	x.emitted = true
 	x.ev.LatencyMS = time.Since(x.start).Milliseconds()
 	x.s.hook.OnUsage(context.WithoutCancel(x.r.Context()), x.ev)
+}
+
+// applyCanonUsage copies token totals and optional detail fields from
+// canonical usage into the exchange event.
+func (x *exchange) applyCanonUsage(u canonical.Usage) {
+	x.ev.TokensIn = u.InputTokens
+	x.ev.TokensOut = u.OutputTokens
+	x.ev.Estimated = !u.HasUsage
+	if u.CacheReadTokens > 0 {
+		x.ev.CachedTokens = u.CacheReadTokens
+	}
+	if u.CacheWriteTokens > 0 {
+		x.ev.CacheWriteTokens = u.CacheWriteTokens
+	}
+	if u.ReasoningTokens > 0 {
+		x.ev.ReasoningTokens = u.ReasoningTokens
+	}
 }
 
 // fail writes a dialect error, records status, and marks the event.

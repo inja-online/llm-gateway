@@ -26,11 +26,28 @@ func ParseRequest(body []byte, modelFromPath string) (*canonical.Request, error)
 	}
 
 	req := &canonical.Request{Model: model}
+	// safetySettings: preserve raw JSON for Google egress re-emit.
+	if len(in.SafetySettings) > 0 {
+		req.SafetySettings = in.SafetySettings
+	} else if len(in.SafetySettingsCamel) > 0 {
+		req.SafetySettings = in.SafetySettingsCamel
+	}
 	if in.GenerationConfig != nil {
 		req.Temperature = in.GenerationConfig.Temperature
 		req.TopP = in.GenerationConfig.TopP
 		req.MaxTokens = in.GenerationConfig.MaxOutputTokens
 		req.StopSequences = in.GenerationConfig.StopSequences
+		// Multi-candidate policy: only candidateCount=1 (or unset) is supported.
+		cc := in.GenerationConfig.CandidateCount
+		if in.GenerationConfig.CandidateCountCamel > 0 {
+			cc = in.GenerationConfig.CandidateCountCamel
+		}
+		if cc > 1 {
+			return nil, &ValidationError{Msg: fmt.Sprintf("candidateCount=%d is not supported on the translation path; only candidateCount=1 is allowed", cc)}
+		}
+		if cc == 1 {
+			req.N = 1
+		}
 	}
 	if in.SystemInstruction != nil {
 		for _, p := range in.SystemInstruction.Parts {

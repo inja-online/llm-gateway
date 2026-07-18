@@ -56,7 +56,16 @@ type UsageEvent struct {
 	Transport string `json:"transport,omitempty"`
 	TokensIn  int    `json:"tokens_in"`
 	TokensOut int    `json:"tokens_out"`
-	Estimated bool   `json:"estimated"` // true when upstream reported no usage
+	// CachedTokens is prompt tokens served from cache when known
+	// (OpenAI cached_tokens / Anthropic cache_read_input_tokens).
+	CachedTokens int `json:"cached_tokens,omitempty"`
+	// CacheWriteTokens is Anthropic cache_creation_input_tokens when known.
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	// ReasoningTokens is completion reasoning/thinking tokens when known.
+	// tokens_out already includes them when the upstream folds them into
+	// completion totals — do not add again for billing without checking provider.
+	ReasoningTokens int  `json:"reasoning_tokens,omitempty"`
+	Estimated       bool `json:"estimated"` // true when upstream reported no usage
 	// Media is set for image/video/audio/realtime metering when known.
 	Media      *MediaUsage `json:"media,omitempty"`
 	Stream     bool        `json:"stream"`

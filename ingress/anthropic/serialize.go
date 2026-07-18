@@ -16,8 +16,10 @@ func SerializeResponse(resp *canonical.Response) ([]byte, error) {
 		Model:      resp.Model,
 		StopReason: stopReason(resp.StopReason),
 		Usage: outUsage{
-			InputTokens:  resp.Usage.InputTokens,
-			OutputTokens: resp.Usage.OutputTokens,
+			InputTokens:              resp.Usage.InputTokens,
+			OutputTokens:             resp.Usage.OutputTokens,
+			CacheCreationInputTokens: resp.Usage.CacheWriteTokens,
+			CacheReadInputTokens:     resp.Usage.CacheReadTokens,
 		},
 	}
 	for _, b := range resp.Content {

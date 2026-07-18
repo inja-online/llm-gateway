@@ -1,0 +1,57 @@
+{
+  "model": "openai/gpt-test",
+  "max_tokens": 256,
+  "temperature": 0.2,
+  "top_p": 0.9,
+  "stop_sequences": ["END"],
+  "stream": false,
+  "system": [
+    {
+      "type": "text",
+      "text": "You are concise.",
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "hello", "cache_control": {"type": "ephemeral"}}
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "hi"},
+        {
+          "type": "tool_use",
+          "id": "toolu_1",
+          "name": "lookup",
+          "input": {"q": "x"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_1",
+          "content": "result-text"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "lookup",
+      "description": "look something up",
+      "input_schema": {
+        "type": "object",
+        "properties": {"q": {"type": "string"}}
+      },
+      "cache_control": {"type": "ephemeral"}
+    }
+  ],
+  "tool_choice": {"type": "auto"}
+}

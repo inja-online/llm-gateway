@@ -466,17 +466,27 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | Text, system / developer | yes |
 | Images (URL / base64) | yes |
 | Tools + tool choice (`required` ↔ `any`) | yes |
+| Tool result multimodal content (text + image) | yes (best-effort on Google) |
 | Streaming | yes |
 | temperature, top_p, stop | yes |
 | `max_tokens` / `max_completion_tokens` | yes |
 | Thinking blocks (Anthropic) | carried when present |
-| OpenAI `n`, `logprobs`, `response_format`, `seed`, … | **dropped** |
+| Usage details (`cached_tokens`, `reasoning_tokens`, Anthropic cache write) | yes when upstream reports them |
+| OpenAI `service_tier` / `system_fingerprint` | optional OpenAI-only metadata |
+| Google `safetySettings` | yes on Google egress only |
+| OpenAI `n` / Google `candidateCount` | **n=1 only** (`n>1` → `bad_request`) |
+| Non-function OpenAI tools (`type` ≠ `function`) | **rejected** (`bad_request`) |
+| Anthropic `cache_control` | **passthrough-only** (stripped on translate rebuild) |
+| OpenAI `logprobs`, `response_format`, `seed`, penalties, … | **dropped** (see golden drop list) |
 
 **Caveats**
 
 - Anthropic client → OpenAI stream: `message_start.input_tokens` may be `0` until the final event (OpenAI reports usage late). Hooks still get final counts.
 - OpenAI → Anthropic without `max_tokens`: default **4096**.
 - Gateway errors use the **caller** dialect envelope; translation path reshapes upstream errors the same way.
+- Prompt caching (`cache_control`) is preserved only on **Anthropic→Anthropic passthrough**. Cross-dialect translate rebuilds messages from canonical and drops breakpoints.
+- Multi-choice (`n` / `candidateCount` > 1) is not supported on translate; use passthrough to a same-family provider if you need multiple candidates.
+- Golden drop lists: [`testdata/fixtures/chat_translate/`](testdata/fixtures/chat_translate/).
 
 ---
 
@@ -506,6 +516,9 @@ JSONL/Go must not block the request path. Webhook is non-blocking (background PO
   "upstream_model": "id sent upstream",
   "tokens_in": 0,
   "tokens_out": 0,
+  "cached_tokens": 0,
+  "cache_write_tokens": 0,
+  "reasoning_tokens": 0,
   "estimated": false,
   "stream": false,
   "status": "ok | upstream_error | client_abort | bad_request",
@@ -515,6 +528,8 @@ JSONL/Go must not block the request path. Webhook is non-blocking (background PO
   "key_hash": "12 hex or empty"
 }
 ```
+
+Optional detail fields (`cached_tokens`, `cache_write_tokens`, `reasoning_tokens`) are omitted when zero. `tokens_out` already includes reasoning tokens when the upstream folds them into completion totals — do not add `reasoning_tokens` again without checking the provider.
 
 | `status` | When |
 |---|---|

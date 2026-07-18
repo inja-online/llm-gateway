@@ -90,13 +90,17 @@ func (s *Server) forwardAnthropicJSON(x *exchange, resp *http.Response) {
 	}
 	var parsed struct {
 		Usage *struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens              int `json:"input_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"usage"`
 	}
 	if json.Unmarshal(body, &parsed) == nil && parsed.Usage != nil {
 		x.ev.TokensIn = parsed.Usage.InputTokens
 		x.ev.TokensOut = parsed.Usage.OutputTokens
+		x.ev.CachedTokens = parsed.Usage.CacheReadInputTokens
+		x.ev.CacheWriteTokens = parsed.Usage.CacheCreationInputTokens
 	} else {
 		x.ev.Estimated = true
 	}
@@ -145,9 +149,7 @@ func (s *Server) anthropicToOpenAI(x *exchange, route Route, body []byte) {
 		return
 	}
 	out, _ := antingress.SerializeResponse(canonResp)
-	x.ev.TokensIn = canonResp.Usage.InputTokens
-	x.ev.TokensOut = canonResp.Usage.OutputTokens
-	x.ev.Estimated = !canonResp.Usage.HasUsage
+	x.applyCanonUsage(canonResp.Usage)
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = http.StatusOK
 	x.w.Header().Set("Content-Type", "application/json")
@@ -176,9 +178,7 @@ func (s *Server) streamOpenAIToAnthropic(x *exchange, resp *http.Response) {
 	write := func(evs []canonical.StreamEvent) error {
 		for _, cev := range evs {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				if _, werr := x.w.Write(out); werr != nil {
@@ -234,11 +234,15 @@ func extractAnthropicUsage(data []byte, ev *hooks.UsageEvent) bool {
 		Type    string `json:"type"`
 		Message *struct {
 			Usage *struct {
-				InputTokens int `json:"input_tokens"`
+				InputTokens              int `json:"input_tokens"`
+				CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+				CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 			} `json:"usage"`
 		} `json:"message"`
 		Usage *struct {
-			OutputTokens int `json:"output_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"usage"`
 	}
 	if json.Unmarshal(data, &env) != nil {
@@ -247,10 +251,22 @@ func extractAnthropicUsage(data []byte, ev *hooks.UsageEvent) bool {
 	found := false
 	if env.Message != nil && env.Message.Usage != nil && env.Message.Usage.InputTokens > 0 {
 		ev.TokensIn = env.Message.Usage.InputTokens
+		if env.Message.Usage.CacheReadInputTokens > 0 {
+			ev.CachedTokens = env.Message.Usage.CacheReadInputTokens
+		}
+		if env.Message.Usage.CacheCreationInputTokens > 0 {
+			ev.CacheWriteTokens = env.Message.Usage.CacheCreationInputTokens
+		}
 		found = true
 	}
 	if env.Usage != nil && env.Usage.OutputTokens > 0 {
 		ev.TokensOut = env.Usage.OutputTokens
+		if env.Usage.CacheReadInputTokens > 0 {
+			ev.CachedTokens = env.Usage.CacheReadInputTokens
+		}
+		if env.Usage.CacheCreationInputTokens > 0 {
+			ev.CacheWriteTokens = env.Usage.CacheCreationInputTokens
+		}
 		found = true
 	}
 	return found

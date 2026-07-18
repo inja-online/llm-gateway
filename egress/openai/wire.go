@@ -18,6 +18,7 @@ type chatRequest struct {
 	Stop        []string        `json:"stop,omitempty"`
 	Tools       []chatTool      `json:"tools,omitempty"`
 	ToolChoice  json.RawMessage `json:"tool_choice,omitempty"`
+	ServiceTier string          `json:"service_tier,omitempty"`
 }
 
 type streamOptions struct {
@@ -66,10 +67,12 @@ type imageURLObject struct {
 // --- response wire types ---
 
 type chatResponse struct {
-	ID      string       `json:"id"`
-	Model   string       `json:"model"`
-	Choices []chatChoice `json:"choices"`
-	Usage   *usage       `json:"usage"`
+	ID                string       `json:"id"`
+	Model             string       `json:"model"`
+	Choices           []chatChoice `json:"choices"`
+	Usage             *usage       `json:"usage"`
+	SystemFingerprint string       `json:"system_fingerprint,omitempty"`
+	ServiceTier       string       `json:"service_tier,omitempty"`
 }
 
 type chatChoice struct {
@@ -103,4 +106,20 @@ type respToolCall struct {
 type usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
+	// TotalTokens is present on some OpenAI responses; unused for parse totals.
+	TotalTokens int `json:"total_tokens,omitempty"`
+
+	PromptTokensDetails     *promptTokensDetails     `json:"prompt_tokens_details,omitempty"`
+	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
 }
+
+type promptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens,omitempty"`
+}
+
+type completionTokensDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+}
+
+// chatRequest optional OpenAI-only fields used on egress rebuild.
+// (service_tier lives on the request wire in ingress; egress build adds it.)

@@ -56,16 +56,52 @@ func TestParseToolChoiceUnknown(t *testing.T) {
 	}
 }
 
-func TestParseNonFunctionToolsSkipped(t *testing.T) {
-	req, err := ParseRequest([]byte(`{"model":"m","tools":[
+func TestParseNonFunctionToolsRejected(t *testing.T) {
+	// Policy: non-function tool types are bad_request (not silently skipped).
+	_, err := ParseRequest([]byte(`{"model":"m","tools":[
 		{"type":"custom","function":{"name":"x"}},
 		{"type":"function","function":{"name":"keep"}}
+	],"messages":[]}`))
+	if _, ok := err.(*ValidationError); !ok {
+		t.Fatalf("want ValidationError for non-function tool, got %v", err)
+	}
+}
+
+func TestParseFunctionToolsOK(t *testing.T) {
+	req, err := ParseRequest([]byte(`{"model":"m","tools":[
+		{"type":"function","function":{"name":"keep"}},
+		{"function":{"name":"also"}}
 	],"messages":[]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(req.Tools) != 1 || req.Tools[0].Name != "keep" {
+	if len(req.Tools) != 2 {
 		t.Fatalf("%+v", req.Tools)
+	}
+}
+
+func TestParseNPolicy(t *testing.T) {
+	// n omitted / n=1 OK
+	req, err := ParseRequest([]byte(`{"model":"m","n":1,"messages":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.N != 1 {
+		t.Fatalf("n: %d", req.N)
+	}
+	_, err = ParseRequest([]byte(`{"model":"m","n":2,"messages":[]}`))
+	if _, ok := err.(*ValidationError); !ok {
+		t.Fatalf("want ValidationError for n>1, got %v", err)
+	}
+}
+
+func TestParseServiceTier(t *testing.T) {
+	req, err := ParseRequest([]byte(`{"model":"m","service_tier":"auto","messages":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.ServiceTier != "auto" {
+		t.Fatalf("service_tier: %q", req.ServiceTier)
 	}
 }
 

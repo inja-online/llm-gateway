@@ -105,11 +105,10 @@ func buildBlock(b canonical.Block) (block, bool) {
 		return block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: input}, true
 
 	case canonical.BlockToolResult:
-		content, _ := json.Marshal(b.Result)
 		return block{
 			Type:      "tool_result",
 			ToolUseID: b.ToolUseID,
-			Content:   content,
+			Content:   buildToolResultContent(b),
 			IsError:   b.IsError,
 		}, true
 
@@ -117,4 +116,26 @@ func buildBlock(b canonical.Block) (block, bool) {
 		return block{Type: "thinking", Thinking: b.Text, Signature: b.Signature}, true
 	}
 	return block{}, false
+}
+
+// buildToolResultContent emits a JSON string when only Result is set, or an
+// array of content blocks when ResultBlocks carries multimodal tool output.
+func buildToolResultContent(b canonical.Block) json.RawMessage {
+	if len(b.ResultBlocks) > 0 {
+		var blocks []block
+		for _, rb := range b.ResultBlocks {
+			if wb, ok := buildBlock(rb); ok {
+				// Only text/image (and thinking) make sense inside tool_result.
+				if wb.Type == "text" || wb.Type == "image" {
+					blocks = append(blocks, wb)
+				}
+			}
+		}
+		if len(blocks) > 0 {
+			raw, _ := json.Marshal(blocks)
+			return raw
+		}
+	}
+	content, _ := json.Marshal(b.Result)
+	return content
 }

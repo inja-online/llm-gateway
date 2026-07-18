@@ -37,15 +37,30 @@ func SerializeResponse(resp *canonical.Response, created int64) ([]byte, error) 
 			Message:      blocksToOutMsg(resp.Content),
 			FinishReason: ptr(stopReasonToFinish(resp.StopReason)),
 		}},
+		SystemFingerprint: resp.SystemFingerprint,
+		ServiceTier:       resp.ServiceTier,
 	}
 	if resp.Usage.HasUsage {
-		out.Usage = &usage{
-			PromptTokens:     resp.Usage.InputTokens,
-			CompletionTokens: resp.Usage.OutputTokens,
-			TotalTokens:      resp.Usage.InputTokens + resp.Usage.OutputTokens,
-		}
+		out.Usage = usageToWire(resp.Usage)
 	}
 	return json.Marshal(out)
+}
+
+// usageToWire maps canonical usage into OpenAI wire shape including optional
+// prompt_tokens_details.cached_tokens and completion_tokens_details.reasoning_tokens.
+func usageToWire(u canonical.Usage) *usage {
+	out := &usage{
+		PromptTokens:     u.InputTokens,
+		CompletionTokens: u.OutputTokens,
+		TotalTokens:      u.InputTokens + u.OutputTokens,
+	}
+	if u.CacheReadTokens > 0 {
+		out.PromptTokensDetails = &promptTokensDetails{CachedTokens: u.CacheReadTokens}
+	}
+	if u.ReasoningTokens > 0 {
+		out.CompletionTokensDetails = &completionTokensDetails{ReasoningTokens: u.ReasoningTokens}
+	}
+	return out
 }
 
 // blocksToOutMsg flattens canonical content blocks into a single OpenAI

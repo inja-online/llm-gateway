@@ -12,6 +12,8 @@ import (
 type StreamParser struct {
 	inputTokens  int
 	outputTokens int
+	cacheRead    int
+	cacheWrite   int
 	hasUsage     bool
 	stopReason   string
 }
@@ -56,6 +58,8 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 		}
 		if env.Message.Usage != nil {
 			p.inputTokens = env.Message.Usage.InputTokens
+			p.cacheRead = env.Message.Usage.CacheReadInputTokens
+			p.cacheWrite = env.Message.Usage.CacheCreationInputTokens
 			p.hasUsage = true
 		}
 		return []canonical.StreamEvent{{
@@ -104,6 +108,13 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 		}
 		if env.Usage != nil {
 			p.outputTokens = env.Usage.OutputTokens
+			// Cache fields may also appear on message_delta in some API versions.
+			if env.Usage.CacheReadInputTokens > 0 {
+				p.cacheRead = env.Usage.CacheReadInputTokens
+			}
+			if env.Usage.CacheCreationInputTokens > 0 {
+				p.cacheWrite = env.Usage.CacheCreationInputTokens
+			}
 			p.hasUsage = true
 		}
 		return nil
@@ -113,9 +124,11 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 			Type:       canonical.EventFinish,
 			StopReason: p.finalStop(),
 			Usage: canonical.Usage{
-				InputTokens:  p.inputTokens,
-				OutputTokens: p.outputTokens,
-				HasUsage:     p.hasUsage,
+				InputTokens:      p.inputTokens,
+				OutputTokens:     p.outputTokens,
+				HasUsage:         p.hasUsage,
+				CacheReadTokens:  p.cacheRead,
+				CacheWriteTokens: p.cacheWrite,
 			},
 		}}
 	}

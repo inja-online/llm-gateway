@@ -1,0 +1,27 @@
+# Explicit translation drops (field paths relative to ingress wire).
+# Lines starting with # are comments. Blank lines ignored.
+# Update this file in the same PR as fidelity work that starts preserving a field.
+
+# Multi-choice (policy: n=1 only; n>1 rejected before translate)
+openai.n>1
+google.generation_config.candidate_count>1
+
+# Sampling / determinism extras not yet modeled in canonical
+openai.logprobs
+openai.top_logprobs
+openai.seed
+openai.frequency_penalty
+openai.presence_penalty
+openai.logit_bias
+openai.response_format
+
+# Anthropic prompt caching breakpoints — passthrough only (#41 Option B)
+anthropic.system[].cache_control
+anthropic.messages[].content[].cache_control
+anthropic.tools[].cache_control
+
+# OpenAI stream options not rebuilt on non-OpenAI egress
+openai.stream_options
+
+# Vendor-specific metadata dropped cross-family
+openai.user

@@ -18,6 +18,10 @@ type chatRequest struct {
 	Stop          json.RawMessage `json:"stop,omitempty"` // string or []string
 	Tools         []chatTool      `json:"tools,omitempty"`
 	ToolChoice    json.RawMessage `json:"tool_choice,omitempty"` // string or object
+	// N is multi-choice count. Translation only supports n=1; n>1 is rejected.
+	N *int `json:"n,omitempty"`
+	// ServiceTier is optional OpenAI routing/priority hint.
+	ServiceTier string `json:"service_tier,omitempty"`
 }
 
 type chatMessage struct {
@@ -64,12 +68,14 @@ type imageURLObject struct {
 // --- response wire types ---
 
 type chatResponse struct {
-	ID      string       `json:"id"`
-	Object  string       `json:"object"`
-	Created int64        `json:"created"`
-	Model   string       `json:"model"`
-	Choices []chatChoice `json:"choices"`
-	Usage   *usage       `json:"usage,omitempty"`
+	ID                string       `json:"id"`
+	Object            string       `json:"object"`
+	Created           int64        `json:"created"`
+	Model             string       `json:"model"`
+	Choices           []chatChoice `json:"choices"`
+	Usage             *usage       `json:"usage,omitempty"`
+	SystemFingerprint string       `json:"system_fingerprint,omitempty"`
+	ServiceTier       string       `json:"service_tier,omitempty"`
 }
 
 type chatChoice struct {
@@ -99,7 +105,17 @@ type outFunctionDelta struct {
 }
 
 type usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens            int                      `json:"prompt_tokens"`
+	CompletionTokens        int                      `json:"completion_tokens"`
+	TotalTokens             int                      `json:"total_tokens"`
+	PromptTokensDetails     *promptTokensDetails     `json:"prompt_tokens_details,omitempty"`
+	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
+}
+
+type promptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens,omitempty"`
+}
+
+type completionTokensDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 }

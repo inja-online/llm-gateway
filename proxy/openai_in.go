@@ -98,13 +98,25 @@ func (s *Server) forwardOpenAIJSON(x *exchange, resp *http.Response) {
 	}
 	var parsed struct {
 		Usage *struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
+			PromptTokens            int `json:"prompt_tokens"`
+			CompletionTokens        int `json:"completion_tokens"`
+			PromptTokensDetails     *struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+			CompletionTokensDetails *struct {
+				ReasoningTokens int `json:"reasoning_tokens"`
+			} `json:"completion_tokens_details"`
 		} `json:"usage"`
 	}
 	if json.Unmarshal(body, &parsed) == nil && parsed.Usage != nil {
 		x.ev.TokensIn = parsed.Usage.PromptTokens
 		x.ev.TokensOut = parsed.Usage.CompletionTokens
+		if parsed.Usage.PromptTokensDetails != nil {
+			x.ev.CachedTokens = parsed.Usage.PromptTokensDetails.CachedTokens
+		}
+		if parsed.Usage.CompletionTokensDetails != nil {
+			x.ev.ReasoningTokens = parsed.Usage.CompletionTokensDetails.ReasoningTokens
+		}
 	} else {
 		x.ev.Estimated = true
 	}
@@ -156,9 +168,7 @@ func (s *Server) openAIToAnthropic(x *exchange, route Route, body []byte) {
 		return
 	}
 	out, _ := oaingress.SerializeResponse(canon, created)
-	x.ev.TokensIn = canon.Usage.InputTokens
-	x.ev.TokensOut = canon.Usage.OutputTokens
-	x.ev.Estimated = !canon.Usage.HasUsage
+	x.applyCanonUsage(canon.Usage)
 	x.ev.Status = hooks.StatusOK
 	x.ev.HTTPStatus = http.StatusOK
 	x.w.Header().Set("Content-Type", "application/json")
@@ -196,9 +206,7 @@ func (s *Server) streamAnthropicToOpenAI(x *exchange, resp *http.Response, creat
 		}
 		for _, cev := range parser.Parse(data) {
 			if cev.Type == canonical.EventFinish {
-				x.ev.TokensIn = cev.Usage.InputTokens
-				x.ev.TokensOut = cev.Usage.OutputTokens
-				x.ev.Estimated = !cev.Usage.HasUsage
+				x.applyCanonUsage(cev.Usage)
 			}
 			if out := ser.Event(cev); out != nil {
 				if _, werr := x.w.Write(out); werr != nil {
@@ -243,14 +251,26 @@ func extractOpenAIUsage(data []byte, ev *hooks.UsageEvent) bool {
 	}
 	var chunk struct {
 		Usage *struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
+			PromptTokens            int `json:"prompt_tokens"`
+			CompletionTokens        int `json:"completion_tokens"`
+			PromptTokensDetails     *struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+			CompletionTokensDetails *struct {
+				ReasoningTokens int `json:"reasoning_tokens"`
+			} `json:"completion_tokens_details"`
 		} `json:"usage"`
 	}
 	if json.Unmarshal(data, &chunk) == nil && chunk.Usage != nil &&
 		(chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0) {
 		ev.TokensIn = chunk.Usage.PromptTokens
 		ev.TokensOut = chunk.Usage.CompletionTokens
+		if chunk.Usage.PromptTokensDetails != nil && chunk.Usage.PromptTokensDetails.CachedTokens > 0 {
+			ev.CachedTokens = chunk.Usage.PromptTokensDetails.CachedTokens
+		}
+		if chunk.Usage.CompletionTokensDetails != nil && chunk.Usage.CompletionTokensDetails.ReasoningTokens > 0 {
+			ev.ReasoningTokens = chunk.Usage.CompletionTokensDetails.ReasoningTokens
+		}
 		return true
 	}
 	return false

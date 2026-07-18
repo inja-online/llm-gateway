@@ -13,6 +13,9 @@ func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	if sys := concatText(req.System); sys != "" {
 		out.SystemInstruction = &content{Parts: []part{{Text: sys}}}
 	}
+	if len(req.SafetySettings) > 0 {
+		out.SafetySettings = req.SafetySettings
+	}
 	if req.Temperature != nil || req.TopP != nil || req.MaxTokens > 0 || len(req.StopSequences) > 0 {
 		out.GenerationConfig = &generationConfig{
 			Temperature:     req.Temperature,
@@ -87,14 +90,9 @@ func buildContent(m canonical.Message, toolNames map[string]string) content {
 			if n, ok := toolNames[b.ToolUseID]; ok {
 				name = n
 			}
-			resp := json.RawMessage(b.Result)
-			if !json.Valid(resp) {
-				raw, _ := json.Marshal(b.Result)
-				resp = raw
-			}
 			c.Parts = append(c.Parts, part{FunctionResponse: &functionResponse{
 				Name:     name,
-				Response: resp,
+				Response: toolResultAsJSON(b),
 			}})
 		}
 	}
@@ -125,4 +123,34 @@ func concatText(blocks []canonical.Block) string {
 		}
 	}
 	return s
+}
+
+// toolResultAsJSON maps tool_result to Gemini functionResponse JSON.
+// Multimodal ResultBlocks become {"content":[...]} best-effort; plain Result
+// stays a JSON object/string as today.
+func toolResultAsJSON(b canonical.Block) json.RawMessage {
+	if len(b.ResultBlocks) > 0 {
+		type contentItem struct {
+			Type string `json:"type,omitempty"`
+			Text string `json:"text,omitempty"`
+		}
+		var items []contentItem
+		for _, rb := range b.ResultBlocks {
+			if rb.Type == canonical.BlockText {
+				items = append(items, contentItem{Type: "text", Text: rb.Text})
+			}
+			// Images in functionResponse are not first-class; skip with text note.
+			if rb.Type == canonical.BlockImage && rb.Image != nil {
+				items = append(items, contentItem{Type: "text", Text: "[image in tool_result]"})
+			}
+		}
+		raw, _ := json.Marshal(map[string]any{"content": items})
+		return raw
+	}
+	resp := json.RawMessage(b.Result)
+	if !json.Valid(resp) {
+		raw, _ := json.Marshal(b.Result)
+		return raw
+	}
+	return resp
 }
