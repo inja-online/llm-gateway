@@ -66,18 +66,21 @@ func usageToWire(u canonical.Usage) *usage {
 // blocksToOutMsg flattens canonical content blocks into a single OpenAI
 // assistant message: text blocks concatenate into content; tool_use blocks
 // become tool_calls; thinking maps to reasoning_content.
+//
+// Redacted thinking (Anthropic redacted_thinking → BlockThinking{Redacted:true}):
+// OpenAI policy is to **omit** it — do not invent opaque reasoning_content.
+// Non-redacted thinking is emitted as reasoning_content for tool-loop fidelity.
 func blocksToOutMsg(blocks []canonical.Block) chatOutMsg {
 	msg := chatOutMsg{Role: canonical.RoleAssistant}
 	var text string
+	var reasoning string
 	for _, b := range blocks {
 		switch b.Type {
 		case canonical.BlockText:
 			text += b.Text
 		case canonical.BlockThinking:
-			// Represent thinking as reasoning_content (best-effort, JSON string).
-			if b.Text != "" {
-				raw, _ := json.Marshal(b.Text)
-				msg.Reasoning = raw
+			if !b.Redacted && b.Text != "" {
+				reasoning += b.Text
 			}
 		case canonical.BlockToolUse:
 			args := string(b.Input)
@@ -90,6 +93,10 @@ func blocksToOutMsg(blocks []canonical.Block) chatOutMsg {
 				Function: outFunctionDelta{Name: b.Name, Arguments: args},
 			})
 		}
+	}
+	if reasoning != "" {
+		raw, _ := json.Marshal(reasoning)
+		msg.Reasoning = raw
 	}
 	if text != "" || len(msg.ToolCalls) == 0 {
 		msg.Content = &text

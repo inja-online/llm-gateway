@@ -42,7 +42,7 @@ func TestParseSerializeVideo(t *testing.T) {
 		"queued": canonical.VideoStatusQueued, "pending": canonical.VideoStatusQueued,
 		"in_progress": canonical.VideoStatusProcessing, "running": canonical.VideoStatusProcessing,
 		"processing": canonical.VideoStatusProcessing,
-		"completed": canonical.VideoStatusCompleted, "succeeded": canonical.VideoStatusCompleted, "done": canonical.VideoStatusCompleted,
+		"completed":  canonical.VideoStatusCompleted, "succeeded": canonical.VideoStatusCompleted, "done": canonical.VideoStatusCompleted,
 		"failed": canonical.VideoStatusFailed, "error": canonical.VideoStatusFailed, "cancelled": canonical.VideoStatusFailed,
 		"": canonical.VideoStatusProcessing, "x": "x",
 	} {

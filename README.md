@@ -693,12 +693,18 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | Feature | Translated |
 |---|---|
 | Text, system / developer | yes |
-| Images (URL / base64) | yes |
+| Images (URL / base64) + OpenAI `image_url.detail` | yes (detail is OpenAI round-trip; other dialects drop detail) |
+| OpenAI `input_audio` / `file` content parts | yes → canonical audio/document blocks (OpenAI egress rebuilds) |
 | Tools + tool choice (`required` ↔ `any`) | yes |
+| OpenAI `parallel_tool_calls` | yes (canonical `ParallelToolCalls`; Anthropic polarity mapping separate) |
 | Tool result multimodal content (text + image) | yes (best-effort on Google) |
 | Streaming | yes |
 | temperature, top_p, stop | yes |
-| `max_tokens` / `max_completion_tokens` | yes |
+| `max_tokens` / `max_completion_tokens` | yes (source field preserved on OpenAI egress) |
+| `frequency_penalty` / `presence_penalty` / `seed` | yes on OpenAI egress; Anthropic omits |
+| OpenAI `response_format` (`json_object` / `json_schema`) | yes via canonical `ResponseFormat` (OpenAI↔OpenAI; cross-dialect mapping may land later) |
+| OpenAI `reasoning_effort` | yes via canonical `ThinkingConfig` (OpenAI↔OpenAI; cross-dialect effort↔budget best-effort later) |
+| Thinking / `reasoning_content` on assistant history | yes (required for DeepSeek/Kimi/Z.AI tool loops) |
 | Thinking blocks (Anthropic) | carried when present |
 | Usage details (`cached_tokens`, `reasoning_tokens`, Anthropic cache write) | yes when upstream reports them |
 | OpenAI `service_tier` / `system_fingerprint` | optional OpenAI-only metadata |
@@ -706,7 +712,7 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 | OpenAI `n` / Google `candidateCount` | **n=1 only** (`n>1` → `bad_request`) |
 | Non-function OpenAI tools (`type` ≠ `function`) | **rejected** (`bad_request`) |
 | Anthropic `cache_control` | **passthrough-only** (stripped on translate rebuild) |
-| OpenAI `logprobs`, `response_format`, `seed`, penalties, … | **dropped** (see golden drop list) |
+| OpenAI `logprobs`, `logit_bias`, `top_logprobs`, … | **dropped** (see golden drop list) |
 
 **Caveats**
 
@@ -715,6 +721,9 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 - Gateway errors use the **caller** dialect envelope; translation path reshapes upstream errors the same way.
 - Prompt caching (`cache_control`) is preserved only on **Anthropic→Anthropic passthrough**. Cross-dialect translate rebuilds messages from canonical and drops breakpoints.
 - Multi-choice (`n` / `candidateCount` > 1) is not supported on translate; use passthrough to a same-family provider if you need multiple candidates.
+- **Reasoning content tool loops:** openai_compat providers (DeepSeek, Kimi/Moonshot, Z.AI, …) often **require** prior assistant `reasoning_content` on subsequent tool-loop turns. Passthrough keeps it after model rewrite; translate-to-OpenAI rebuilds it from `BlockThinking`. Do not strip this field in client middleware.
+- **Redacted thinking → OpenAI:** Anthropic `redacted_thinking` maps to `BlockThinking{Redacted:true}`. OpenAI policy is to **omit** it (no opaque `reasoning_content` invented). History that will re-enter Anthropic should stay on Anthropic passthrough when redacted segments must be preserved.
+- Structured outputs / reasoning_effort: OpenAI→canonical→OpenAI is lossless for supported shapes; full Anthropic/Google matrix mapping may still be incomplete for some fields.
 - Golden drop lists: [`testdata/fixtures/chat_translate/`](testdata/fixtures/chat_translate/).
 
 ---

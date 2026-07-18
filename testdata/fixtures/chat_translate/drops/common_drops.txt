@@ -6,14 +6,18 @@
 openai.n>1
 google.generation_config.candidate_count>1
 
-# Sampling / determinism extras not yet modeled in canonical
+# Sampling / determinism extras not yet modeled in canonical (or OpenAI-only
+# round-trip only — not remapped on Anthropic/Google egress yet)
 openai.logprobs
 openai.top_logprobs
-openai.seed
-openai.frequency_penalty
-openai.presence_penalty
 openai.logit_bias
-openai.response_format
+# seed / frequency_penalty / presence_penalty / response_format / reasoning_effort
+# are carried on OpenAI→OpenAI; dropped on Anthropic egress (no native field).
+# openai.seed → Anthropic drop
+# openai.frequency_penalty → Anthropic drop
+# openai.presence_penalty → Anthropic drop
+# openai.response_format → Anthropic/Google mapping may still be partial
+# openai.image_url.detail → Anthropic/Google drop (OpenAI round-trip only)
 
 # Anthropic prompt caching breakpoints — passthrough only (#41 Option B)
 anthropic.system[].cache_control

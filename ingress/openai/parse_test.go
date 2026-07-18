@@ -57,6 +57,9 @@ func TestParseMaxCompletionTokens(t *testing.T) {
 	if req.MaxTokens != 42 {
 		t.Errorf("max_completion_tokens not mapped: %d", req.MaxTokens)
 	}
+	if req.MaxTokensField != canonical.MaxTokensSourceCompletionTokens {
+		t.Errorf("MaxTokensField: %q", req.MaxTokensField)
+	}
 }
 
 func TestParseStopStringAndArray(t *testing.T) {

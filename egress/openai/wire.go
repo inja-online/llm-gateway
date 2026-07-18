@@ -8,17 +8,35 @@ import "encoding/json"
 // --- request wire types ---
 
 type chatRequest struct {
-	Model       string          `json:"model"`
-	Messages    []chatMessage   `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Stream      bool            `json:"stream,omitempty"`
-	StreamOpts  *streamOptions  `json:"stream_options,omitempty"`
-	Temperature *float64        `json:"temperature,omitempty"`
-	TopP        *float64        `json:"top_p,omitempty"`
-	Stop        []string        `json:"stop,omitempty"`
-	Tools       []chatTool      `json:"tools,omitempty"`
-	ToolChoice  json.RawMessage `json:"tool_choice,omitempty"`
-	ServiceTier string          `json:"service_tier,omitempty"`
+	Model             string              `json:"model"`
+	Messages          []chatMessage       `json:"messages"`
+	MaxTokens         int                 `json:"max_tokens,omitempty"`
+	MaxCompletion     int                 `json:"max_completion_tokens,omitempty"`
+	Stream            bool                `json:"stream,omitempty"`
+	StreamOpts        *streamOptions      `json:"stream_options,omitempty"`
+	Temperature       *float64            `json:"temperature,omitempty"`
+	TopP              *float64            `json:"top_p,omitempty"`
+	Stop              []string            `json:"stop,omitempty"`
+	Tools             []chatTool          `json:"tools,omitempty"`
+	ToolChoice        json.RawMessage     `json:"tool_choice,omitempty"`
+	ParallelToolCalls *bool               `json:"parallel_tool_calls,omitempty"`
+	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
+	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
+	Seed              *int64              `json:"seed,omitempty"`
+	ResponseFormat    *responseFormatWire `json:"response_format,omitempty"`
+	ReasoningEffort   string              `json:"reasoning_effort,omitempty"`
+	ServiceTier       string              `json:"service_tier,omitempty"`
+}
+
+// responseFormatWire is the OpenAI chat-completions response_format object.
+type responseFormatWire struct {
+	Type       string `json:"type"`
+	JSONSchema *struct {
+		Name        string          `json:"name,omitempty"`
+		Description string          `json:"description,omitempty"`
+		Schema      json.RawMessage `json:"schema,omitempty"`
+		Strict      *bool           `json:"strict,omitempty"`
+	} `json:"json_schema,omitempty"`
 }
 
 type streamOptions struct {
@@ -56,13 +74,27 @@ type toolFunction struct {
 }
 
 type contentPart struct {
-	Type     string          `json:"type"`
-	Text     string          `json:"text,omitempty"`
-	ImageURL *imageURLObject `json:"image_url,omitempty"`
+	Type       string            `json:"type"`
+	Text       string            `json:"text,omitempty"`
+	ImageURL   *imageURLObject   `json:"image_url,omitempty"`
+	InputAudio *inputAudioObject `json:"input_audio,omitempty"`
+	File       *fileObject       `json:"file,omitempty"`
 }
 
 type imageURLObject struct {
-	URL string `json:"url"`
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
+}
+
+type inputAudioObject struct {
+	Data   string `json:"data"`
+	Format string `json:"format"`
+}
+
+type fileObject struct {
+	FileID   string `json:"file_id,omitempty"`
+	Filename string `json:"filename,omitempty"`
+	FileData string `json:"file_data,omitempty"`
 }
 
 // --- response wire types ---

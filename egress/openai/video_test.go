@@ -34,7 +34,7 @@ func TestBuildParseVideo(t *testing.T) {
 		"queued": canonical.VideoStatusQueued, "pending": canonical.VideoStatusQueued,
 		"in_progress": canonical.VideoStatusProcessing, "running": canonical.VideoStatusProcessing,
 		"processing": canonical.VideoStatusProcessing,
-		"completed": canonical.VideoStatusCompleted, "succeeded": canonical.VideoStatusCompleted,
+		"completed":  canonical.VideoStatusCompleted, "succeeded": canonical.VideoStatusCompleted,
 		"failed": canonical.VideoStatusFailed, "error": canonical.VideoStatusFailed,
 		"": canonical.VideoStatusProcessing, "custom": "custom",
 	} {
