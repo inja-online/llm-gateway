@@ -124,7 +124,7 @@ providers:
   #   # api_key_env: ZAI_API_KEY
   # openai_compat media defaults off (text only) unless capabilities set.
 
-  # Groq — fast openai_compat. Chat and (when audio routes land) STT:
+  # Groq — fast openai_compat. Chat and STT:
   # set capabilities.audio_transcribe: true and call models as groq/<whisper-model>.
   # Keep chat on another provider via defaults.openai_dialect while STT uses groq/.
   groq:

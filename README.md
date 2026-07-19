@@ -518,7 +518,36 @@ google_openai:
 
 Without opt-in, image/video routes return an OpenAI error envelope with `type: unsupported_provider_capability` and **never** call upstream.
 
-Not supported (yet): cross-dialect translation of image/video generation (e.g. OpenAI images → Anthropic). Route these to an OpenAI-family provider only.
+### Voice (HTTP audio — TTS / STT)
+
+| Dialect | TTS | STT | Notes |
+|---|---|---|---|
+| **OpenAI** | `POST /v1/audio/speech` | `POST /v1/audio/transcriptions`, `/translations` | OpenAI-family: model rewrite + binary/multipart **byte-passthrough**. `kind: google`: TTS translates to Gemini `generateContent` with `responseModalities=["AUDIO"]`; response is decoded audio bytes (base64 decode only — **no codec re-encode**). |
+| **Anthropic gateway** | same `/v1/audio/speech` | same `/v1/audio/transcriptions` (+ `/translations`) | Requires **`anthropic-version`** header (disambiguates dialect). Errors use Anthropic envelope. Translates to OpenAI TTS/STT or Google TTS; pure `kind: anthropic` fails closed (`unsupported_provider_capability` — Anthropic has no native TTS/STT). |
+| **Google** | `POST /v1beta/models/{model}:generateSpeech` | — | Gateway Media Contract path. `kind: google` → real Gemini TTS via `:generateContent` + AUDIO modality (JSON with base64 `inlineData`). `openai` / `openai_compat` → OpenAI speech binary, wrapped as generateContent-shaped JSON for Google clients. |
+
+**Capability:** `audio_speech` / `audio_transcribe`. Defaults: on for `openai` + `google`; **off** for `anthropic` and `openai_compat` (opt in). Fail closed before any upstream call.
+
+**Fidelity:** Same-family TTS responses and multipart STT bodies are byte-equal passthrough (Content-Type + boundary preserved). Re-encode only when translating formats is required by the dialect contract (today: base64 wrap/unwrap for Google↔binary only — no mp3↔pcm conversion). Multipart body limit **32 MiB** (`maxBodyBytes`).
+
+```bash
+# OpenAI TTS
+curl -sS http://localhost:8787/v1/audio/speech \
+  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"Hello","voice":"alloy"}' -o out.mp3
+
+# Anthropic-gateway TTS (routes to openai dialect default / provider prefix)
+curl -sS http://localhost:8787/v1/audio/speech \
+  -H "anthropic-version: 2023-06-01" -H "x-api-key: $KEY" -H "Content-Type: application/json" \
+  -d '{"model":"openai/tts-1","input":"Hello","voice":"alloy"}' -o out.mp3
+
+# Google-shaped TTS (Gemini TTS models)
+curl -sS "http://localhost:8787/v1beta/models/gemini-2.5-flash-preview-tts:generateSpeech" \
+  -H "x-goog-api-key: $GEMINI_API_KEY" -H "Content-Type: application/json" \
+  -d '{"text":"Hello","voice":"Kore"}'
+```
+
+Usage events: `modality=audio_speech` (`media.unit_kind=audio_character`) or `audio_transcribe` (`audio_minute`).
 
 ```python
 # Image gen via Gemini OpenAI-compat (requires capabilities.image_gen on google_openai)
@@ -708,7 +737,8 @@ OpenAI-compatible mode path includes `compatible-mode`:
 | International | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
 Models: bare ids (`qwen-turbo`) with `defaults.openai_dialect: qwen`, or `qwen/qwen-turbo`, or aliases (`qwen-turbo: qwen/qwen-turbo`).
 ### Groq (STT-oriented routing)
-Groq is `openai_compat` at `https://api.groq.com/openai/v1`. For **chat on provider A, STT on Groq** (when audio routes ship):
+Groq is `openai_compat` at `https://api.groq.com/openai/v1`. For **chat on provider A, STT on Groq**:
+```yaml
 providers:
   openai: { kind: openai, base_url: "https://api.openai.com/v1", api_key_env: OPENAI_API_KEY }
   groq:
@@ -722,7 +752,8 @@ defaults:
   openai_dialect: openai
 aliases:
   whisper-fast: groq/whisper-large-v3
-Call STT with `model: groq/whisper-large-v3` or the alias. Multipart body limit **32 MiB**. See matrix for shipped audio status.
+```
+Call STT with `model: groq/whisper-large-v3` or the alias. Multipart body limit **32 MiB**.
 ### Vertex AI (ADC)
   vertex:
     kind: google
@@ -1021,7 +1052,7 @@ git tag v0.1.0 && git push origin v0.1.0
 - [ ] Production TLS `wss` dial for realtime upstreams
 - [ ] Optional Realtime ↔ Live IR bridge (future milestone; not M3)
 - [ ] Cross-dialect image/video generation translation
-- [ ] HTTP audio (TTS/STT) fuller coverage
+- [x] HTTP audio (TTS/STT): OpenAI + Anthropic-gateway + Google `:generateSpeech`
 
 ---
 

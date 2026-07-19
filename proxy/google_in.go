@@ -37,6 +37,10 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 		s.handleGoogleMedia(w, r, model, method)
 		return
 	}
+	if ok && method == "generateSpeech" {
+		s.handleGoogleSpeech(w, r, model)
+		return
+	}
 
 	x := s.newExchange(w, r, DialectGoogle, writeGoogleError)
 	defer x.emit()
@@ -152,6 +156,8 @@ func parseGoogleAction(action string) (model, method string, ok bool) {
 		return strings.TrimSuffix(action, ":predict"), "predict", true
 	case strings.HasSuffix(action, ":generateVideos"):
 		return strings.TrimSuffix(action, ":generateVideos"), "generateVideos", true
+	case strings.HasSuffix(action, ":generateSpeech"):
+		return strings.TrimSuffix(action, ":generateSpeech"), "generateSpeech", true
 	default:
 		return "", "", false
 	}
