@@ -72,6 +72,19 @@ func TestMaxBodyBytesDefaultAndOverride(t *testing.T) {
 	if cfg2.MaxBodyBytes != 4096 {
 		t.Fatalf("override=%d", cfg2.MaxBodyBytes)
 	}
+	// nil receiver and non-positive MaxBodyBytes → default
+	var nilCfg *Config
+	if nilCfg.BodyLimit() != DefaultMaxBodyBytes {
+		t.Fatalf("nil BodyLimit=%d", nilCfg.BodyLimit())
+	}
+	cfg.MaxBodyBytes = 0
+	if cfg.BodyLimit() != DefaultMaxBodyBytes {
+		t.Fatalf("zero MaxBodyBytes BodyLimit=%d", cfg.BodyLimit())
+	}
+	cfg.MaxBodyBytes = -1
+	if cfg.BodyLimit() != DefaultMaxBodyBytes {
+		t.Fatalf("negative MaxBodyBytes BodyLimit=%d", cfg.BodyLimit())
+	}
 }
 
 func TestLoadFromFile(t *testing.T) {

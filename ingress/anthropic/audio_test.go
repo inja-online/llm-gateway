@@ -38,3 +38,28 @@ func TestParseTranscribeJSONRequest(t *testing.T) {
 		t.Fatalf("%+v", req)
 	}
 }
+
+func TestParseSpeechRequestInvalidAndMissingInput(t *testing.T) {
+	if _, err := ParseSpeechRequest([]byte(`{`)); err == nil {
+		t.Fatal("invalid json")
+	}
+	if _, err := ParseSpeechRequest([]byte(`{"model":"m"}`)); err == nil {
+		t.Fatal("missing input")
+	}
+}
+
+func TestParseTranscribeJSONRequestEdges(t *testing.T) {
+	if _, err := ParseTranscribeJSONRequest([]byte(`{`)); err == nil {
+		t.Fatal("invalid json")
+	}
+	if _, err := ParseTranscribeJSONRequest([]byte(`{"language":"en"}`)); err == nil {
+		t.Fatal("missing model")
+	}
+	req, err := ParseTranscribeJSONRequest([]byte(`{"model":"w","prompt":"p","response_format":"verbose_json"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Prompt != "p" || req.ResponseFormat != "verbose_json" {
+		t.Fatalf("%+v", req)
+	}
+}
