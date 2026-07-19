@@ -347,8 +347,9 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/images/variations` | Image variations (passthrough) |
 | `POST` | `/v1/videos` | Video generation job create (OpenAI / Gemini OpenAI-compat) |
 | `GET` | `/v1/videos/{id}` | Video job status (`?provider=` or `defaults.openai_dialect`) |
-| `GET` | `/v1/realtime` | OpenAI Realtime WebSocket upgrade (skeleton passthrough) |
-| `GET` | `/v1beta/models/{model}:bidiGenerateContent` | Google Live WebSocket (skeleton) |
+| `GET` | `/v1/realtime` | OpenAI Realtime WebSocket upgrade (same-protocol passthrough) |
+| `GET` | `/v1beta/models/{model}:bidiGenerateContent` | Google Live WebSocket (same-protocol passthrough) |
+| `POST` | `/v1/conversations` (+ `/{id}`, items) | **501 stub** — Conversations API not implemented (see below) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
 | `GET` | `/v1/models` | OpenAI-shaped catalog (aliases + alias targets from config) |
 | `GET` | `/v1/models/{id}` | Retrieve one catalog entry (supports `provider/model` ids) |
@@ -386,7 +387,19 @@ client = OpenAI(base_url="http://localhost:8787/v1", api_key=os.environ["OPENAI_
 client.embeddings.create(model="openai/text-embedding-3-small", input="hello")
 # Or map to native Gemini when the resolved provider is kind: google
 # client.embeddings.create(model="google/gemini-embedding-001", input=["a","b"])
-**Not exposed:** OpenAI Conversations / Assistants threads — prefer **Responses** + client-side state (or Files). The gateway stays stateless.
+### Conversations API (decision: **stub 501**)
+
+OpenAI **Conversations** (and Assistants threads) are **not implemented**. The gateway is **stateless** and does not store conversation history.
+
+| Decision | Detail |
+|---|---|
+| **Chosen** | **Stub 501** on common Conversations routes so SDKs get an OpenAI-shaped error instead of a bare 404 |
+| Routes | `POST/GET /v1/conversations`, `GET/POST/DELETE /v1/conversations/{id}`, and nested paths (e.g. `…/items`) |
+| Error | HTTP **501**, `error.type` = `not_implemented`, message points to Responses + client-side state / Files |
+| **Not chosen** | Full passthrough (would imply gateway-side or opaque upstream state without clear ROI) or silent skip (bare 404 confuses SDKs) |
+
+**Alternative:** use **`POST /v1/responses`** (OpenAI-family passthrough) with **client-side conversation state**, and/or the **Files** API for provider-stored assets. Assistants `/v1/threads` is likewise not exposed (no stub; same alternative).
+
 ### Responses API
 OpenAI-family only (`kind: openai` or `openai_compat`). Same model routing as chat (`aliases` / `provider/model` / `defaults.openai_dialect`).
 | Call | Notes |
@@ -402,12 +415,26 @@ Provider selection (no model field): `?provider=` → `X-Provider` → `defaults
 Usage: one operational event per call (`estimated: true`, zero tokens).
 ### Moderations
 `POST /v1/moderations` — OpenAI-family only; rewrites `model` when present; otherwise uses default OpenAI-family provider.
-### Realtime (WebSocket, skeleton)
-| Path | Provider | Capability |
-| `GET /v1/realtime?model=…` | `openai` / `openai_compat` with `capabilities.realtime` | OpenAI Realtime |
-| `GET /v1beta/models/{model}:bidiGenerateContent` | `kind: google` with `realtime` | Google Live |
+### Realtime (WebSocket)
+
+Same-protocol **passthrough** only. The optional **OpenAI Realtime ↔ Google Live bridge is not implemented** and is deferred to a future milestone (fail closed; no half-bridge).
+
+| Path | Provider | Capability | Mode |
+|---|---|---|---|
+| `GET /v1/realtime?model=…` | `openai` / `openai_compat` with `capabilities.realtime` | OpenAI Realtime | Passthrough |
+| `GET /v1beta/models/{model}:bidiGenerateContent` | `kind: google` with `realtime` | Google Live | Passthrough |
+
+| Cross-protocol attempt | Result |
+|---|---|
+| OpenAI Realtime ingress → `kind: google` provider | **501** `unsupported_realtime_bridge` — use native Live URL for Google |
+| Google Live ingress → `openai` / `openai_compat` provider | **501** `unsupported_realtime_bridge` — use `/v1/realtime` for OpenAI |
+| Anthropic (any live path) | Unsupported (no Anthropic WebSocket dialect) |
+
 Process limits from config (`realtime.max_sessions`, `realtime.max_session_minutes`). One usage event on session end (`modality=realtime`, `transport=websocket`, `media.unit_kind=session_minute`).
-**Gaps (TODO):** production TLS/`wss` dial, full protocol edge cases, OpenAI Realtime ↔ Google Live bridge. Hermetic tests cover upgrade + limits + capability deny.
+
+**Still open (same-protocol):** production TLS/`wss` dial and fuller protocol edge cases. Hermetic tests cover upgrade + limits + capability deny + bridge fail-closed.
+
+**Realtime bridge drop list (unmapped):** full IR event mapping is unmapped / won't ship now — no OpenAI↔Live event translation, no audio format conversion, no tool-call remapping across protocols. Documented for drop-list policy: fail closed rather than re-encode as a wrong type.
 ### Image & video generation
 
 Chat multimodal **inputs** (image URL / base64 in messages) are already part of chat translation. **Generation** APIs are separate OpenAI-compatible routes:
@@ -929,10 +956,12 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] OpenAI Responses + Files + Moderations passthrough
 - [x] Rate-limit / OpenAI org-project header policy
 - [x] Realtime WS skeleton (OpenAI + Google Live) + session limits
-- [ ] Production TLS `wss` dial + Realtime ↔ Live bridge
-- [ ] `GET /v1/models`
+- [x] Conversations API decision: **stub 501** (not full support)
+- [x] Realtime ↔ Live **bridge deferred** (fail-closed `unsupported_realtime_bridge`; same-protocol passthrough only)
+- [ ] Production TLS `wss` dial for realtime upstreams
+- [ ] Optional Realtime ↔ Live IR bridge (future milestone; not M3)
 - [ ] Cross-dialect image/video generation translation
-- [ ] HTTP audio (TTS/STT) and Realtime WebSocket passthrough
+- [ ] HTTP audio (TTS/STT) fuller coverage
 
 ---
 
