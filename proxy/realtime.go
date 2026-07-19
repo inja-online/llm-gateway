@@ -78,7 +78,8 @@ func (l *sessionLimiter) count() int {
 // Capability realtime required; OpenAI-family providers only.
 //
 // Skeleton: HTTP Upgrade handshake + bidirectional raw-frame passthrough after
-// dialing the upstream WS. Bridge to Google Live is out of scope here.
+// dialing the upstream WS. Cross-protocol bridge to Google Live is not
+// implemented — attempts fail closed with CodeUnsupportedRealtimeBridge.
 func (s *Server) handleRealtime(w http.ResponseWriter, r *http.Request) {
 	x := s.newExchange(w, r, DialectOpenAI, writeOpenAIError)
 	defer x.emit()
@@ -104,6 +105,15 @@ func (s *Server) handleRealtime(w http.ResponseWriter, r *http.Request) {
 	route, err := Resolve(s.cfg, DialectOpenAI, model)
 	if err != nil {
 		x.fail(http.StatusNotFound, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
+		return
+	}
+	// Cross-protocol Realtime → Live bridge is not implemented (fail closed).
+	if route.Provider.Kind == config.KindGoogle {
+		x.fail(http.StatusNotImplemented, CodeUnsupportedRealtimeBridge,
+			"OpenAI Realtime ↔ Google Live bridge is not implemented; "+
+				"use GET /v1beta/models/{model}:bidiGenerateContent for Google Live, "+
+				"or route model to an openai/openai_compat provider for Realtime passthrough",
+			hooks.StatusBadRequest)
 		return
 	}
 	if !ensureOpenAIFamily(x, route, "Realtime") {
@@ -187,6 +197,15 @@ func (s *Server) handleGoogleLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if route.Provider.Kind != config.KindGoogle {
+		// Cross-protocol Live → Realtime bridge is not implemented (fail closed).
+		if isOpenAIFamily(route.Provider) {
+			x.fail(http.StatusNotImplemented, CodeUnsupportedRealtimeBridge,
+				"OpenAI Realtime ↔ Google Live bridge is not implemented; "+
+					"use GET /v1/realtime for OpenAI Realtime passthrough, "+
+					"or a kind:google provider for Live",
+				hooks.StatusBadRequest)
+			return
+		}
 		x.fail(http.StatusNotImplemented, "invalid_request_error",
 			"Google Live requires kind:google provider (got "+route.Provider.Kind+")",
 			hooks.StatusBadRequest)

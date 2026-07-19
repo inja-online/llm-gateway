@@ -56,8 +56,10 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 | Ingress | `openai` | `openai_compat` | `anthropic` | `google` |
 |---|---|---|---|---|
-| OpenAI `/v1/realtime` | planned **P** | planned **P** (opt) | **U** (no Anthropic WS) | bridge planned |
-| Google Live | bridge planned | — | **U** | planned **P** |
+| OpenAI `/v1/realtime` | **P** (passthrough) | **P** (opt-in `realtime`) | **U** (no Anthropic WS) | **U** fail-closed `unsupported_realtime_bridge` |
+| Google Live | **U** fail-closed `unsupported_realtime_bridge` | **U** same | **U** | **P** (passthrough) |
+
+**Bridge:** OpenAI Realtime ↔ Google Live IR bridge is **not implemented** (deferred). Clients must use the native protocol URL for each provider family.
 
 ## Capability defaults by kind
 

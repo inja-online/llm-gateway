@@ -40,7 +40,8 @@ Until then:
 ## Media / realtime
 
 - Image/video/audio **Extra** maps: unknown keys may live in `Extra` or be dropped per design-spec drop lists; goldens under `testdata/fixtures/` are authoritative when present.
-- Realtime bridge unmapped events: fail closed with `unsupported_realtime_bridge` or explicit drop lists — never invent Anthropic WebSocket dialect.
+- **Realtime bridge (deferred):** full OpenAI Realtime ↔ Google Live IR is **not implemented**. Cross-protocol attempts fail closed with `unsupported_realtime_bridge`. Same-protocol passthrough only.
+- **Realtime bridge drop list (unmapped until bridge ships):** all cross-protocol event names, audio format conversion, tool/function remapping, VAD/session extras — never half-apply; never invent Anthropic WebSocket dialect.
 
 ## Semver rules for drop behavior
 
