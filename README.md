@@ -15,7 +15,7 @@
   <a href="https://github.com/inja-online/llm-gateway/actions/workflows/release.yml"><img src="https://github.com/inja-online/llm-gateway/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
   <a href="https://github.com/inja-online/llm-gateway/releases"><img src="https://img.shields.io/github/v/release/inja-online/llm-gateway?include_prereleases&sort=semver&display_name=tag&label=release&color=blue" alt="Latest release" /></a>
   <a href="https://pkg.go.dev/github.com/inja-online/llm-gateway"><img src="https://pkg.go.dev/badge/github.com/inja-online/llm-gateway.svg" alt="Go Reference" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="MIT License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 License" /></a>
   <br/>
   <a href="https://go.dev/dl/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+" /></a>
   <a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen" alt="Coverage ≥90%" /></a>
@@ -1157,4 +1157,8 @@ Matrix: [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [docs/sd
 
 ## License
 
-[MIT](LICENSE) © 2026 [inja-online](https://github.com/inja-online)
+[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) © 2026 [inja-online](https://github.com/inja-online)
+
+This project is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+If you run a modified version of this software as a network service (for example, a hosted LLM gateway), the AGPL requires that you offer the corresponding source code of that modified version to users of the service. See the [LICENSE](LICENSE) file for the full terms.

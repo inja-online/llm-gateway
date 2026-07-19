@@ -19,6 +19,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+### Changed
+
+- **License:** project relicensed from MIT to **[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE)**. Network use of modified versions requires offering corresponding source under the AGPL.
+
 ### Added
 
 - **HTTP voice (TTS/STT, M4):** OpenAI `/v1/audio/speech|transcriptions|translations` (passthrough + `kind:google` TTS translation); Anthropic-gateway same paths with `anthropic-version` (translate to OpenAI/Google); Google `POST /v1beta/models/{m}:generateSpeech` → Gemini `generateContent` AUDIO. Capability fail-closed; binary/multipart fidelity tests; usage `audio_speech` / `audio_transcribe`.
