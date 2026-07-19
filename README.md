@@ -16,6 +16,7 @@
   <a href="https://github.com/inja-online/llm-gateway/releases"><img src="https://img.shields.io/github/v/release/inja-online/llm-gateway?include_prereleases&sort=semver&display_name=tag&label=release&color=blue" alt="Latest release" /></a>
   <a href="https://pkg.go.dev/github.com/inja-online/llm-gateway"><img src="https://pkg.go.dev/badge/github.com/inja-online/llm-gateway.svg" alt="Go Reference" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 License" /></a>
+  <a href="https://inja-online.github.io/llm-gateway/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue" alt="Docs" /></a>
   <br/>
   <a href="https://go.dev/dl/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+" /></a>
   <a href=".github/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen" alt="Coverage ≥90%" /></a>
@@ -25,6 +26,7 @@
 </p>
 
 <p align="center">
+  <a href="https://inja-online.github.io/llm-gateway/"><strong>Documentation</strong></a> ·
   <a href="#quickstart">Quickstart</a> ·
   <a href="#http-api">HTTP API</a> ·
   <a href="#configuration">Config</a> ·
@@ -61,7 +63,8 @@ Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway route
 | **Module** | [`github.com/inja-online/llm-gateway`](https://pkg.go.dev/github.com/inja-online/llm-gateway) |
 | **License** | [AGPL-3.0](LICENSE) |
 
-**Also:** [compatibility matrix](docs/compatibility-matrix.md) · [SDK hermetic matrix](docs/sdk-compatibility-matrix.md) · [deprecation policy](docs/deprecation-policy.md) · [Claude Code checklist](docs/claude-code-checklist.md) · [multipart security](docs/security-multipart-review.md) · [CHANGELOG](CHANGELOG.md)
+**Docs site:** [inja-online.github.io/llm-gateway](https://inja-online.github.io/llm-gateway/) ·  
+**Also in-repo:** [compatibility matrix](docs/compatibility-matrix.md) · [SDK hermetic matrix](docs/sdk-compatibility-matrix.md) · [deprecation policy](docs/deprecation-policy.md) · [Claude Code checklist](docs/claude-code-checklist.md) · [multipart security](docs/security-multipart-review.md) · [CHANGELOG](CHANGELOG.md)
 
 ---
 

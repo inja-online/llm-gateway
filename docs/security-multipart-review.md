@@ -1,6 +1,6 @@
 # Security review: multipart & media paths
 
-Focused review of gateway handling for multipart uploads (STT, image edits/variations, Files API) and binary media (TTS, video content). Complements [SECURITY.md](../SECURITY.md) and the [limits table](../README.md#limits--timeouts) in the README.
+Focused review of gateway handling for multipart uploads (STT, image edits/variations, Files API) and binary media (TTS, video content). Complements [SECURITY.md](https://github.com/inja-online/llm-gateway/blob/master/SECURITY.md) and the [limits table](https://github.com/inja-online/llm-gateway/blob/master/README.md#limits--timeouts) in the README.
 
 **Scope date:** 2026-07 (M5 core ops).  
 **Code areas:** `proxy/media.go`, `proxy/audio.go`, `proxy/files.go`, `proxy/exchange.go`, ingress/egress image/file parsers.
@@ -74,6 +74,6 @@ Hermetic coverage: `ingress/google/file_data_test.go`, `egress/google/media_test
 
 ## Related
 
-- [SECURITY.md](../SECURITY.md) — reporting, edge auth, ops hygiene
+- [SECURITY.md](https://github.com/inja-online/llm-gateway/blob/master/SECURITY.md) — reporting, edge auth, ops hygiene
 - README **Limits & timeouts** — body, header wait, realtime sessions, drain
 - Issue theme: M5 security review of media/audio multipart

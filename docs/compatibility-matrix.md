@@ -89,6 +89,6 @@ Named hermetic anchors: `proxy.TestNonStreamPassthrough` (OpenAI), `proxy.TestAn
 
 ## Related
 
-- [README](../README.md) · [CONTRIBUTING modality guide](../CONTRIBUTING.md#adding-a-modality)
+- [README](https://github.com/inja-online/llm-gateway/blob/master/README.md) · [CONTRIBUTING modality guide](https://github.com/inja-online/llm-gateway/blob/master/CONTRIBUTING.md#adding-a-modality)
 - [Deprecation / field drops](deprecation-policy.md)
 - [Claude Code checklist](claude-code-checklist.md)

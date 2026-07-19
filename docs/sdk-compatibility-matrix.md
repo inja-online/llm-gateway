@@ -13,7 +13,7 @@ This document is the **hermetic** strategy for official OpenAI / Anthropic / Goo
 | **Ingress/egress package unit tests** | Dialect JSON parse/build fidelity (OpenAI / Anthropic / Google wire types) |
 | **Optional real SDKs** | Manual or opt-in jobs only; still point at a fake upstream or local gateway — **never** require live keys in default CI |
 
-**Default CI** (see [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)):
+**Default CI** (see [`.github/workflows/ci.yml`](https://github.com/inja-online/llm-gateway/blob/master/.github/workflows/ci.yml)):
 
 ```text
 go test -race -count=1 ./...
@@ -80,4 +80,4 @@ What a typical **official SDK** needs when `base_url` / host points at the gatew
 
 - End-to-end modality matrix: [compatibility-matrix.md](compatibility-matrix.md)
 - Claude Code / Anthropic checklist: [claude-code-checklist.md](claude-code-checklist.md)
-- Public API contract: [README.md](../README.md)
+- Public API contract: [README.md](https://github.com/inja-online/llm-gateway/blob/master/README.md)

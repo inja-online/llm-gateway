@@ -68,7 +68,7 @@ Deprecation timeline for intentional removals:
 
 ## Related
 
-- [CHANGELOG.md](../CHANGELOG.md)
+- [CHANGELOG.md](changelog.md)
 - [docs/compatibility-matrix.md](compatibility-matrix.md)
 - [docs/sdk-compatibility-matrix.md](sdk-compatibility-matrix.md)
-- [README.md](../README.md) HTTP API and translation tables
+- [README.md](https://github.com/inja-online/llm-gateway/blob/master/README.md) HTTP API and translation tables

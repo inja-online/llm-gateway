@@ -1,0 +1,18 @@
+# Contributing
+
+Development happens in the main repository.
+
+- Full guide: [CONTRIBUTING.md](https://github.com/inja-online/llm-gateway/blob/master/CONTRIBUTING.md)
+- Security reporting: [SECURITY.md](https://github.com/inja-online/llm-gateway/blob/master/SECURITY.md)
+- Capability matrix tests: `proxy/capability_matrix_test.go`
+- Media fixtures: `testdata/fixtures/media/`
+
+## Local checks
+
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+```
+
+Default CI is air-gapped (`httptest` only; no `-tags live`). See [SDK hermetic matrix](sdk-compatibility-matrix.md).
