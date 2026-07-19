@@ -45,12 +45,17 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 ## Audio (HTTP)
 
-| Modality | OpenAI routes | Status |
-|---|---|---|
-| TTS `audio_speech` | planned `/v1/audio/speech` | not shipped |
-| STT `audio_transcribe` | planned `/v1/audio/transcriptions` | not shipped |
+| Ingress | Route | `openai` | `openai_compat` | `anthropic` | `google` |
+|---|---|---|---|---|---|
+| OpenAI TTS | `POST /v1/audio/speech` | **P** | **P** (opt) | **U** | **T** (→ generateContent AUDIO) |
+| OpenAI STT | `POST /v1/audio/transcriptions`, `/translations` | **P** | **P** (opt) | **U** | **U** |
+| Anthropic-gateway TTS | `POST /v1/audio/speech` + `anthropic-version` | **T** | **T** (opt) | **U** | **T** |
+| Anthropic-gateway STT | `POST /v1/audio/transcriptions` (+ translations) + `anthropic-version` | **T** | **T** (opt) | **U** | **U** |
+| Google TTS | `POST /v1beta/models/{m}:generateSpeech` | **T** (wrap binary) | **T** (opt) | **U** | **T** (→ generateContent AUDIO) |
 
-**Operator note (Groq STT-first):** when STT routes land, configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` while leaving `defaults.openai_dialect` on another chat provider. Multipart body limit: **32 MiB**. See `gateway.example.yaml` comments.
+**Fidelity:** same-family TTS body + multipart STT are byte-passthrough; translation uses base64 wrap/unwrap only (no codec re-encode). Multipart limit **32 MiB**.
+
+**Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` while leaving `defaults.openai_dialect` on another chat provider.
 
 ## Realtime (WebSocket)
 
