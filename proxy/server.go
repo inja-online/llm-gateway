@@ -27,8 +27,8 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 		hook = hooks.Multi{}
 	}
 	return &Server{
-		cfg:  cfg,
-		hook: hook,
+		cfg:      cfg,
+		hook:     hook,
 		sessions: newSessionLimiter(cfg.Realtime.MaxSessions, cfg.Realtime.MaxSessionMinutes),
 		client: &http.Client{
 			// No overall timeout: streams are long-lived. Per-request contexts
@@ -46,6 +46,9 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
+	// Experimental: OpenAI Completions + DeepSeek FIM (prefix/suffix). See README.
+	mux.HandleFunc("POST /v1/completions", s.handleCompletions)
+	mux.HandleFunc("POST /beta/completions", s.handleCompletions)
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
 	// Anthropic Message Batches (upstream-owned; gateway does not store results).
@@ -212,7 +215,6 @@ func newRequestID() string {
 	rand.Read(b[:])
 	return "req_" + hex.EncodeToString(b[:])
 }
-
 
 // handleGoogleModelOrLive dispatches GET /v1beta/models/{model}:
 // Live WS when the path ends with :bidiGenerateContent, else model get.

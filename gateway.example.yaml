@@ -79,6 +79,8 @@ providers:
     kind: openai_compat
     base_url: "https://api.deepseek.com"
     # api_key_env: DEEPSEEK_API_KEY
+  # FIM (experimental): POST gateway /v1/completions or /beta/completions
+  # (DeepSeek beta Completions; gateway rewrites …/v1 → …/beta on /beta path).
 
   # OpenRouter — openai_compat; optional client headers HTTP-Referer + X-Title
   # are forwarded. Body fields (provider, plugins, route, …) pass through.
@@ -101,7 +103,10 @@ providers:
     #   text: true
     #   image_gen: true
 
-  # Moonshot / Kimi (use the regional base that matches your key)
+  # Moonshot / Kimi (use the regional base that matches your key).
+  # Token-estimate + balance helper APIs are NOT proxied (call Moonshot directly):
+  #   POST {base}/tokenizers/estimate-token-count
+  #   GET  {base}/users/me/balance
   moonshot:
     kind: openai_compat
     base_url: "https://api.moonshot.ai/v1"
