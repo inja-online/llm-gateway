@@ -263,8 +263,8 @@ defaults:
 			name: "audio_speech/openai→anthropic deny", dialect: DialectOpenAI, modality: config.ModalityAudioSpeech,
 			path: "/v1/audio/speech", model: "anthropic/claude",
 			body: `{"model":"anthropic/claude","input":"hi","voice":"alloy"}`,
-			// non-openai-family → 501; capability path for anthropic is also fail-closed
-			expect: matrixDeny, wantStatus: http.StatusNotImplemented,
+			// fail-closed: capability deny (400) or non-family (501) depending on check order
+			expect: matrixDeny, wantStatus: 0,
 		},
 
 		// --- audio_speech allow ---

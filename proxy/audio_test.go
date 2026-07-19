@@ -1077,7 +1077,7 @@ defaults:
 	// Truncation at maxBodyBytes: send maxBodyBytes+100; gateway LimitReader caps read.
 	// Build a large body without multipart complexity (JSON path also uses readBody).
 	// Use speech JSON with huge input to hit the limit cheaply.
-	huge := strings.Repeat("x", maxBodyBytes+100)
+	huge := strings.Repeat("x", int(maxBodyBytes)+100)
 	req2, _ := http.NewRequest(http.MethodPost, gw.URL+"/v1/audio/speech",
 		strings.NewReader(`{"model":"tts-1","input":"`+huge+`","voice":"alloy"}`))
 	req2.Header.Set("Content-Type", "application/json")
