@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "provider \"deepseek\" does not support modality \"image_gen\"",
+    "type": "unsupported_provider_capability",
+    "code": null
+  }
+}

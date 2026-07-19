@@ -1,0 +1,7 @@
+{
+  "type": "error",
+  "error": {
+    "type": "unsupported_provider_capability",
+    "message": "provider \"anthropic\" does not support modality \"image_gen\""
+  }
+}

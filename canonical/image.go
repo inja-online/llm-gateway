@@ -2,6 +2,18 @@ package canonical
 
 import "encoding/json"
 
+// ImageSource holds an inline or referenced image (chat content blocks and
+// image/video generation source references).
+type ImageSource struct {
+	// Kind is "base64" or "url".
+	Kind      string
+	MediaType string // for base64
+	Data      string // base64 payload or URL
+	// Detail is OpenAI image_url.detail: "auto" | "low" | "high".
+	// Empty means unset — do not default to "auto" on the wire.
+	Detail string
+}
+
 // ImageMode selects image generation vs edit/variation.
 const (
 	ImageModeGenerate  = "generate"

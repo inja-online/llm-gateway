@@ -1,0 +1,16 @@
+{
+  "id": "img_01",
+  "type": "image_generation",
+  "model": "dall-e-3",
+  "data": [
+    {
+      "b64_json": "YQ==",
+      "media_type": "image/png",
+      "revised_prompt": "a red cube on white"
+    }
+  ],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

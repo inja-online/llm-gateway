@@ -1,0 +1,6 @@
+{
+  "model": "openai/sora",
+  "prompt": "rain over a city",
+  "duration": 3,
+  "aspect_ratio": "16:9"
+}
