@@ -123,7 +123,7 @@ Also shipped:
 - `POST /v1/messages/count_tokens` (Anthropic proxy, Google `:countTokens` translate, or estimate), `GET /healthz`
 - One usage event per chat / media / embedding request (JSONL / webhook / Go hook)
 - OpenAI **Responses** API (`/v1/responses`, streaming SSE, GET/DELETE by id)
-- OpenAI **Files** API proxy (`/v1/files*`) and **Moderations** (`/v1/moderations`)
+- OpenAI **Files** API proxy (`/v1/files*`) and Anthropic **Files** (same paths + `anthropic-version`); **Moderations** (`/v1/moderations`)
 - Realtime WebSocket skeleton (`/v1/realtime`, Google Live path) with session limits
 - Dialect-shaped errors; rate-limit + OpenAI org/project header passthrough
 - One usage event per chat / media / responses / files request (JSONL / webhook / Go hook)
@@ -336,7 +336,7 @@ With JSONL → stdout, each chat request logs one line:
 | `POST` | `/v1/responses` | OpenAI Responses create (passthrough; `stream:true` SSE) |
 | `GET` | `/v1/responses/{id}` | Retrieve stored response (proxy only; no gateway storage) |
 | `DELETE` | `/v1/responses/{id}` | Delete stored response upstream |
-| `POST` | `/v1/files` | Upload file (multipart passthrough) |
+| `POST` | `/v1/files` | Upload file (multipart; OpenAI or Anthropic via `anthropic-version`) |
 | `GET` | `/v1/files` | List files |
 | `GET` | `/v1/files/{id}` | Retrieve file metadata |
 | `DELETE` | `/v1/files/{id}` | Delete file upstream |
@@ -397,9 +397,36 @@ OpenAI-family only (`kind: openai` or `openai_compat`). Same model routing as ch
 client = OpenAI(base_url="http://localhost:8787/v1", api_key="sk-...")
 r = client.responses.create(model="openai/gpt-4o", input="hello")
 ### Files API
-OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**).
-Provider selection (no model field): `?provider=` → `X-Provider` → `defaults.openai_dialect`.
-Usage: one operational event per call (`estimated: true`, zero tokens).
+**Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**). Multipart upload `Content-Type` (including boundary) is forwarded intact.
+
+Shared paths (`POST/GET/DELETE /v1/files*`). Dialect is selected by header:
+
+| Client signal | Dialect | Provider kinds | Provider selection |
+|---|---|---|---|
+| **No** `anthropic-version` | OpenAI Files | `openai`, `openai_compat` only | `?provider=` → `X-Provider` → `defaults.openai_dialect` |
+| **`anthropic-version` present** | Anthropic Files | `kind: anthropic` only (fail closed) | `?provider=` → `X-Provider` → `defaults.anthropic_dialect` |
+
+**Anthropic Files** (beta on Anthropic’s side) uses the same path shape as OpenAI (`/v1/files`, `/v1/files/{id}`, `/v1/files/{id}/content`). The gateway:
+
+- Forwards client `anthropic-version` when set; Anthropic auth still injects default `2023-06-01` when the client omits a value after auth rewrite (same policy as Messages)
+- Forwards `anthropic-beta` **as-is** (including comma-separated / unknown future values such as `files-api-2025-04-14`); **no beta allowlist** — new betas work without a gateway release
+- Does **not** invent or force a beta string; clients/SDKs that call Files should send the beta Anthropic requires
+- Emits Anthropic-shaped errors for gateway failures on the Anthropic dialect path
+
+Usage: one operational event per call (`estimated: true`, zero tokens) for both dialects.
+
+```bash
+# OpenAI Files
+curl -s http://localhost:8787/v1/files -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -F purpose=assistants -F file=@doc.txt
+
+# Anthropic Files (requires anthropic-version; forward anthropic-beta for Files beta)
+curl -s http://localhost:8787/v1/files \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "anthropic-beta: files-api-2025-04-14" \
+  -F file=@doc.pdf
+```
 ### Moderations
 `POST /v1/moderations` — OpenAI-family only; rewrites `model` when present; otherwise uses default OpenAI-family provider.
 ### Realtime (WebSocket, skeleton)
@@ -580,7 +607,7 @@ When enabled:
 - **Distinct from upstream keys:** with `api_key_env` on providers, clients only need the edge key; the server substitutes the provider secret
 See [SECURITY.md](SECURITY.md).
 ### Forwarded client headers
-On upstream requests the gateway copies (when present): `HTTP-Referer`, `Referer`, `X-Title`, `OpenAI-Organization`, `OpenAI-Project`, `anthropic-beta`, and client `anthropic-version` (Anthropic egress may still set a default version when applying API-key auth).
+On upstream requests the gateway copies (when present): `HTTP-Referer`, `Referer`, `X-Title`, `OpenAI-Organization`, `OpenAI-Project`, `anthropic-beta`, and client `anthropic-version` (Anthropic egress may still set a default version when applying API-key auth). **`anthropic-beta` is not allowlisted** — unknown / future beta strings (including Files `files-api-2025-04-14`) are forwarded unchanged on Messages, count_tokens, and Anthropic Files.
 ---
 ## Provider notes
 Full sample comments live in [`gateway.example.yaml`](gateway.example.yaml). Compatibility overview: [docs/compatibility-matrix.md](docs/compatibility-matrix.md).
