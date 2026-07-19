@@ -57,6 +57,23 @@ func TestDefaultListen(t *testing.T) {
 	}
 }
 
+func TestMaxBodyBytesDefaultAndOverride(t *testing.T) {
+	cfg, err := Parse([]byte("providers:\n  x: { kind: openai, base_url: \"https://x\" }"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxBodyBytes != DefaultMaxBodyBytes || cfg.BodyLimit() != DefaultMaxBodyBytes {
+		t.Fatalf("default MaxBodyBytes=%d", cfg.MaxBodyBytes)
+	}
+	cfg2, err := Parse([]byte("providers:\n  x: { kind: openai, base_url: \"https://x\" }\nmax_body_bytes: 4096\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg2.MaxBodyBytes != 4096 {
+		t.Fatalf("override=%d", cfg2.MaxBodyBytes)
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/gw.yaml"

@@ -16,27 +16,73 @@ const (
 	modelsCreated int64 = 0
 )
 
-// modelEntry is the OpenAI Models API object shape.
+// modelCapabilities is OpenAI-list-friendly modality metadata derived from
+// provider kind defaults + YAML capabilities overrides. Field names match
+// config modality vocabulary except text → chat (SDK-friendly).
+type modelCapabilities struct {
+	Chat            bool `json:"chat"`
+	ImageGen        bool `json:"image_gen"`
+	VideoGen        bool `json:"video_gen"`
+	AudioSpeech     bool `json:"audio_speech"`
+	AudioTranscribe bool `json:"audio_transcribe"`
+	Realtime        bool `json:"realtime"`
+}
+
+// modelEntry is the OpenAI Models API object shape plus optional capabilities.
 type modelEntry struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	OwnedBy string `json:"owned_by"`
+	ID           string             `json:"id"`
+	Object       string             `json:"object"`
+	Created      int64              `json:"created"`
+	OwnedBy      string             `json:"owned_by"`
+	Capabilities *modelCapabilities `json:"capabilities,omitempty"`
+}
+
+func capabilitiesFromProvider(p config.Provider) *modelCapabilities {
+	c := p.EffectiveCapabilities()
+	return &modelCapabilities{
+		Chat:            c.Text,
+		ImageGen:        c.ImageGen,
+		VideoGen:        c.VideoGen,
+		AudioSpeech:     c.AudioSpeech,
+		AudioTranscribe: c.AudioTranscribe,
+		Realtime:        c.Realtime,
+	}
+}
+
+// resolveCatalogProvider picks the provider for capability flags on a catalog id.
+// Alias keys resolve via alias target; provider/model uses the prefix; bare
+// ids without a resolvable provider omit capabilities.
+func resolveCatalogProvider(cfg *config.Config, id string) (config.Provider, bool) {
+	if target, ok := cfg.Aliases[id]; ok {
+		id = target
+	}
+	prov, _, ok := strings.Cut(id, "/")
+	if !ok || prov == "" {
+		return config.Provider{}, false
+	}
+	p, exists := cfg.Providers[prov]
+	return p, exists
 }
 
 // buildModelsCatalog derives the public model list from config only:
 // every alias key (owned_by=llm-gateway) plus every unique alias target
 // as stored (owned_by=provider prefix). No live upstream calls.
+// Each entry includes capabilities from the resolved provider when known.
 func buildModelsCatalog(cfg *config.Config) []modelEntry {
 	seen := make(map[string]modelEntry, len(cfg.Aliases)*2)
 
 	for alias, target := range cfg.Aliases {
-		seen[alias] = modelEntry{
+		entry := modelEntry{
 			ID:      alias,
 			Object:  modelObject,
 			Created: modelsCreated,
 			OwnedBy: modelsOwnedByGateway,
 		}
+		if p, ok := resolveCatalogProvider(cfg, alias); ok {
+			entry.Capabilities = capabilitiesFromProvider(p)
+		}
+		seen[alias] = entry
+
 		if target == "" {
 			continue
 		}
@@ -47,12 +93,16 @@ func buildModelsCatalog(cfg *config.Config) []modelEntry {
 		if prov, _, ok := strings.Cut(target, "/"); ok && prov != "" {
 			owner = prov
 		}
-		seen[target] = modelEntry{
+		tEntry := modelEntry{
 			ID:      target,
 			Object:  modelObject,
 			Created: modelsCreated,
 			OwnedBy: owner,
 		}
+		if p, ok := resolveCatalogProvider(cfg, target); ok {
+			tEntry.Capabilities = capabilitiesFromProvider(p)
+		}
+		seen[target] = tEntry
 	}
 
 	out := make([]modelEntry, 0, len(seen))

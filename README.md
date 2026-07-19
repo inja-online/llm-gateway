@@ -360,10 +360,10 @@ With JSONL → stdout, each chat request logs one line:
 | `GET` | `/v1beta/models/{model}:bidiGenerateContent` | Google Live WebSocket (same-protocol passthrough) |
 | `POST` | `/v1/conversations` (+ `/{id}`, items) | **501 stub** — Conversations API not implemented (see below) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy or estimate) |
-| `GET` | `/v1/models` | OpenAI-shaped catalog (aliases + alias targets from config) |
+| `GET` | `/v1/models` | OpenAI-shaped catalog + `capabilities` (aliases + targets from config) |
 | `GET` | `/v1/models/{id}` | Retrieve one catalog entry (supports `provider/model` ids) |
 | `POST` | `/v1/messages/count_tokens` | Token count (proxy, Google translate, or estimate) |
-| `GET` | `/healthz` | Liveness / readiness: `{"status":"ok"}` |
+| `GET` | `/healthz` | Process liveness only: `{"status":"ok"}` (not upstream health) |
 
 There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat API is the same Chat Completions shape, so clients use `/v1/chat/completions` and a provider such as `google_openai`.
 
@@ -371,15 +371,22 @@ There is **no** separate `/v1beta/openai/…` ingress: Gemini’s OpenAI-compat 
 
 OpenAI SDKs call `models.list` / `models.retrieve` on connect. The gateway serves a **config-derived** catalog (no live upstream fan-out):
 - **Public ids:** every `aliases` key, plus every unique alias target as stored (e.g. `deepseek/deepseek-chat`)
-- **Shape:** `{"object":"list","data":[{"id","object":"model","created","owned_by"}]}`
+- **Shape:** `{"object":"list","data":[{"id","object":"model","created","owned_by","capabilities"}]}`
 - **`owned_by`:** `"llm-gateway"` for alias keys; provider name for `provider/model` targets
+- **`capabilities`:** optional object derived from the resolved provider’s kind defaults + YAML `capabilities` overrides (no network). Fields: `chat` (maps from config `text`), `image_gen`, `video_gen`, `audio_speech`, `audio_transcribe`, `realtime`. OpenAI SDK `models.list()` ignores unknown fields.
 - **No usage event** (discovery only)
 - Missing id → OpenAI error envelope `404`
+
 **Anthropic models surface:** there is **no** Anthropic-shaped models twin (`/v1/models` under Messages-style envelope). Anthropic / Claude Code clients use aliases or `provider/model` ids on `POST /v1/messages` (and OpenAI-shaped discovery if needed). No fake Anthropic list wire is planned unless a product need appears.
+
 ```bash
 curl -s http://localhost:8787/v1/models
 curl -s http://localhost:8787/v1/models/fast
 curl -s http://localhost:8787/v1/models/deepseek/deepseek-chat
+# Example entry fragment:
+# {"id":"fast","object":"model","created":0,"owned_by":"llm-gateway",
+#  "capabilities":{"chat":true,"image_gen":false,"video_gen":false,
+#                  "audio_speech":false,"audio_transcribe":false,"realtime":false}}
 ```
 ### Embeddings
 | Route | Providers | Notes |
@@ -419,7 +426,7 @@ OpenAI-family only (`kind: openai` or `openai_compat`). Same model routing as ch
 client = OpenAI(base_url="http://localhost:8787/v1", api_key="sk-...")
 r = client.responses.create(model="openai/gpt-4o", input="hello")
 ### Files API
-**Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**). Multipart upload `Content-Type` (including boundary) is forwarded intact.
+**Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; body limit `max_body_bytes`, default **32 MiB**). Multipart upload `Content-Type` (including boundary) is forwarded intact.
 
 Shared paths (`POST/GET/DELETE /v1/files*`). Dialect is selected by header:
 
@@ -450,10 +457,10 @@ curl -s http://localhost:8787/v1/files \
   -F file=@doc.pdf
 ```
 ||||||| f28ae33
-OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**).
+OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; body limit `max_body_bytes`, default **32 MiB**).
 Provider selection (no model field): `?provider=` → `X-Provider` → `defaults.openai_dialect`.
 Usage: one operational event per call (`estimated: true`, zero tokens).
-OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**).
+OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; body limit `max_body_bytes`, default **32 MiB**).
 Provider selection (no model field): `?provider=` → `X-Provider` → `defaults.openai_dialect`.
 Usage: one operational event per call (`estimated: true`, zero tokens).
 ### Anthropic Message Batches
@@ -562,17 +569,24 @@ img = client.images.generate(model="google_openai/gemini-2.5-flash-image", promp
 
 Unknown routes → standard 404.
 
-**Limits**
+### Limits & timeouts
 
-| Limit | Value |
-|---|---|
-| Request / response body | 32 MiB |
-| Overall proxy timeout | none (streams may be long-lived) |
-| Upstream response header wait | 60s |
-| `count_tokens` / `:countTokens` / models GET | 15s |
-| Shutdown drain | 30s |
+| Limit | Default | Config / code |
+|---|---|---|
+| Request / response body | **32 MiB** | `max_body_bytes` (bytes; optional YAML). Oversize request → **413** dialect error |
+| Overall proxy / stream timeout | none | Streams and WS are long-lived; no global `http.Server` write deadline |
+| HTTP `ReadHeaderTimeout` | 10s | `cmd/gateway` server |
+| Upstream response header wait | 60s | `http.Transport.ResponseHeaderTimeout` |
+| Upstream idle conn | 90s | `IdleConnTimeout` |
+| `count_tokens` / `:countTokens` / models GET | 15s | per-request context in those handlers |
+| Realtime max concurrent sessions | 1024 | `realtime.max_sessions` |
+| Realtime max session duration | 60 min | `realtime.max_session_minutes` |
+| Shutdown drain | 30s | SIGTERM → `Server.Shutdown` |
+| Webhook hook timeout | 3s | `hooks.webhook.timeout` |
 
-Client disconnect cancels the upstream context.
+Client disconnect cancels the upstream context (chat/media HTTP and WS session teardown).
+
+**Why 32 MiB default:** multimodal + Files + STT need headroom beyond chat JSON, while full buffering (model rewrite / translation) means each in-flight request can hold up to the cap in RAM. Raise `max_body_bytes` only if operators accept higher peak memory; see [SECURITY.md](SECURITY.md) and [docs/security-multipart-review.md](docs/security-multipart-review.md).
 
 ### `count_tokens`
 
@@ -624,18 +638,18 @@ Single YAML file. Unknown fields are rejected.
 | `providers.<n>.kind` | yes | `openai` \| `openai_compat` \| `anthropic` \| `google` |
 | `providers.<n>.base_url` | yes | Origin **with version prefix**; trailing `/` trimmed |
 | `providers.<n>.api_key_env` | no | Env var; when set & non-empty, **replaces** client key |
-| `providers.<n>.capabilities` | no | Override modality flags (`text`, `image_gen`, `video_gen`, `audio_*`, `realtime`). Nil → kind defaults (`openai_compat` = text only) |
+| `providers.<n>.capabilities` | no | Override modality flags (`text`, `image_gen`, `video_gen`, `audio_*`, `realtime`). Nil → kind defaults (`openai_compat` = text only). Surfaced on `GET /v1/models` as `capabilities` (`text` → `chat`) |
 | `providers.<n>.auth` | no | `api_key` (default) \| `adc` \| `service_account` \| `bearer` |
 | `providers.<n>.service_account_file` | no | Operator path for SA JSON (document/mount; TokenSource applies tokens) |
-| `providers.<n>.capabilities` | no | Override kind defaults (`image_gen`, `audio_transcribe`, …) |
 | `defaults.openai_dialect` | no | Provider for bare models on OpenAI ingress |
 | `defaults.anthropic_dialect` | no | Provider for bare models on Anthropic ingress |
 | `defaults.google_dialect` | no | Provider for bare models on Gemini ingress |
 | `aliases` | no | Public id → `provider/upstream-model` |
+| `max_body_bytes` | no | Request/response body cap in **bytes**; default `33554432` (32 MiB) |
 | `edge_auth.enabled` | no | Default `false`. When true, require edge key (see Auth) |
 | `edge_auth.keys` | no | Inline edge keys (prefer env in production) |
 | `edge_auth.keys_env` | no | Env var with **comma-separated** edge keys |
-| `realtime.max_sessions` | no | Default `1024` (process-local WS cap when realtime lands) |
+| `realtime.max_sessions` | no | Default `1024` (process-local WS cap) |
 | `realtime.max_session_minutes` | no | Default `60` |
 | `hooks.jsonl.output` | no | `stdout` \| `stderr` \| file path |
 | `hooks.webhook.url` | no | Async POST of each usage event |
@@ -754,6 +768,7 @@ aliases:
   whisper-fast: groq/whisper-large-v3
 ```
 Call STT with `model: groq/whisper-large-v3` or the alias. Multipart body limit **32 MiB**.
+Call STT with `model: groq/whisper-large-v3` or the alias. Multipart body limit follows `max_body_bytes` (default **32 MiB**). See matrix for shipped audio status.
 ### Vertex AI (ADC)
   vertex:
     kind: google
@@ -849,17 +864,33 @@ Parse → **canonical** (Anthropic-shaped blocks) → build upstream wire → pa
 
 | Sink | Config | Behavior |
 |---|---|---|
-| **JSONL** | `hooks.jsonl.output` | One JSON line per chat request |
+| **JSONL** | `hooks.jsonl.output` | One JSON line per proxied request |
 | **Webhook** | `hooks.webhook.url` | Async POST; failures logged only |
 | **Go** | `gateway.WithHook(h)` | In-process after response |
 
-Invariant: **exactly one** `UsageEvent` per proxied chat, media, embeddings, or audio request (including errors and aborts). Not emitted for `count_tokens`, `GET /v1/models`, or `healthz`.
-Invariant: **exactly one** `UsageEvent` per `/v1/chat/completions` and `/v1/messages` (including errors and aborts). Not emitted for `count_tokens`, Gemini `:countTokens`, `GET /v1beta/models*`, or `healthz`.
-Invariant: **exactly one** `UsageEvent` per proxied chat, media, and embeddings request (including errors and aborts). Not emitted for `count_tokens` / `healthz`.
+Invariant: **exactly one** `UsageEvent` per proxied chat, media, embeddings, audio, or realtime session (including errors and aborts). Not emitted for `count_tokens`, Gemini `:countTokens`, `GET /v1/models`, `GET /v1beta/models*`, or `healthz`.
 
 JSONL/Go must not block the request path. Webhook is non-blocking (background POST).
 
 **Multi-replica:** use `stdout` or webhook — not a shared local file.
+
+### Metrics / Prometheus (decision: **wontfix — hooks-only**)
+
+There is **no** in-tree `GET /metrics` Prometheus endpoint. Rationale:
+
+- Keep a **single static binary** with **zero** metrics framework dependencies
+- Usage/billing already flows through **hooks** (`UsageEvent` JSONL or webhook) with stable schema
+- Platform RED metrics (latency, status) belong at the **load balancer / service mesh / log pipeline**
+
+**Recommended ops path:** ship `hooks.jsonl.output: stdout` → your log agent → metrics/billing warehouse; or `hooks.webhook.url` into an ingest API. Optional future: an out-of-tree sidecar that scrapes logs — not a gateway core feature.
+
+### Provider health (decision: **document skip**)
+
+`GET /healthz` is **process liveness only** (`{"status":"ok"}`). It does **not** probe upstream providers.
+
+Upstream reachability is an **operator responsibility**: synthetic probes from your mesh/LB against provider bases, plus hooks (elevated `upstream_error` rates). The gateway does **not** ship `/v1/health/providers` (or similar) by default — automatic readiness tied to upstream blips would flap load balancers and is out of scope for a thin proxy.
+
+If you need authenticated admin probes later, prefer an external checker that holds provider keys rather than expanding the gateway attack surface.
 
 ### Event schema
 

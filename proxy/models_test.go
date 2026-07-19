@@ -244,3 +244,99 @@ func TestBuildModelsCatalogSorted(t *testing.T) {
 		}
 	}
 }
+
+func TestModelsListCapabilityFlags(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+providers:
+  openai: { kind: openai, base_url: "https://api.openai.com/v1" }
+  deepseek: { kind: openai_compat, base_url: "https://api.deepseek.com" }
+  groq:
+    kind: openai_compat
+    base_url: "https://api.groq.com/openai/v1"
+    capabilities:
+      text: true
+      audio_transcribe: true
+aliases:
+  fast: deepseek/deepseek-chat
+  whisper-fast: groq/whisper-large-v3
+  gpt: openai/gpt-4o
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(NewServer(cfg, nil).Handler())
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL + "/v1/models")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var out struct {
+		Data []struct {
+			ID           string `json:"id"`
+			Capabilities *struct {
+				Chat            bool `json:"chat"`
+				ImageGen        bool `json:"image_gen"`
+				VideoGen        bool `json:"video_gen"`
+				AudioSpeech     bool `json:"audio_speech"`
+				AudioTranscribe bool `json:"audio_transcribe"`
+				Realtime        bool `json:"realtime"`
+			} `json:"capabilities"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("json: %v body=%s", err, body)
+	}
+
+	byID := map[string]*struct {
+		Chat, ImageGen, VideoGen, AudioSpeech, AudioTranscribe, Realtime bool
+	}{}
+	for _, m := range out.Data {
+		if m.Capabilities == nil {
+			t.Errorf("id %q missing capabilities", m.ID)
+			continue
+		}
+		byID[m.ID] = &struct {
+			Chat, ImageGen, VideoGen, AudioSpeech, AudioTranscribe, Realtime bool
+		}{
+			m.Capabilities.Chat, m.Capabilities.ImageGen, m.Capabilities.VideoGen,
+			m.Capabilities.AudioSpeech, m.Capabilities.AudioTranscribe, m.Capabilities.Realtime,
+		}
+	}
+
+	// openai_compat default: text/chat only
+	if c := byID["fast"]; c == nil || !c.Chat || c.ImageGen || c.AudioTranscribe {
+		t.Errorf("fast (deepseek default): %+v", c)
+	}
+	if c := byID["deepseek/deepseek-chat"]; c == nil || !c.Chat || c.ImageGen {
+		t.Errorf("deepseek target: %+v", c)
+	}
+	// openai kind: full modalities
+	if c := byID["gpt"]; c == nil || !c.Chat || !c.ImageGen || !c.Realtime {
+		t.Errorf("gpt (openai): %+v", c)
+	}
+	// groq override: audio_transcribe opt-in
+	if c := byID["whisper-fast"]; c == nil || !c.Chat || !c.AudioTranscribe || c.ImageGen {
+		t.Errorf("whisper-fast (groq override): %+v", c)
+	}
+	if c := byID["groq/whisper-large-v3"]; c == nil || !c.AudioTranscribe {
+		t.Errorf("groq target: %+v", c)
+	}
+
+	// Retrieve one entry includes capabilities
+	resp2, err := http.Get(srv.URL + "/v1/models/gpt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	var one modelEntry
+	if err := json.NewDecoder(resp2.Body).Decode(&one); err != nil {
+		t.Fatal(err)
+	}
+	if one.Capabilities == nil || !one.Capabilities.Chat || !one.Capabilities.ImageGen {
+		t.Errorf("GET model capabilities: %+v", one.Capabilities)
+	}
+}

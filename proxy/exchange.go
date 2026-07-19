@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -14,7 +15,9 @@ import (
 	"github.com/inja-online/llm-gateway/internal/sse"
 )
 
-const maxBodyBytes = 32 << 20 // 32 MiB
+// maxBodyBytes is the package default (32 MiB). Prefer exchange.bodyLimit() /
+// Server.bodyLimit() so config.max_body_bytes is honored.
+const maxBodyBytes = config.DefaultMaxBodyBytes
 
 // errWriter renders an error body in a specific dialect's envelope and returns
 // the HTTP status it wrote.
@@ -29,6 +32,22 @@ type exchange struct {
 	ev       hooks.UsageEvent
 	writeErr errWriter
 	emitted  bool
+}
+
+// bodyLimit returns the configured request/response body cap for this exchange.
+func (x *exchange) bodyLimit() int64 {
+	if x != nil && x.s != nil {
+		return x.s.bodyLimit()
+	}
+	return maxBodyBytes
+}
+
+// bodyLimit returns the configured request/response body cap for this server.
+func (s *Server) bodyLimit() int64 {
+	if s != nil && s.cfg != nil {
+		return s.cfg.BodyLimit()
+	}
+	return maxBodyBytes
 }
 
 func (s *Server) newExchange(w http.ResponseWriter, r *http.Request, dialect string, writeErr errWriter) *exchange {
@@ -79,11 +98,20 @@ func (x *exchange) fail(httpStatus int, code, msg, evStatus string) {
 	x.ev.HTTPStatus = x.writeErr(x.w, httpStatus, code, msg)
 }
 
-// readBody reads and size-limits the request body.
+// readBody reads and size-limits the request body. Bodies larger than
+// max_body_bytes yield HTTP 413 with a dialect-shaped error envelope.
 func (x *exchange) readBody() ([]byte, bool) {
-	body, err := io.ReadAll(io.LimitReader(x.r.Body, maxBodyBytes))
+	limit := x.bodyLimit()
+	// Read one byte past the limit so oversize is distinguishable from exact-limit.
+	body, err := io.ReadAll(io.LimitReader(x.r.Body, limit+1))
 	if err != nil {
 		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to read request body", hooks.StatusBadRequest)
+		return nil, false
+	}
+	if int64(len(body)) > limit {
+		x.fail(http.StatusRequestEntityTooLarge, "invalid_request_error",
+			fmt.Sprintf("request body exceeds max_body_bytes (%d)", limit),
+			hooks.StatusBadRequest)
 		return nil, false
 	}
 	return body, true
@@ -112,7 +140,7 @@ func (x *exchange) forwardErrorResponse(resp *http.Response) {
 		x.w.Header().Set("Content-Type", "application/json")
 	}
 	x.w.WriteHeader(resp.StatusCode)
-	io.Copy(x.w, io.LimitReader(resp.Body, maxBodyBytes))
+	io.Copy(x.w, io.LimitReader(resp.Body, x.bodyLimit()))
 }
 
 // usageExtractor pulls token counts out of a data payload during a passthrough
@@ -172,14 +200,30 @@ func (x *exchange) finishStream(err error) {
 // providerKind reports the egress kind for a resolved route.
 func providerKind(p config.Provider) string { return p.Kind }
 
-// readAll reads a size-limited response body.
+// readAll reads a size-limited response body (package default limit).
+// Prefer exchange.readAllResp when the configured max_body_bytes should apply.
 func readAll(resp *http.Response) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 }
 
-// readAllLimited reads a size-limited request body.
+// readAllResp reads a size-limited response body using the exchange body limit.
+func (x *exchange) readAllResp(resp *http.Response) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(resp.Body, x.bodyLimit()))
+}
+
+// readAllLimited reads a size-limited request body (package default limit).
+// Does not emit dialect errors on oversize — callers that need that use readBody.
 func readAllLimited(r *http.Request) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
+}
+
+// readAllLimitedN reads a size-limited request body with an explicit cap.
+// Oversize is truncated (not rejected); use exchange.readBody for 413.
+func readAllLimitedN(r *http.Request, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		limit = maxBodyBytes
+	}
+	return io.ReadAll(io.LimitReader(r.Body, limit))
 }
 
 func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
