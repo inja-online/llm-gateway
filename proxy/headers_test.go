@@ -387,9 +387,13 @@ defaults:
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusNotImplemented {
-		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("status %d %s", resp.StatusCode, body)
+	}
+	// Cross-protocol Live → OpenAI Realtime is fail-closed (bridge deferred).
+	if !strings.Contains(string(body), CodeUnsupportedRealtimeBridge) {
+		t.Fatalf("want %s in body: %s", CodeUnsupportedRealtimeBridge, body)
 	}
 	col.one(t)
 }
@@ -550,6 +554,47 @@ defaults:
 		t.Fatalf("status %d", resp.StatusCode)
 	}
 	col.one(t)
+}
+
+func TestRealtimeBridgeOpenAIToGoogleFailsClosed(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+providers:
+  google: { kind: google, base_url: "http://127.0.0.1:9/v1beta" }
+  openai: { kind: openai, base_url: "http://127.0.0.1:9/v1" }
+defaults:
+  openai_dialect: openai
+  google_dialect: google
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	gw := httptest.NewServer(NewServer(cfg, col).Handler())
+	t.Cleanup(gw.Close)
+	req, _ := http.NewRequest(http.MethodGet, gw.URL+"/v1/realtime?model=google/gemini-live", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status %d body %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), CodeUnsupportedRealtimeBridge) {
+		t.Fatalf("want %s in body: %s", CodeUnsupportedRealtimeBridge, body)
+	}
+	col.one(t)
+}
+
+func TestCodeUnsupportedRealtimeBridgeStable(t *testing.T) {
+	if CodeUnsupportedRealtimeBridge != "unsupported_realtime_bridge" {
+		t.Fatalf("CodeUnsupportedRealtimeBridge = %q", CodeUnsupportedRealtimeBridge)
+	}
 }
 
 func TestRealtimeTLSNotImplemented(t *testing.T) {
