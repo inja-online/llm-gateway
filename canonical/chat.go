@@ -5,6 +5,14 @@
 // blocks losslessly, while the reverse is lossy. Translation only happens on
 // cross-dialect requests; same-dialect traffic uses the passthrough path and
 // never touches these types.
+//
+// Layout (same package name; modality files only):
+//
+//	chat.go      — Request, Message, Block, StreamEvent, Usage, Response, tools
+//	image.go     — ImageSource, ImageGenRequest/Response
+//	video.go     — VideoGenRequest/Response
+//	audio.go     — BlockAudio, AudioSource (chat input audio)
+//	realtime.go  — Realtime IR placeholders (bridge deferred)
 package canonical
 
 import "encoding/json"
@@ -20,9 +28,7 @@ const (
 	BlockThinking   BlockType = "thinking"
 	// BlockDocument is a non-image document (primarily PDF).
 	BlockDocument BlockType = "document"
-	// BlockAudio is chat input audio. It is input-only for the chat path
-	// (not TTS/speech output as a content block; STT/TTS use separate modalities).
-	BlockAudio BlockType = "audio"
+	// BlockAudio is declared in audio.go (chat input-audio block type).
 )
 
 // Role values for a Message.
@@ -54,17 +60,6 @@ const (
 	MaxTokensFieldMaxCompletionTokens = "max_completion_tokens"
 )
 
-// ImageSource holds an inline or referenced image.
-type ImageSource struct {
-	// Kind is "base64" or "url".
-	Kind      string
-	MediaType string // for base64
-	Data      string // base64 payload or URL
-	// Detail is OpenAI image_url.detail: "auto" | "low" | "high".
-	// Empty means unset — do not default to "auto" on the wire.
-	Detail string
-}
-
 // DocumentSource holds an inline or referenced non-image document (e.g. PDF).
 // Kind is "base64" | "url" | "file_uri".
 type DocumentSource struct {
@@ -75,16 +70,6 @@ type DocumentSource struct {
 	Title     string // optional
 }
 
-// AudioSource holds chat input audio.
-// Kind is "base64" | "url". Input-only for chat content blocks.
-type AudioSource struct {
-	Kind      string
-	MediaType string
-	Data      string // base64 payload or URL
-	// Transcript is an optional client-supplied transcript of the audio.
-	Transcript string
-}
-
 // Block is one unit of message content. Only the fields relevant to Type are
 // populated; the tagged-struct shape avoids an interface for trivial JSON.
 type Block struct {
@@ -93,7 +78,7 @@ type Block struct {
 	Text      string // text, thinking
 	Signature string // thinking
 
-	Image    *ImageSource    // image
+	Image    *ImageSource    // image (ImageSource lives in image.go)
 	Document *DocumentSource // document
 	// Audio is chat input audio (BlockAudio). Input-only; not used for TTS output.
 	Audio *AudioSource
@@ -194,7 +179,7 @@ type Request struct {
 	PresencePenalty  *float64
 	// Seed is an optional deterministic-sampling seed (field-level fidelity;
 	// does not guarantee bit-identical outputs across providers).
-	Seed *int64
+	Seed          *int64
 	StopSequences []string
 	Tools         []Tool
 	ToolChoice    *ToolChoice
@@ -297,7 +282,7 @@ type StreamEvent struct {
 	ToolID    string    // EventBlockStart (tool_use)
 	ToolName  string    // EventBlockStart (tool_use)
 
-	Text        string // EventTextDelta / EventThinkingDelta
+	Text string // EventTextDelta / EventThinkingDelta
 	// Redacted marks redacted_thinking stream blocks (Anthropic).
 	Redacted    bool
 	PartialJSON string // EventJSONDelta

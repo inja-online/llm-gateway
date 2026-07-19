@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 400,
+    "message": "provider \"deepseek\" does not support modality \"image_gen\"",
+    "status": "INVALID_ARGUMENT"
+  }
+}

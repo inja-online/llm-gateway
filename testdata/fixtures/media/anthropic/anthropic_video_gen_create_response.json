@@ -1,0 +1,10 @@
+{
+  "id": "video_1",
+  "type": "video_generation",
+  "model": "sora",
+  "status": "processing",
+  "result": {
+    "url": "https://example.invalid/v.mp4",
+    "media_type": "video/mp4"
+  }
+}

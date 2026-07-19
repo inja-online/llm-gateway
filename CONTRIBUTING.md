@@ -39,7 +39,7 @@ Coverage gate in CI is **≥ 90%**. Add tests with behavior changes.
 |---|---|
 | `proxy/` | HTTP pipeline (OpenAI, Anthropic, Google handlers; media; edge auth) |
 | `proxy/token.go` | `TokenSource` for ADC / service-account style Bearer tokens |
-| `canonical/` | Dialect-neutral types (chat today; `image`/`video`/`audio`/`realtime` as modalities land) |
+| `canonical/` | Dialect-neutral IR (same package). Files by modality: `chat.go`, `image.go`, `video.go`, `audio.go`, `realtime.go` — do not re-merge into one file |
 | `ingress/openai` | OpenAI dialect (+ Gemini OpenAI-compat clients) |
 | `ingress/anthropic` | Anthropic Messages dialect |
 | `ingress/google` | Gemini **native** `generateContent` dialect |
@@ -66,9 +66,10 @@ Follow the capability-centric design (`docs/superpowers/specs/2026-07-18-multimo
 4. **Egress** — only call upstream when `Supports(modality)`; else fail closed **before** network.
 5. **Hooks** — exactly one `UsageEvent` with `modality` / `media` fields as designed; no body/key logging.
 6. **Config** — document fields in README + `gateway.example.yaml` comments.
-7. **Tests** — matrix cells (dialect × kind → 200 or 4xx); fake upstream `t.Fatal` on deny cells; race-clean; **no** `time.Sleep`; **no** live network.
-8. **Fixtures** — `testdata/fixtures/{dialect}_{modality}_{case}.json` with tiny base64 (`YQ==`).
+7. **Tests** — matrix cells (dialect × kind → 200 or 4xx) in `proxy/capability_matrix_test.go`; fake upstream `t.Fatal` on deny cells; race-clean; **no** `time.Sleep`; **no** live network. Add a row when a modality lands.
+8. **Fixtures** — `testdata/fixtures/media/{dialect}_{modality}_{case}.json` with tiny base64 (`YQ==`); see [`testdata/fixtures/media/README.md`](testdata/fixtures/media/README.md).
 9. **Docs** — README API table, [docs/compatibility-matrix.md](docs/compatibility-matrix.md), [CHANGELOG.md](CHANGELOG.md); drop lists per [docs/deprecation-policy.md](docs/deprecation-policy.md).
+10. **Canonical types** — put new IR types in the matching modality file under `canonical/` (`chat.go` / `image.go` / `video.go` / `audio.go` / `realtime.go`); keep package name `canonical`.
 
 ### Ban list
 
