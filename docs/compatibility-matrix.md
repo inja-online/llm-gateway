@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-**Last updated:** 2026-07-18  
+**Last updated:** 2026-07-19  
 **Owning tests:** `proxy/*_test.go`, `config/capability_test.go` (hermetic; no live vendor calls in CI)
 
 This matrix reflects **implemented** gateway behavior for dialect × modality × provider kind. It is not a live vendor certification.
@@ -80,6 +80,12 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 - Default CI: `go test ./... -race` air-gapped (`httptest` fakes only).
 - No `-tags live` in default workflows.
 - Capability matrix e2e cells expand as M4 modalities land (`proxy` package).
+
+## SDK hermetic strategy
+
+Official SDK wire coverage (headers, happy paths, no live keys): **[sdk-compatibility-matrix.md](sdk-compatibility-matrix.md)**.
+
+Named hermetic anchors: `proxy.TestNonStreamPassthrough` (OpenAI), `proxy.TestAnthropicStreamPassthrough` (Anthropic), `proxy.TestGooglePassthroughStreamAndErrors` (Google).
 
 ## Related
 

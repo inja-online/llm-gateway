@@ -90,7 +90,7 @@ Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway rou
 - [Contributing](#contributing)
 - [License](#license)
 
-**Also:** [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/deprecation-policy.md](docs/deprecation-policy.md) · [docs/claude-code-checklist.md](docs/claude-code-checklist.md)
+**Also:** [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/deprecation-policy.md](docs/deprecation-policy.md) · [docs/claude-code-checklist.md](docs/claude-code-checklist.md)
 
 ---
 
@@ -328,6 +328,8 @@ With JSONL → stdout, each chat request logs one line:
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/v1/chat/completions` | OpenAI dialect (also Gemini OpenAI-compat clients) |
+| `POST` | `/v1/completions` | **Experimental** OpenAI Completions / FIM prefix-suffix (openai-family passthrough) |
+| `POST` | `/beta/completions` | **Experimental** DeepSeek FIM beta Completions (rewrites base to `/beta`) |
 | `POST` | `/v1/messages` | Anthropic Messages dialect |
 | `POST` | `/v1/embeddings` | OpenAI embeddings (passthrough; OpenAI→Google map when `kind: google`) |
 | `POST` | `/v1beta/models/{model}:generateContent` | Gemini **native** dialect |
@@ -712,7 +714,60 @@ See [SECURITY.md](SECURITY.md).
 On upstream requests the gateway copies (when present): `HTTP-Referer`, `Referer`, `X-Title`, `OpenAI-Organization`, `OpenAI-Project`, `anthropic-beta`, and client `anthropic-version` (Anthropic egress may still set a default version when applying API-key auth). **`anthropic-beta` is not allowlisted** — unknown / future beta strings (including Files `files-api-2025-04-14`) are forwarded unchanged on Messages, count_tokens, and Anthropic Files.
 ---
 ## Provider notes
-Full sample comments live in [`gateway.example.yaml`](gateway.example.yaml). Compatibility overview: [docs/compatibility-matrix.md](docs/compatibility-matrix.md).
+Full sample comments live in [`gateway.example.yaml`](gateway.example.yaml). Compatibility overview: [docs/compatibility-matrix.md](docs/compatibility-matrix.md). Hermetic SDK strategy: [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md).
+
+### DeepSeek (FIM / Completions — **experimental**)
+
+| | |
+|---|---|
+| Kind | `openai_compat` |
+| Chat base | `https://api.deepseek.com` or `https://api.deepseek.com/v1` |
+| Routes | Chat Completions as usual; **FIM** via Completions API |
+| FIM paths | `POST /v1/completions` or `POST /beta/completions` (gateway) |
+| Upstream FIM | DeepSeek requires beta host: `…/beta/completions` ([docs](https://api-docs.deepseek.com/guides/fim_completion/)) |
+| Behavior | OpenAI-family **passthrough only** — model rewrite + auth + one usage event. **Not** multi-dialect translated. No Anthropic/Google FIM twins. |
+| Streaming | Supported; injects `stream_options.include_usage` when unset (same as chat) |
+
+Body fields match OpenAI Completions / DeepSeek FIM: `prompt` (prefix), optional `suffix`, `max_tokens`, etc. Prefer `model: deepseek/<id>`.
+
+When the client calls **`POST /beta/completions`**, the gateway rewrites the provider base:
+
+| Configured `base_url` | Upstream target |
+|---|---|
+| `…/v1` | `…/beta` + `/completions` |
+| `…/beta` | unchanged + `/completions` |
+| host root (e.g. `https://api.deepseek.com`) | `…/beta` + `/completions` |
+
+`POST /v1/completions` keeps the configured base and posts `{base}/completions` (generic OpenAI Completions / hosts that share the chat base). Marked **experimental** because vendor beta Completions paths may change.
+
+```python
+from openai import OpenAI
+# Point SDK at gateway; use Completions (not chat) for FIM.
+client = OpenAI(base_url="http://localhost:8787/beta", api_key=os.environ["DEEPSEEK_API_KEY"])
+client.completions.create(
+    model="deepseek/deepseek-chat",
+    prompt="def fib(a):",
+    suffix="    return fib(a-1) + fib(a-2)",
+    max_tokens=128,
+)
+```
+
+### Moonshot / Kimi (token estimate + balance — **wontfix / skip**)
+
+| | |
+|---|---|
+| Kind | `openai_compat` |
+| Regional bases | **Intl:** `https://api.moonshot.ai/v1` · **CN:** `https://api.moonshot.cn/v1` (match key region) |
+| Supported via gateway | Chat Completions and other **generic OpenAI-family** routes the gateway already exposes (embeddings, etc. when you call them) |
+| **Not proxied** | Vendor helper APIs: `POST /v1/tokenizers/estimate-token-count`, `GET /v1/users/me/balance` |
+
+**Decision: skip / wontfix** dedicated proxy routes for Moonshot token-estimate and balance. Those endpoints are account/billing helpers, not multi-dialect chat surface; operators should call Moonshot’s regional base **directly** for:
+
+- Token estimate: `POST {regional}/tokenizers/estimate-token-count`
+- Balance: `GET {regional}/users/me/balance`
+
+(Confirm paths in current [Kimi/Moonshot platform docs](https://platform.kimi.ai/docs/api/estimate); note dated 2026-07.) Use one provider block per region/key in gateway YAML for chat; do not expect estimate/balance to appear on the gateway host.
+
 ### OpenRouter
 | | |
 |---|---|
@@ -1051,10 +1106,12 @@ docker build -t llm-gateway:dev .
 
 **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on push/PR:
 
-- build, vet, `go test -race`
+- build, vet, `go test -race -count=1 ./...` (**no** `-tags live`; air-gapped `httptest` only)
 - coverage gate **≥ 90%**
 - binary smoke (`/healthz`)
 - Docker image build + container healthz
+
+Hermetic SDK / dialect anchors: [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md).
 
 **Release** ([`.github/workflows/release.yml`](.github/workflows/release.yml)) on `v*` tags:
 
@@ -1080,6 +1137,9 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] Realtime WS skeleton (OpenAI + Google Live) + session limits
 - [x] Conversations API decision: **stub 501** (not full support)
 - [x] Realtime ↔ Live **bridge deferred** (fail-closed `unsupported_realtime_bridge`; same-protocol passthrough only)
+- [x] **Experimental** Completions / DeepSeek FIM (`POST /v1/completions`, `/beta/completions`)
+- [x] Moonshot token-estimate/balance helpers: **document skip** (call vendor regional base directly)
+- [x] SDK hermetic compatibility matrix ([docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md))
 - [ ] Production TLS `wss` dial for realtime upstreams
 - [ ] Optional Realtime ↔ Live IR bridge (future milestone; not M3)
 - [ ] Cross-dialect image/video generation translation
@@ -1091,7 +1151,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) (includes **adding a modality** guide).  
 Security: [SECURITY.md](SECURITY.md). Changelog: [CHANGELOG.md](CHANGELOG.md).  
-Matrix: [docs/compatibility-matrix.md](docs/compatibility-matrix.md). Field drops: [docs/deprecation-policy.md](docs/deprecation-policy.md).
+Matrix: [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md). Field drops: [docs/deprecation-policy.md](docs/deprecation-policy.md).
 
 ---
 
