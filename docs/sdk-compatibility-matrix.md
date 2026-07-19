@@ -80,4 +80,4 @@ What a typical **official SDK** needs when `base_url` / host points at the gatew
 
 - End-to-end modality matrix: [compatibility-matrix.md](compatibility-matrix.md)
 - Claude Code / Anthropic checklist: [claude-code-checklist.md](claude-code-checklist.md)
-- Design: [superpowers/specs/2026-07-18-multimodal-gateway-design.md](superpowers/specs/2026-07-18-multimodal-gateway-design.md)
+- Public API contract: [README.md](../README.md)

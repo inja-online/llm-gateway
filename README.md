@@ -90,13 +90,13 @@ Clients speak **OpenAI**, **Anthropic**, or **Gemini (native)**. The gateway rou
 - [Contributing](#contributing)
 - [License](#license)
 
-**Also:** [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/deprecation-policy.md](docs/deprecation-policy.md) · [docs/claude-code-checklist.md](docs/claude-code-checklist.md)
+**Docs:** [compatibility matrix](docs/compatibility-matrix.md) · [SDK hermetic matrix](docs/sdk-compatibility-matrix.md) · [deprecation policy](docs/deprecation-policy.md) · [Claude Code checklist](docs/claude-code-checklist.md) · [multipart security review](docs/security-multipart-review.md) · [CHANGELOG](CHANGELOG.md)
 
 ---
 
 ## Status
 
-**Working** (early project). The HTTP surface and config schema below are the supported contract — build against them.
+**Production-ready surface** for multi-dialect chat, media, embeddings, audio, Responses, Files, Batches, and Realtime passthrough. The HTTP/WS surface and config schema in this README are the supported contract — build clients against them.
 
 | Client dialect | Upstream | Path |
 |---|---|---|
@@ -1123,35 +1123,26 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ---
 
-## Roadmap
+## Roadmap / future work
 
-- [x] Google / Gemini native dialect + egress (`kind: google`) and OpenAI-compat base
-- [x] Image + video generation passthrough (`/v1/images/*`, `/v1/videos`)
-- [x] `GET /v1/models` (+ `GET /v1/models/{id}`) from config/aliases
-- [x] Embeddings (`POST /v1/embeddings`, Gemini `:embedContent` / `:batchEmbedContents`)
-- [x] Optional edge auth (`edge_auth`)
-- [x] Vertex / ADC **TokenSource** helper (interface + fakes; real ADC injectable)
-- [x] OpenAI Responses + Files + Moderations passthrough
-- [x] Anthropic Message Batches proxy (`/v1/messages/batches*`)
-- [x] Rate-limit / OpenAI org-project header policy
-- [x] Realtime WS skeleton (OpenAI + Google Live) + session limits
-- [x] Conversations API decision: **stub 501** (not full support)
-- [x] Realtime ↔ Live **bridge deferred** (fail-closed `unsupported_realtime_bridge`; same-protocol passthrough only)
-- [x] **Experimental** Completions / DeepSeek FIM (`POST /v1/completions`, `/beta/completions`)
-- [x] Moonshot token-estimate/balance helpers: **document skip** (call vendor regional base directly)
-- [x] SDK hermetic compatibility matrix ([docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md))
-- [ ] Production TLS `wss` dial for realtime upstreams
-- [ ] Optional Realtime ↔ Live IR bridge (future milestone; not M3)
-- [ ] Cross-dialect image/video generation translation
-- [x] HTTP audio (TTS/STT): OpenAI + Anthropic-gateway + Google `:generateSpeech`
+Shipped: multi-dialect chat fidelity, media (image/video/audio), Responses/Files/Batches, Realtime/Live same-protocol passthrough, models catalog with capabilities, edge auth, AGPL-3.0.
+
+Possible follow-ups (not blocking):
+
+- Production-hardened TLS/`wss` dial edge cases for realtime upstreams
+- Optional full OpenAI Realtime ↔ Google Live IR bridge (today: **fail-closed** with `unsupported_realtime_bridge`)
+- Deeper cross-dialect image/video generation translation beyond current paths
+- Optional Prometheus metrics (today: **hooks-only** — JSONL / webhook)
 
 ---
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) (includes **adding a modality** guide).  
-Security: [SECURITY.md](SECURITY.md). Changelog: [CHANGELOG.md](CHANGELOG.md).  
-Matrix: [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md). Field drops: [docs/deprecation-policy.md](docs/deprecation-policy.md).
+Security: [SECURITY.md](SECURITY.md) · [docs/security-multipart-review.md](docs/security-multipart-review.md).  
+Changelog: [CHANGELOG.md](CHANGELOG.md).  
+Matrices: [docs/compatibility-matrix.md](docs/compatibility-matrix.md) · [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md).  
+Field drops: [docs/deprecation-policy.md](docs/deprecation-policy.md).
 
 ---
 

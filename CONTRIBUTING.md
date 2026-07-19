@@ -58,7 +58,7 @@ Gemini has two Google APIs: native (`kind: google` + `ingress/google`) and OpenA
 
 ## Adding a modality
 
-Follow the capability-centric design (`docs/superpowers/specs/2026-07-18-multimodal-gateway-design.md` §12). Checklist (Definition of Done spirit):
+Follow the capability-centric checklist below (and the modality matrix in `proxy/capability_matrix_test.go`). Definition of Done:
 
 1. **Capability flag** — add or reuse `config.Capabilities` field; set **kind defaults** (`openai`/`google` often on; `openai_compat` **opt-in**; `anthropic` off unless native API exists).
 2. **Passthrough vs translate** — same family → passthrough (model rewrite + auth + one usage event). Cross family → canonical types + ingress/egress builders.

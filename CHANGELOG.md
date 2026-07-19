@@ -22,6 +22,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 ### Changed
 
 - **License:** project relicensed from MIT to **[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE)**. Network use of modified versions requires offering corresponding source under the AGPL.
+- **Docs cleanup:** removed internal Superpowers SDD/plan trees (`.superpowers/`, `docs/superpowers/`); public contract stays in README + `docs/*.md`.
 
 ### Added
 

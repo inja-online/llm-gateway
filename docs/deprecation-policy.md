@@ -70,4 +70,5 @@ Deprecation timeline for intentional removals:
 
 - [CHANGELOG.md](../CHANGELOG.md)
 - [docs/compatibility-matrix.md](compatibility-matrix.md)
-- Design: `docs/superpowers/specs/2026-07-18-multimodal-gateway-design.md`
+- [docs/sdk-compatibility-matrix.md](sdk-compatibility-matrix.md)
+- [README.md](../README.md) HTTP API and translation tables
