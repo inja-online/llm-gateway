@@ -1,0 +1,18 @@
+---
+title: License
+description: AGPL-3.0 summary
+group: project
+order: 32
+---
+
+**Inja LLM Gateway** is licensed under the  
+[**GNU Affero General Public License v3.0 (AGPL-3.0)**](https://github.com/inja-online/llm-gateway/blob/master/LICENSE).
+
+© 2026 [inja-online](https://github.com/inja-online)
+
+## What this means
+
+- You may use, study, share, and modify the software under the AGPL-3.0 terms.
+- If you run a **modified** version as a **network service** (for example a hosted LLM gateway), you must offer the corresponding source code of that modified version to users of the service.
+
+Full legal text: [LICENSE](https://github.com/inja-online/llm-gateway/blob/master/LICENSE) in the repository root.

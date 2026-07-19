@@ -519,6 +519,14 @@ docker build -t llm-gateway:dev .
 
 Hermetic dialect anchors: [docs/sdk-compatibility-matrix.md](docs/sdk-compatibility-matrix.md).
 
+**Docs site** (Astro, GitHub Pages):
+
+```bash
+cd website && npm install && npm run dev   # http://localhost:4321/llm-gateway/
+```
+
+Source: [`website/`](website/) · workflow: [`.github/workflows/docs.yml`](.github/workflows/docs.yml).
+
 **Release:** `git tag vX.Y.Z && git push origin vX.Y.Z`
 
 ---

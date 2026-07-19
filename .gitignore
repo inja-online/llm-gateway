@@ -6,3 +6,8 @@
 /coverage.txt
 /dist/
 site/
+
+# Astro docs site
+website/node_modules/
+website/dist/
+website/.astro/

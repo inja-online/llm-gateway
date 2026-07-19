@@ -1,0 +1,125 @@
+---
+import { withBase } from "../lib/paths";
+
+type Item = { slug: string; title: string; group: string; order: number };
+
+interface Props {
+  items: Item[];
+  current?: string;
+}
+
+const { items, current } = Astro.props;
+
+const groups: Record<string, { label: string; items: Item[] }> = {
+  start: { label: "Getting started", items: [] },
+  reference: { label: "Reference", items: [] },
+  ops: { label: "Ops & security", items: [] },
+  project: { label: "Project", items: [] },
+};
+
+for (const item of items) {
+  (groups[item.group] ?? groups.reference).items.push(item);
+}
+for (const g of Object.values(groups)) {
+  g.items.sort((a, b) => a.order - b.order);
+}
+---
+
+<aside class="sidebar" aria-label="Documentation">
+  <a class="mobile-home" href={withBase("/")}>← Home</a>
+  {
+    Object.entries(groups).map(([key, group]) =>
+      group.items.length ? (
+        <div class="group" data-group={key}>
+          <div class="group-label">{group.label}</div>
+          <ul>
+            {group.items.map((item) => (
+              <li>
+                <a
+                  href={withBase(`/${item.slug}/`)}
+                  class:list={[{ active: current === item.slug }]}
+                  aria-current={current === item.slug ? "page" : undefined}
+                >
+                  {item.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null,
+    )
+  }
+</aside>
+
+<style>
+  .sidebar {
+    position: sticky;
+    top: calc(var(--header-h) + 1rem);
+    max-height: calc(100vh - var(--header-h) - 2rem);
+    overflow: auto;
+    padding: 0.25rem 0.25rem 1.5rem 0;
+  }
+
+  .mobile-home {
+    display: none;
+    margin-bottom: 1rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+  }
+
+  .group + .group {
+    margin-top: 1.35rem;
+  }
+
+  .group-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 600;
+    margin: 0 0 0.55rem 0.55rem;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  a {
+    display: block;
+    padding: 0.45rem 0.7rem;
+    border-radius: 10px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    border: 1px solid transparent;
+  }
+
+  a:hover {
+    color: var(--text);
+    background: rgba(148, 163, 184, 0.08);
+    text-decoration: none;
+  }
+
+  a.active {
+    color: var(--text);
+    background: var(--accent-soft);
+    border-color: rgba(110, 168, 255, 0.25);
+    box-shadow: 0 0 0 1px rgba(110, 168, 255, 0.08);
+  }
+
+  @media (max-width: 960px) {
+    .sidebar {
+      position: relative;
+      top: 0;
+      max-height: none;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+    .mobile-home {
+      display: inline-block;
+    }
+  }
+</style>

@@ -1,0 +1,85 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import Sidebar from "../components/Sidebar.astro";
+import { getCollection } from "astro:content";
+
+interface Props {
+  title: string;
+  description?: string;
+  current?: string;
+}
+
+const { title, description, current } = Astro.props;
+const docs = await getCollection("docs");
+const items = docs.map((d) => ({
+  slug: d.id.replace(/\.mdx?$/, "").replace(/\/index$/, ""),
+  title: d.data.title,
+  group: d.data.group,
+  order: d.data.order,
+}));
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="shell container">
+    <Sidebar items={items} current={current} />
+    <main class="main">
+      <article class="prose">
+        <header class="doc-header">
+          <p class="eyebrow">Documentation</p>
+          <h1>{title}</h1>
+          {description && <p class="lead">{description}</p>}
+        </header>
+        <slot />
+      </article>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    gap: 2rem;
+    padding: 1.5rem 0 3rem;
+    align-items: start;
+  }
+
+  .main {
+    min-width: 0;
+  }
+
+  .prose {
+    max-width: var(--content-max);
+    background: linear-gradient(180deg, rgba(18, 24, 38, 0.55), rgba(18, 24, 38, 0.25));
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) + 2px);
+    padding: clamp(1.25rem, 3vw, 2rem);
+    box-shadow: var(--shadow);
+  }
+
+  .doc-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .eyebrow {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .lead {
+    margin: 0.65rem 0 0;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+  }
+
+  @media (max-width: 960px) {
+    .shell {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
+</style>

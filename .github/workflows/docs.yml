@@ -4,19 +4,13 @@ on:
   push:
     branches: [master, main]
     paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "README.md"
+      - "website/**"
       - "CHANGELOG.md"
-      - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "README.md"
+      - "website/**"
       - "CHANGELOG.md"
-      - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -35,34 +29,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements-docs.txt
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
 
-      - name: Install docs deps
-        run: pip install -r requirements-docs.txt
-
-      - name: Sync changelog into docs/
+      - name: Sync changelog into website content
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
+
           text = Path("CHANGELOG.md").read_text()
-          text = re.sub(r"\]\(docs/([^)]+)\)", r"](\1)", text)
-          text = re.sub(r"\]\(LICENSE\)", r"](https://github.com/inja-online/llm-gateway/blob/master/LICENSE)", text)
-          Path("docs/changelog.md").write_text(text)
+          text = re.sub(r"\]\(docs/([^)]+)\)", r"](/\1/)", text)
+          text = re.sub(
+              r"\]\(LICENSE\)",
+              r"](https://github.com/inja-online/llm-gateway/blob/master/LICENSE)",
+              text,
+          )
+          # Drop a leading H1 if present — layout already renders the title.
+          text = re.sub(r"^#\s+[^\n]+\n+", "", text, count=1)
+
+          frontmatter = """---
+          title: Changelog
+          description: Release history
+          group: project
+          order: 31
+          ---
+
+          """.replace("          ", "")
+
+          out = Path("website/src/content/docs/changelog.md")
+          out.write_text(frontmatter + text)
+          print(f"wrote {out} ({out.stat().st_size} bytes)")
           PY
 
-      - name: Build MkDocs
-        run: mkdocs build --strict
+      - name: Install website deps
+        working-directory: website
+        run: npm ci
+
+      - name: Build Astro site
+        working-directory: website
+        run: npm run build
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: website/dist
 
   deploy:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

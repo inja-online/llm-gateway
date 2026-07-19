@@ -1,0 +1,123 @@
+---
+import { withBase } from "../lib/paths";
+
+const pathname = Astro.url.pathname;
+const links = [
+  { href: withBase("/getting-started/"), label: "Docs" },
+  { href: withBase("/compatibility-matrix/"), label: "Matrix" },
+  { href: "https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api", label: "API", external: true },
+  { href: "https://github.com/inja-online/llm-gateway", label: "GitHub", external: true },
+];
+---
+
+<header class="header">
+  <div class="header-inner container">
+    <a class="brand" href={withBase("/")}>
+      <img src={withBase("/logo.jpg")} alt="" width="32" height="32" />
+      <span>
+        <strong>Inja LLM Gateway</strong>
+        <small>Docs</small>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      {
+        links.map((l) => (
+          <a
+            href={l.href}
+            class:list={[{ active: !l.external && pathname.includes(l.href.replace(/\/$/, "")) }]}
+            target={l.external ? "_blank" : undefined}
+            rel={l.external ? "noopener noreferrer" : undefined}
+          >
+            {l.label}
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+</header>
+
+<style>
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--header-h);
+    border-bottom: 1px solid var(--border);
+    background: rgba(11, 15, 23, 0.72);
+    backdrop-filter: blur(14px);
+  }
+
+  .header-inner {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .brand img {
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--border), 0 8px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  .brand span {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+  }
+
+  .brand strong {
+    font-size: 0.95rem;
+    letter-spacing: -0.02em;
+  }
+
+  .brand small {
+    color: var(--text-faint);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 999px;
+    transition: 0.15s ease;
+  }
+
+  .nav a:hover,
+  .nav a.active {
+    color: var(--text);
+    background: rgba(148, 163, 184, 0.1);
+    text-decoration: none;
+  }
+
+  @media (max-width: 720px) {
+    .brand strong {
+      font-size: 0.85rem;
+    }
+    .nav a {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.82rem;
+    }
+  }
+</style>

@@ -1,0 +1,328 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { withBase } from "../lib/paths";
+
+const cards = [
+  {
+    title: "Getting started",
+    body: "Install the binary or Docker image, write a YAML config, hit /healthz.",
+    href: withBase("/getting-started/"),
+    tag: "Start",
+  },
+  {
+    title: "Compatibility matrix",
+    body: "Dialect × modality × provider kind — passthrough, translate, or fail-closed.",
+    href: withBase("/compatibility-matrix/"),
+    tag: "Reference",
+  },
+  {
+    title: "Claude Code",
+    body: "Point ANTHROPIC_BASE_URL at the gateway and route any upstream model.",
+    href: withBase("/claude-code-checklist/"),
+    tag: "Guides",
+  },
+  {
+    title: "Security",
+    body: "Multipart limits, SSRF posture, key hashing — operator security notes.",
+    href: withBase("/security-multipart-review/"),
+    tag: "Ops",
+  },
+  {
+    title: "Full API & config",
+    body: "Complete HTTP tables and YAML reference live in the repository README.",
+    href: "https://github.com/inja-online/llm-gateway/blob/master/README.md",
+    tag: "GitHub",
+    external: true,
+  },
+  {
+    title: "License",
+    body: "AGPL-3.0 — network use of modified versions requires offering source.",
+    href: withBase("/license/"),
+    tag: "Legal",
+  },
+];
+---
+
+<BaseLayout title="Inja LLM Gateway" description="Multi-dialect LLM API gateway documentation">
+  <main>
+    <section class="hero container">
+      <div class="hero-copy">
+        <p class="pill">Open source · AGPL-3.0 · Go 1.25+</p>
+        <h1>Docs for a small multi-dialect LLM gateway</h1>
+        <p class="sub">
+          OpenAI, Anthropic, and native Gemini clients. Route to any provider.
+          Passthrough same-family traffic, translate the rest, meter every request.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href={withBase("/getting-started/")}>Get started</a>
+          <a class="btn ghost" href="https://github.com/inja-online/llm-gateway" target="_blank" rel="noopener noreferrer">
+            View on GitHub
+          </a>
+        </div>
+      </div>
+      <div class="hero-panel" aria-hidden="true">
+        <div class="panel-top">
+          <span></span><span></span><span></span>
+          <em>gateway.yaml</em>
+        </div>
+        <pre><code>providers:
+  openai:
+    kind: openai
+    base_url: https://api.openai.com/v1
+  deepseek:
+    kind: openai_compat
+    base_url: https://api.deepseek.com
+
+defaults:
+  openai_dialect: openai
+
+aliases:
+  fast: deepseek/deepseek-chat
+
+hooks:
+  jsonl:
+    output: stdout</code></pre>
+      </div>
+    </section>
+
+    <section class="stats container">
+      <div><strong>3</strong><span>client dialects</span></div>
+      <div><strong>4</strong><span>provider kinds</span></div>
+      <div><strong>1</strong><span>usage event / request</span></div>
+      <div><strong>0</strong><span>runtime deps beyond yaml</span></div>
+    </section>
+
+    <section class="cards container">
+      <h2>Browse the docs</h2>
+      <div class="grid">
+        {
+          cards.map((c) => (
+            <a class="card" href={c.href} target={c.external ? "_blank" : undefined} rel={c.external ? "noopener noreferrer" : undefined}>
+              <span class="tag">{c.tag}</span>
+              <h3>{c.title}</h3>
+              <p>{c.body}</p>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: 1.15fr 0.95fr;
+    gap: 2rem;
+    padding: 3rem 0 2rem;
+    align-items: center;
+  }
+
+  .pill {
+    display: inline-flex;
+    margin: 0 0 1rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(110, 168, 255, 0.35);
+    background: var(--accent-soft);
+    color: #cfe0ff;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+
+  .sub {
+    margin: 1rem 0 1.5rem;
+    color: var(--text-muted);
+    font-size: 1.08rem;
+    max-width: 38rem;
+  }
+
+  .cta {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.1rem;
+    border-radius: 999px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: 0.15s ease;
+  }
+
+  .btn.primary {
+    background: linear-gradient(135deg, #6ea8ff, #8b7cff);
+    color: #0b0f17;
+    box-shadow: 0 10px 30px var(--accent-glow);
+  }
+
+  .btn.primary:hover {
+    filter: brightness(1.05);
+    text-decoration: none;
+  }
+
+  .btn.ghost {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .btn.ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+    text-decoration: none;
+  }
+
+  .hero-panel {
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) + 4px);
+    background: rgba(10, 14, 22, 0.9);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .panel-top {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(148, 163, 184, 0.05);
+  }
+
+  .panel-top span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #334155;
+  }
+  .panel-top span:nth-child(1) {
+    background: #f87171;
+  }
+  .panel-top span:nth-child(2) {
+    background: #fbbf24;
+  }
+  .panel-top span:nth-child(3) {
+    background: #34d399;
+  }
+  .panel-top em {
+    margin-left: auto;
+    font-style: normal;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    font-family: var(--mono);
+  }
+
+  .hero-panel pre {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent !important;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    margin: 0.5rem 0 2.5rem;
+  }
+
+  .stats div {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    background: rgba(18, 24, 38, 0.55);
+  }
+
+  .stats strong {
+    display: block;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+  }
+
+  .stats span {
+    color: var(--text-faint);
+    font-size: 0.85rem;
+  }
+
+  .cards {
+    padding-bottom: 1rem;
+  }
+
+  .cards h2 {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.9rem;
+  }
+
+  .card {
+    display: block;
+    padding: 1.15rem 1.2rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(18, 24, 38, 0.8), rgba(18, 24, 38, 0.4));
+    color: inherit;
+    text-decoration: none;
+    transition: 0.15s ease;
+    min-height: 150px;
+  }
+
+  .card:hover {
+    border-color: rgba(110, 168, 255, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+    text-decoration: none;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 0.55rem;
+  }
+
+  .card h3 {
+    margin: 0 0 0.45rem;
+    font-size: 1.05rem;
+  }
+
+  .card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+  }
+
+  @media (max-width: 960px) {
+    .hero {
+      grid-template-columns: 1fr;
+      padding-top: 2rem;
+    }
+    .stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

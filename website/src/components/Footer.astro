@@ -1,0 +1,54 @@
+---
+import { withBase } from "../lib/paths";
+---
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>
+      <strong>Inja LLM Gateway</strong>
+      <p>AGPL-3.0 · multi-dialect LLM proxy · usage hooks</p>
+    </div>
+    <div class="links">
+      <a href={withBase("/")}>Home</a>
+      <a href={withBase("/getting-started/")}>Quickstart</a>
+      <a href={withBase("/license/")}>License</a>
+      <a href="https://github.com/inja-online/llm-gateway" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid var(--border);
+    margin-top: 4rem;
+    padding: 2rem 0 2.5rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .footer p {
+    margin: 0.35rem 0 0;
+    color: var(--text-faint);
+  }
+
+  .links {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .links a {
+    color: var(--text-muted);
+  }
+
+  .links a:hover {
+    color: var(--text);
+  }
+</style>
