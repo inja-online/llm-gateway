@@ -21,6 +21,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
+- **`GET /v1/models` capability flags:** each catalog entry includes `capabilities` (`chat`, `image_gen`, `video_gen`, `audio_speech`, `audio_transcribe`, `realtime`) from provider kind defaults + YAML overrides (no upstream network).
+- **Configurable `max_body_bytes`** (default 32 MiB): oversize requests return HTTP **413** dialect-shaped errors; README limits table expanded (body, header wait, realtime, drain).
+- **Multipart/media security review:** [docs/security-multipart-review.md](docs/security-multipart-review.md) linked from SECURITY.md (size limits, filenames, SSRF URI pass-through, `key_hash` only).
+- Ops docs: Prometheus **`/metrics` wontfix** (use hooks JSONL/webhook); provider health **document skip** (`/healthz` is liveness only).
 - **Anthropic Message Batches** proxy: `POST/GET /v1/messages/batches`, `GET …/{id}`, `POST …/{id}/cancel`, `GET …/{id}/results`. Nested `requests[].params.model` rewrite (aliases / `provider/model`); provider via `?provider=` / `X-Provider` / `defaults.anthropic_dialect` (`kind: anthropic` only). Batches/results are upstream-owned (no gateway storage).
 - **Optional edge auth** (`edge_auth`): when `enabled`, require `Authorization: Bearer` or `x-api-key` matching configured keys / `keys_env`. `GET /healthz` stays open. Default **off**.
 - **Provider auth modes** for Vertex-style Google hosts: `auth: api_key|adc|service_account|bearer` plus `TokenSource` interface (`StaticTokenSource`, `CachingTokenSource`) and `Server.SetTokenSource` for air-gapped ADC tests (no Google SDK required).

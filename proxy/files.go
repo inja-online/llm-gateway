@@ -238,7 +238,7 @@ func (s *Server) forwardFilesStream(x *exchange, resp *http.Response) {
 	x.prepareResponseHeaders(resp)
 	x.w.WriteHeader(resp.StatusCode)
 	// Stream through; still size-capped for safety.
-	_, err := io.Copy(x.w, io.LimitReader(resp.Body, maxBodyBytes))
+	_, err := io.Copy(x.w, io.LimitReader(resp.Body, x.bodyLimit()))
 	if err != nil {
 		x.ev.Status = hooks.StatusUpstreamError
 	}

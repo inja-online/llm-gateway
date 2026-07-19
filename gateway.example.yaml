@@ -229,6 +229,11 @@ realtime:
   max_sessions: 1024
   max_session_minutes: 60
 
+# Optional request/response body cap (bytes). Default 33554432 (32 MiB).
+# Oversize requests → HTTP 413 with a dialect-shaped error. Raise only if you
+# accept higher peak memory (bodies are buffered for model rewrite / translation).
+# max_body_bytes: 33554432
+
 hooks:
   jsonl:
     output: stdout             # stdout | stderr | path  (prefer stdout in containers)

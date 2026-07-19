@@ -139,7 +139,7 @@ func (s *Server) forwardBatchResponse(x *exchange, resp *http.Response, streamBo
 		x.ev.HTTPStatus = resp.StatusCode
 		x.prepareResponseHeaders(resp)
 		x.w.WriteHeader(resp.StatusCode)
-		_, err := io.Copy(x.w, io.LimitReader(resp.Body, maxBodyBytes))
+		_, err := io.Copy(x.w, io.LimitReader(resp.Body, x.bodyLimit()))
 		if err != nil {
 			x.ev.Status = hooks.StatusUpstreamError
 		}

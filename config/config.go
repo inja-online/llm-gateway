@@ -39,10 +39,13 @@ type Provider struct {
 	Capabilities *Capabilities `yaml:"capabilities"`
 }
 
+// DefaultMaxBodyBytes is the request/response body cap when max_body_bytes is unset.
+const DefaultMaxBodyBytes int64 = 32 << 20 // 32 MiB
+
 // Realtime holds process-wide WebSocket session limits (PR5+).
 type Realtime struct {
-	MaxSessions        int `yaml:"max_sessions"`
-	MaxSessionMinutes  int `yaml:"max_session_minutes"`
+	MaxSessions       int `yaml:"max_sessions"`
+	MaxSessionMinutes int `yaml:"max_session_minutes"`
 }
 
 type Defaults struct {
@@ -86,13 +89,15 @@ const (
 )
 
 type Config struct {
-	Listen    string              `yaml:"listen"`
-	Providers map[string]Provider `yaml:"providers"`
-	Defaults  Defaults            `yaml:"defaults"`
-	Aliases   map[string]string   `yaml:"aliases"` // public alias -> "provider/upstream-model"
-	Hooks     Hooks               `yaml:"hooks"`
-	Realtime  Realtime            `yaml:"realtime"`
-	EdgeAuth  EdgeAuth            `yaml:"edge_auth"`
+	Listen       string              `yaml:"listen"`
+	Providers    map[string]Provider `yaml:"providers"`
+	Defaults     Defaults            `yaml:"defaults"`
+	Aliases      map[string]string   `yaml:"aliases"` // public alias -> "provider/upstream-model"
+	Hooks        Hooks               `yaml:"hooks"`
+	Realtime     Realtime            `yaml:"realtime"`
+	EdgeAuth     EdgeAuth            `yaml:"edge_auth"`
+	// MaxBodyBytes caps request and response bodies (bytes). 0 / unset → DefaultMaxBodyBytes (32 MiB).
+	MaxBodyBytes int64 `yaml:"max_body_bytes"`
 }
 
 func Load(path string) (*Config, error) {
@@ -129,6 +134,9 @@ func (c *Config) applyEnv() {
 func (c *Config) validate() error {
 	if c.Listen == "" {
 		c.Listen = ":8787"
+	}
+	if c.MaxBodyBytes <= 0 {
+		c.MaxBodyBytes = DefaultMaxBodyBytes
 	}
 	if c.Realtime.MaxSessions <= 0 {
 		c.Realtime.MaxSessions = 1024
@@ -247,4 +255,12 @@ func (p Provider) AuthMode() string {
 		return AuthAPIKey
 	}
 	return a
+}
+
+// BodyLimit returns the effective request/response body size cap in bytes.
+func (c *Config) BodyLimit() int64 {
+	if c == nil || c.MaxBodyBytes <= 0 {
+		return DefaultMaxBodyBytes
+	}
+	return c.MaxBodyBytes
 }

@@ -23,9 +23,16 @@ const charsPerTokenEstimate = 4
 // body to Gemini :countTokens and map totalTokens → input_tokens. Otherwise
 // we estimate locally. No usage event is emitted.
 func (s *Server) handleCountTokens(w http.ResponseWriter, r *http.Request) {
-	body, err := readAllLimited(r)
+	// Use limit+1 so oversize can be rejected with a dialect-shaped error.
+	limit := s.bodyLimit()
+	body, err := readAllLimitedN(r, limit+1)
 	if err != nil {
 		writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "failed to read request body")
+		return
+	}
+	if int64(len(body)) > limit {
+		writeAnthropicError(w, http.StatusRequestEntityTooLarge, "invalid_request_error",
+			"request body exceeds max_body_bytes limit")
 		return
 	}
 	var head struct {

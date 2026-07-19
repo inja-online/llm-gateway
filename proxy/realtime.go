@@ -356,7 +356,7 @@ func (s *Server) proxyWebSocket(x *exchange, route Route, clientReq *http.Reques
 		return err
 	}
 	if upResp.StatusCode != http.StatusSwitchingProtocols {
-		body, _ := io.ReadAll(io.LimitReader(upResp.Body, maxBodyBytes))
+		body, _ := io.ReadAll(io.LimitReader(upResp.Body, x.bodyLimit()))
 		upResp.Body.Close()
 		upConn.Close()
 		x.ev.Status = hooks.StatusUpstreamError

@@ -160,7 +160,7 @@ func parseGoogleAction(action string) (model, method string, ok bool) {
 // handleGoogleCountTokens proxies POST …/models/{model}:countTokens to kind:google.
 // No usage event (same policy as Anthropic count_tokens).
 func (s *Server) handleGoogleCountTokens(w http.ResponseWriter, r *http.Request, pathModel string) {
-	body, err := readAllLimited(r)
+	body, err := readAllLimitedN(r, s.bodyLimit())
 	if err != nil {
 		writeGoogleError(w, http.StatusBadRequest, "invalid_request_error", "failed to read request body")
 		return
