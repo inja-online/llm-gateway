@@ -400,7 +400,7 @@ Full comments: [`gateway.example.yaml`](gateway.example.yaml). Matrices: [docs/c
 | **Gemini OpenAI-compat** | `openai_compat` | `…/v1beta/openai` base; opt-in media capabilities |
 | **DeepSeek** | `openai_compat` | Chat + experimental Completions/FIM (`/v1` or `/beta`) |
 | **OpenRouter / xAI / Moonshot / Groq / Qwen / …** | `openai_compat` | Passthrough; set `capabilities` for media/realtime |
-| **Moonshot helpers** | — | Token-estimate / balance: call **vendor regional base** directly (not proxied) |
+| **Moonshot helpers** | — | Token-estimate / balance: tracked in [#89](https://github.com/inja-online/llm-gateway/issues/89) / [#137](https://github.com/inja-online/llm-gateway/issues/137) (not shipped yet; call vendor base until then) |
 | **Vertex** | `google` + `auth: adc` | Inject TokenSource in library mode; no Google SDK bundled |
 
 ---
@@ -431,11 +431,11 @@ Exactly **one** `UsageEvent` per proxied chat, media, embeddings, audio, respons
 
 ### Metrics / Prometheus
 
-**Not in-tree.** Use hooks → your log pipeline or webhook. Keeps zero metric deps.
+**Not shipped yet** — use hooks → your log pipeline or webhook today. Product work is open: [#95](https://github.com/inja-online/llm-gateway/issues/95) / [#154](https://github.com/inja-online/llm-gateway/issues/154) (no longer treated as wontfix).
 
 ### Provider health
 
-`/healthz` is **process liveness** only. Upstream health is operator-owned (mesh/LB probes + usage hooks). No `/v1/health/providers` route.
+`/healthz` is **process liveness** only today. Upstream provider health endpoint is open work: [#94](https://github.com/inja-online/llm-gateway/issues/94) / [#153](https://github.com/inja-online/llm-gateway/issues/153). Until then, use mesh/LB probes + usage hooks.
 
 ### Event shape (JSON)
 

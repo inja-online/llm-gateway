@@ -23,6 +23,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 - **License:** project relicensed from MIT to **[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE)**. Network use of modified versions requires offering corresponding source under the AGPL.
 - **Docs cleanup:** removed internal Superpowers SDD/plan trees (`.superpowers/`, `docs/superpowers/`); public contract stays in README + `docs/*.md`.
+- **Product policy:** no more **wontfix / document-skip** for missing endpoints. Incomplete items reopened on GitHub; full surface tracked under [milestone M6](https://github.com/inja-online/llm-gateway/milestone/7) (#104–#164 + reopened stubs). README no longer marks Prometheus/health/Moonshot helpers as permanent wontfix.
 
 ### Added
 
@@ -30,10 +31,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **`GET /v1/models` capability flags:** each catalog entry includes `capabilities` (`chat`, `image_gen`, `video_gen`, `audio_speech`, `audio_transcribe`, `realtime`) from provider kind defaults + YAML overrides (no upstream network).
 - **Configurable `max_body_bytes`** (default 32 MiB): oversize requests return HTTP **413** dialect-shaped errors; README limits table expanded (body, header wait, realtime, drain).
 - **Multipart/media security review:** [docs/security-multipart-review.md](docs/security-multipart-review.md) linked from SECURITY.md (size limits, filenames, SSRF URI pass-through, `key_hash` only).
-- Ops docs: Prometheus **`/metrics` wontfix** (use hooks JSONL/webhook); provider health **document skip** (`/healthz` is liveness only).
+- Ops: Prometheus `/metrics` and provider health endpoints are **open product work** ([#95](https://github.com/inja-online/llm-gateway/issues/95), [#94](https://github.com/inja-online/llm-gateway/issues/94)); today use hooks + `/healthz` liveness only.
 - **Experimental Completions / DeepSeek FIM:** `POST /v1/completions` and `POST /beta/completions` OpenAI-family passthrough (model rewrite + usage). `/beta` rewrites provider base `…/v1` or host root → `…/beta` for DeepSeek FIM. Not multi-dialect translated.
 - **Docs:** [SDK hermetic compatibility matrix](docs/sdk-compatibility-matrix.md) (OpenAI/Anthropic/Google; named hermetic tests; default CI has no `-tags live`).
-- **Docs:** Moonshot/Kimi token-estimate + balance helper routes **skipped** (call regional Moonshot base directly); DeepSeek FIM marked experimental under Provider notes.
+- **Docs:** Moonshot/Kimi token-estimate + balance helpers tracked open ([#89](https://github.com/inja-online/llm-gateway/issues/89)); DeepSeek FIM experimental under Provider notes ([#90](https://github.com/inja-online/llm-gateway/issues/90)).
 - **Anthropic Message Batches** proxy: `POST/GET /v1/messages/batches`, `GET …/{id}`, `POST …/{id}/cancel`, `GET …/{id}/results`. Nested `requests[].params.model` rewrite (aliases / `provider/model`); provider via `?provider=` / `X-Provider` / `defaults.anthropic_dialect` (`kind: anthropic` only). Batches/results are upstream-owned (no gateway storage).
 - **Optional edge auth** (`edge_auth`): when `enabled`, require `Authorization: Bearer` or `x-api-key` matching configured keys / `keys_env`. `GET /healthz` stays open. Default **off**.
 - **Provider auth modes** for Vertex-style Google hosts: `auth: api_key|adc|service_account|bearer` plus `TokenSource` interface (`StaticTokenSource`, `CachingTokenSource`) and `Server.SetTokenSource` for air-gapped ADC tests (no Google SDK required).
