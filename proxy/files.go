@@ -8,11 +8,25 @@ import (
 	"github.com/inja-online/llm-gateway/hooks"
 )
 
-// OpenAI Files API proxy — no gateway persistence. Files live on the upstream.
-// Provider resolution: ?provider= | X-Provider | defaults.openai_dialect.
+// OpenAI / Anthropic Files API proxy — no gateway persistence. Files live on the upstream.
+//
+// Dialect selection (shared paths /v1/files*):
+//   - anthropic-version header present → Anthropic Files (kind:anthropic only)
+//   - otherwise → OpenAI Files (openai / openai_compat only)
+//
+// Provider resolution (no model field):
+//   OpenAI:    ?provider= | X-Provider | defaults.openai_dialect
+//   Anthropic: ?provider= | X-Provider | defaults.anthropic_dialect
+//
+// Headers: anthropic-version (client or applyAuth default) and anthropic-beta
+// (unknown values preserved) are forwarded via copyForwardHeaders.
 
 // handleFilesUpload serves POST /v1/files (multipart or raw).
 func (s *Server) handleFilesUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("anthropic-version") != "" {
+		s.handleAnthropicFilesUpload(w, r)
+		return
+	}
 	x := s.newExchange(w, r, DialectOpenAI, writeOpenAIError)
 	defer x.emit()
 	x.ev.Modality = "text"
@@ -43,6 +57,10 @@ func (s *Server) handleFilesUpload(w http.ResponseWriter, r *http.Request) {
 
 // handleFilesList serves GET /v1/files.
 func (s *Server) handleFilesList(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("anthropic-version") != "" {
+		s.handleAnthropicFilesID(w, r, http.MethodGet, "/files", false)
+		return
+	}
 	s.handleFilesID(w, r, http.MethodGet, "/files", false)
 }
 
@@ -50,7 +68,15 @@ func (s *Server) handleFilesList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFilesGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
+		if r.Header.Get("anthropic-version") != "" {
+			writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "missing file id")
+			return
+		}
 		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "missing file id")
+		return
+	}
+	if r.Header.Get("anthropic-version") != "" {
+		s.handleAnthropicFilesID(w, r, http.MethodGet, "/files/"+id, false)
 		return
 	}
 	s.handleFilesID(w, r, http.MethodGet, "/files/"+id, false)
@@ -60,7 +86,15 @@ func (s *Server) handleFilesGet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFilesDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
+		if r.Header.Get("anthropic-version") != "" {
+			writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "missing file id")
+			return
+		}
 		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "missing file id")
+		return
+	}
+	if r.Header.Get("anthropic-version") != "" {
+		s.handleAnthropicFilesID(w, r, http.MethodDelete, "/files/"+id, false)
 		return
 	}
 	s.handleFilesID(w, r, http.MethodDelete, "/files/"+id, false)
@@ -70,7 +104,15 @@ func (s *Server) handleFilesDelete(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFilesContent(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
+		if r.Header.Get("anthropic-version") != "" {
+			writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "missing file id")
+			return
+		}
 		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "missing file id")
+		return
+	}
+	if r.Header.Get("anthropic-version") != "" {
+		s.handleAnthropicFilesID(w, r, http.MethodGet, "/files/"+id+"/content", true)
 		return
 	}
 	s.handleFilesID(w, r, http.MethodGet, "/files/"+id+"/content", true)
@@ -86,6 +128,67 @@ func (s *Server) handleFilesID(w http.ResponseWriter, r *http.Request, method, p
 	x.ev.UpstreamModel = path
 
 	route, err := s.resolveOpenAIFamilyProvider(r)
+	if err != nil {
+		s.failProviderResolve(x, err)
+		return
+	}
+	x.ev.Provider = route.ProviderName
+
+	resp, ok := x.sendUpstreamRaw(route, method, path+stripProviderQuery(r), nil, "")
+	if !ok {
+		return
+	}
+	defer resp.Body.Close()
+	if streamBody {
+		s.forwardFilesStream(x, resp)
+		return
+	}
+	s.forwardFilesResponse(x, resp)
+}
+
+// --- Anthropic Files (same /v1/files* paths; anthropic-version selects dialect) ---
+
+// handleAnthropicFilesUpload serves POST /v1/files for kind:anthropic.
+// Multipart Content-Type (including boundary) is forwarded intact.
+func (s *Server) handleAnthropicFilesUpload(w http.ResponseWriter, r *http.Request) {
+	x := s.newExchange(w, r, DialectAnthropic, writeAnthropicError)
+	defer x.emit()
+	x.ev.Modality = "text"
+	x.ev.Transport = hooks.TransportHTTP
+	x.ev.Estimated = true
+	x.ev.Model = "files"
+
+	route, err := s.resolveAnthropicProvider(r)
+	if err != nil {
+		s.failProviderResolve(x, err)
+		return
+	}
+	x.ev.Provider = route.ProviderName
+	x.ev.UpstreamModel = "files"
+
+	body, ok := x.readBody()
+	if !ok {
+		return
+	}
+	ct := r.Header.Get("Content-Type")
+	resp, ok := x.sendUpstreamRaw(route, http.MethodPost, "/files"+stripProviderQuery(r), body, ct)
+	if !ok {
+		return
+	}
+	defer resp.Body.Close()
+	s.forwardFilesResponse(x, resp)
+}
+
+func (s *Server) handleAnthropicFilesID(w http.ResponseWriter, r *http.Request, method, path string, streamBody bool) {
+	x := s.newExchange(w, r, DialectAnthropic, writeAnthropicError)
+	defer x.emit()
+	x.ev.Modality = "text"
+	x.ev.Transport = hooks.TransportHTTP
+	x.ev.Estimated = true
+	x.ev.Model = path
+	x.ev.UpstreamModel = path
+
+	route, err := s.resolveAnthropicProvider(r)
 	if err != nil {
 		s.failProviderResolve(x, err)
 		return
@@ -146,7 +249,8 @@ func (s *Server) failProviderResolve(x *exchange, err error) {
 	if strings.HasPrefix(err.Error(), "unknown provider") {
 		status = http.StatusNotFound
 	}
-	if strings.Contains(err.Error(), "requires an openai") {
+	if strings.Contains(err.Error(), "requires an openai") ||
+		strings.Contains(err.Error(), "requires an anthropic") {
 		status = http.StatusNotImplemented
 	}
 	x.fail(status, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
