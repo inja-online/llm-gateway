@@ -21,6 +21,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
+- **Anthropic Message Batches** proxy: `POST/GET /v1/messages/batches`, `GET …/{id}`, `POST …/{id}/cancel`, `GET …/{id}/results`. Nested `requests[].params.model` rewrite (aliases / `provider/model`); provider via `?provider=` / `X-Provider` / `defaults.anthropic_dialect` (`kind: anthropic` only). Batches/results are upstream-owned (no gateway storage).
 - **Optional edge auth** (`edge_auth`): when `enabled`, require `Authorization: Bearer` or `x-api-key` matching configured keys / `keys_env`. `GET /healthz` stays open. Default **off**.
 - **Provider auth modes** for Vertex-style Google hosts: `auth: api_key|adc|service_account|bearer` plus `TokenSource` interface (`StaticTokenSource`, `CachingTokenSource`) and `Server.SetTokenSource` for air-gapped ADC tests (no Google SDK required).
 - Forward selected client headers on upstream requests: `HTTP-Referer`, `Referer`, `X-Title`, `OpenAI-Organization`, `OpenAI-Project`, `anthropic-beta`, `anthropic-version` (when set by client).

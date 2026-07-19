@@ -146,7 +146,8 @@ func (s *Server) failProviderResolve(x *exchange, err error) {
 	if strings.HasPrefix(err.Error(), "unknown provider") {
 		status = http.StatusNotFound
 	}
-	if strings.Contains(err.Error(), "requires an openai") {
+	if strings.Contains(err.Error(), "requires an openai") ||
+		strings.Contains(err.Error(), "requires an anthropic") {
 		status = http.StatusNotImplemented
 	}
 	x.fail(status, "invalid_request_error", err.Error(), hooks.StatusBadRequest)

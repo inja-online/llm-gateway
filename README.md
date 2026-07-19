@@ -124,6 +124,7 @@ Also shipped:
 - One usage event per chat / media / embedding request (JSONL / webhook / Go hook)
 - OpenAI **Responses** API (`/v1/responses`, streaming SSE, GET/DELETE by id)
 - OpenAI **Files** API proxy (`/v1/files*`) and **Moderations** (`/v1/moderations`)
+- Anthropic **Message Batches** proxy (`/v1/messages/batches*`; upstream-owned; nested model rewrite)
 - Realtime WebSocket skeleton (`/v1/realtime`, Google Live path) with session limits
 - Dialect-shaped errors; rate-limit + OpenAI org/project header passthrough
 - One usage event per chat / media / responses / files request (JSONL / webhook / Go hook)
@@ -341,6 +342,11 @@ With JSONL → stdout, each chat request logs one line:
 | `GET` | `/v1/files/{id}` | Retrieve file metadata |
 | `DELETE` | `/v1/files/{id}` | Delete file upstream |
 | `GET` | `/v1/files/{id}/content` | Download file content (streamed) |
+| `POST` | `/v1/messages/batches` | Create Anthropic Message Batch (nested model rewrite) |
+| `GET` | `/v1/messages/batches` | List batches |
+| `GET` | `/v1/messages/batches/{id}` | Retrieve batch status |
+| `POST` | `/v1/messages/batches/{id}/cancel` | Cancel a batch |
+| `GET` | `/v1/messages/batches/{id}/results` | Download batch results (JSONL; upstream-owned) |
 | `POST` | `/v1/moderations` | OpenAI Moderations passthrough |
 | `POST` | `/v1/images/generations` | Image generation (OpenAI-compat passthrough) |
 | `POST` | `/v1/images/edits` | Image edits (JSON or multipart passthrough) |
@@ -400,6 +406,22 @@ r = client.responses.create(model="openai/gpt-4o", input="hello")
 OpenAI-family proxy. **Files live on the upstream provider**, not on the gateway (no disk spool beyond the in-flight request body; global body limit **32 MiB**).
 Provider selection (no model field): `?provider=` → `X-Provider` → `defaults.openai_dialect`.
 Usage: one operational event per call (`estimated: true`, zero tokens).
+### Anthropic Message Batches
+Anthropic-kind only (`kind: anthropic`). **Batches and results live on the upstream Anthropic provider** — the gateway does **not** store job state or result bodies (pure proxy).
+
+Provider selection (no top-level model): `?provider=` → `X-Provider` → `defaults.anthropic_dialect`.
+
+| Call | Notes |
+|---|---|
+| `POST /v1/messages/batches` | Rewrites nested `requests[].params.model` (aliases / `provider/model` → bare upstream id); all models must resolve to the same batch provider |
+| `GET /v1/messages/batches` | List (query passthrough; `provider` stripped) |
+| `GET /v1/messages/batches/{id}` | Retrieve status |
+| `POST /v1/messages/batches/{id}/cancel` | Cancel |
+| `GET /v1/messages/batches/{id}/results` | JSONL results stream from upstream |
+
+Auth/headers match Anthropic chat: client `x-api-key` (or `api_key_env`), default `anthropic-version` when unset, client `anthropic-version` / `anthropic-beta` forwarded (no beta allowlist).
+
+Usage: **create** emits one event (`estimated: true`, coarse `tokens_in` from body size); **list/get/cancel/results** emit light operational events only (`estimated: true`, zero tokens) so polling does not spam metering.
 ### Moderations
 `POST /v1/moderations` — OpenAI-family only; rewrites `model` when present; otherwise uses default OpenAI-family provider.
 ### Realtime (WebSocket, skeleton)
@@ -670,7 +692,7 @@ Response headers are **allowlisted** (not full copy). Hop-by-hop and `Set-Cookie
 | **Client → OpenAI-family** | `OpenAI-Organization`, `OpenAI-Project`, `OpenAI-Beta` (plus auth) |
 | **Never** | `Set-Cookie`, `Connection`, `Transfer-Encoding`, `Upgrade` (except intentional WS handshake), upstream mid-proxy auth challenges |
 
-Applies to chat, Responses, Files, Moderations, media, Anthropic messages, and Google generateContent passthrough/stream paths.
+Applies to chat, Responses, Files, Moderations, media, Anthropic messages/batches, and Google generateContent passthrough/stream paths.
 
 ---
 
@@ -927,6 +949,7 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] Optional edge auth (`edge_auth`)
 - [x] Vertex / ADC **TokenSource** helper (interface + fakes; real ADC injectable)
 - [x] OpenAI Responses + Files + Moderations passthrough
+- [x] Anthropic Message Batches proxy (`/v1/messages/batches*`)
 - [x] Rate-limit / OpenAI org-project header policy
 - [x] Realtime WS skeleton (OpenAI + Google Live) + session limits
 - [ ] Production TLS `wss` dial + Realtime ↔ Live bridge
