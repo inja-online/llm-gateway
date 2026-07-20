@@ -93,15 +93,19 @@ providers:
     #   text: true
     #   image_gen: true
 
-  # xAI (Grok) — Chat Completions passthrough; media/Responses when host supports.
-  # Alias example: grok → xai/grok-3. Opt-in capabilities for images if needed.
+  # xAI (Grok) — openai_compat Chat + Responses; Imagine images need image_gen.
+  # Full guide: docs/providers/xai.md (updated 2026-07-21). Vendor: docs.x.ai — checked 2026-07.
+  # Alias example: grok → xai/grok-3. Opt-in capabilities for images/video/voice if needed.
   xai:
     kind: openai_compat
     base_url: "https://api.x.ai/v1"
     # api_key_env: XAI_API_KEY
     # capabilities:
     #   text: true
-    #   image_gen: true
+    #   image_gen: true    # /v1/images/* Imagine-style
+    #   video_gen: false
+    #   audio_speech: false
+    #   realtime: false
 
   # Moonshot / Kimi (use the regional base that matches your key).
   # Token-estimate + balance helper APIs are NOT proxied (call Moonshot directly):
