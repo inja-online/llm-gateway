@@ -206,6 +206,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `GET` | `/v1/models/{id}` | Single entry (`provider/model` ids); live Anthropic with same triggers |
 | `GET` | `/v1beta/models` | Gemini models list passthrough (`?provider=` or `defaults.google_dialect`) |
 | `POST` / `GET` / `DELETE` | `/v1beta/fileSearchStores…` | Gemini File Search stores (kind:google) |
+| `POST` / `GET` / `DELETE` | `/v1beta/tunedModels…` | Gemini tuned model lifecycle (kind:google) |
 | `GET` | `/v1beta/models/{model}` | Gemini model get / Live upgrade when `:bidiGenerateContent` |
 | `GET` | `/healthz` | `{"status":"ok"}` — process liveness only |
 | `GET` | `/v1/health/providers` | Optional upstream probes when `health_checks.enabled` (default off) |
