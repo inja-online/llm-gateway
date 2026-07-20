@@ -20,15 +20,15 @@ type Server struct {
 	client       *http.Client
 	tokenSources map[string]TokenSource // provider name → ADC / SA token source
 	sessions     *sessionLimiter
-	metrics      *processMetrics
+	metrics      *gatewayMetrics
 }
 
 func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 	if hook == nil {
 		hook = hooks.Multi{}
 	}
-	m := &processMetrics{}
-	// Always record low-cardinality counters for GET /metrics (#95).
+	m := newGatewayMetrics()
+	// Record usage into Prometheus registry for GET /metrics (#95/#154).
 	hook = metricsHook{m: m, next: hook}
 	return &Server{
 		cfg:      cfg,

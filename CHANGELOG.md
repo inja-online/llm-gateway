@@ -35,7 +35,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Docs:** DeepSeek experimental Completions/FIM operator guide ([#90](https://github.com/inja-online/llm-gateway/issues/90)); [docs/providers/deepseek-fim.md](docs/providers/deepseek-fim.md).
 - **OpenAI Batches API** proxy: `POST/GET /v1/batches`, `GET …/{id}`, `POST …/{id}/cancel` for openai/openai_compat ([#109](https://github.com/inja-online/llm-gateway/issues/109)).
 - **Ops:** optional `GET /v1/health/providers` when `health_checks.enabled` (timeouts, no key logging) ([#94](https://github.com/inja-online/llm-gateway/issues/94), [#153](https://github.com/inja-online/llm-gateway/issues/153)).
-- **Ops:** `GET /metrics` Prometheus text counters (requests/tokens; no external deps) ([#95](https://github.com/inja-online/llm-gateway/issues/95), [#154](https://github.com/inja-online/llm-gateway/issues/154)).
+- **Ops:** `GET /metrics` via **`prometheus/client_golang`** (`promhttp`): request counters, token counters, latency histogram, Go/process collectors ([#95](https://github.com/inja-online/llm-gateway/issues/95), [#154](https://github.com/inja-online/llm-gateway/issues/154)).
 - **Models:** live Anthropic `GET /v1/models` (+ `/{id}`) when `anthropic-version` or `?live=1` ([#126](https://github.com/inja-online/llm-gateway/issues/126)).
 - **Proxy:** header matrix docs; forward `X-Client-Request-Id`; expand response allowlist notes ([#151](https://github.com/inja-online/llm-gateway/issues/151)).
 - **OpenAI Chat storage:** `GET/POST/DELETE /v1/chat/completions[/{id}]` for stored completions ([#122](https://github.com/inja-online/llm-gateway/issues/122)).

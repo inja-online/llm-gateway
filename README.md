@@ -208,7 +208,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `GET` | `/v1beta/models/{model}` | Gemini model get / Live upgrade when `:bidiGenerateContent` |
 | `GET` | `/healthz` | `{"status":"ok"}` — process liveness only |
 | `GET` | `/v1/health/providers` | Optional upstream probes when `health_checks.enabled` (default off) |
-| `GET` | `/metrics` | Prometheus text counters (low cardinality; always on; open with edge auth) |
+| `GET` | `/metrics` | Prometheus via `client_golang`/`promhttp` (counters + histogram + Go/process; open with edge auth) |
 
 ### Embeddings, Responses, Files, Batches
 
@@ -464,7 +464,16 @@ Exactly **one** `UsageEvent` per proxied chat, media, embeddings, audio, respons
 
 ### Metrics / Prometheus
 
-`GET /metrics` exposes low-cardinality Prometheus text counters (`llm_gateway_requests_*`, `llm_gateway_tokens_*`) with **no extra dependencies**. Open when edge auth is on (like `/healthz`). Prefer hooks for high-cardinality labels / full billing detail.
+`GET /metrics` is served by **`prometheus/client_golang`** (`promhttp`) on a per-server registry:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `llm_gateway_requests_total` | counter | `status` |
+| `llm_gateway_tokens_in_total` / `_out_total` | counter | — |
+| `llm_gateway_request_duration_seconds` | histogram | `status` |
+| Go + process collectors | — | standard |
+
+Open when edge auth is on (like `/healthz`). Prefer hooks for high-cardinality labels (model/provider) / full billing detail.
 
 ### Provider health
 
