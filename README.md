@@ -226,6 +226,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `GET` | `/v1/files/{id}/content` | Streamed download |
 | `POST` / `GET` | `/v1/messages/batches…` | Anthropic Message Batches (`kind: anthropic` only) |
 | `POST` / `GET` / `DELETE` | `/v1/skills…` | Anthropic Skills Management (beta headers forwarded) |
+| `POST` / `GET` / `DELETE` | `/v1/tunnels…` | Anthropic MCP tunnels (beta headers forwarded) |
 | `POST` / `GET` | `/v1/batches…` | OpenAI Batches (`openai` / `openai_compat`; cancel via `POST …/cancel`) |
 | `POST` / `GET` | `/v1/fine_tuning/jobs…` | OpenAI Fine-tuning jobs, cancel, events, checkpoints |
 | `POST` | `/v1/moderations` | OpenAI-family passthrough |
