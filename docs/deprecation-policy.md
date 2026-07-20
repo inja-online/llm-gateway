@@ -39,7 +39,7 @@ On OpenAI ↔ Anthropic ↔ Google **chat** translation, the following OpenAI-or
 - `n` > 1 (policy: single choice; multi-choice rejected/dropped per fixtures)
 - `logprobs`, `top_logprobs`, `logit_bias`
 - `stream_options` on non-OpenAI egress
-- Anthropic `cache_control` breakpoints when **translating** (passthrough Anthropic→Anthropic may still strip depending on path — tracked under fidelity issues)
+- Anthropic `cache_control` breakpoints when **translating** (**Option B PT-only** — see [cache-control-policy.md](cache-control-policy.md); Anthropic→Anthropic passthrough preserves breakpoints)
 - Other vendor-only extras without a canonical home
 
 Thinking / tool / multimodal blocks that *are* mapped are listed in the README “Passthrough vs translation” table. New drops require a changelog **Changed** or **Removed** entry.
