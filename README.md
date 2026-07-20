@@ -207,6 +207,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `GET` | `/v1beta/models/{model}` | Gemini model get / Live upgrade when `:bidiGenerateContent` |
 | `GET` | `/healthz` | `{"status":"ok"}` — process liveness only |
 | `GET` | `/v1/health/providers` | Optional upstream probes when `health_checks.enabled` (default off) |
+| `GET` | `/metrics` | Prometheus text counters (low cardinality; always on; open with edge auth) |
 
 ### Embeddings, Responses, Files, Batches
 
@@ -458,11 +459,11 @@ Exactly **one** `UsageEvent` per proxied chat, media, embeddings, audio, respons
 
 ### Metrics / Prometheus
 
-**Not shipped yet** — use hooks → your log pipeline or webhook today. Product work is open: [#95](https://github.com/inja-online/llm-gateway/issues/95) / [#154](https://github.com/inja-online/llm-gateway/issues/154) (no longer treated as wontfix).
+`GET /metrics` exposes low-cardinality Prometheus text counters (`llm_gateway_requests_*`, `llm_gateway_tokens_*`) with **no extra dependencies**. Open when edge auth is on (like `/healthz`). Prefer hooks for high-cardinality labels / full billing detail.
 
 ### Provider health
 
-`/healthz` is **process liveness** only today. Upstream provider health endpoint is open work: [#94](https://github.com/inja-online/llm-gateway/issues/94) / [#153](https://github.com/inja-online/llm-gateway/issues/153). Until then, use mesh/LB probes + usage hooks.
+`/healthz` is **process liveness** only. Optional `GET /v1/health/providers` probes configured upstreams when `health_checks.enabled: true` (timeouts; no key logging).
 
 ### Event shape (JSON)
 
@@ -567,7 +568,7 @@ Possible follow-ups:
 - Hardened production `wss`/TLS dial edge cases for realtime
 - Optional full Realtime ↔ Live IR bridge (today: fail-closed)
 - Deeper cross-dialect image/video generation translation
-- Optional Prometheus metrics (today: hooks-only)
+- Richer Prometheus histograms/labels beyond low-cardinality counters
 
 ---
 

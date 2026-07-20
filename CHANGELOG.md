@@ -35,6 +35,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Docs:** DeepSeek experimental Completions/FIM operator guide ([#90](https://github.com/inja-online/llm-gateway/issues/90)); [docs/providers/deepseek-fim.md](docs/providers/deepseek-fim.md).
 - **OpenAI Batches API** proxy: `POST/GET /v1/batches`, `GET …/{id}`, `POST …/{id}/cancel` for openai/openai_compat ([#109](https://github.com/inja-online/llm-gateway/issues/109)).
 - **Ops:** optional `GET /v1/health/providers` when `health_checks.enabled` (timeouts, no key logging) ([#94](https://github.com/inja-online/llm-gateway/issues/94), [#153](https://github.com/inja-online/llm-gateway/issues/153)).
+- **Ops:** `GET /metrics` Prometheus text counters (requests/tokens; no external deps) ([#95](https://github.com/inja-online/llm-gateway/issues/95), [#154](https://github.com/inja-online/llm-gateway/issues/154)).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).
@@ -46,7 +47,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **`GET /v1/models` capability flags:** each catalog entry includes `capabilities` (`chat`, `image_gen`, `video_gen`, `audio_speech`, `audio_transcribe`, `realtime`) from provider kind defaults + YAML overrides (no upstream network).
 - **Configurable `max_body_bytes`** (default 32 MiB): oversize requests return HTTP **413** dialect-shaped errors; README limits table expanded (body, header wait, realtime, drain).
 - **Multipart/media security review:** [docs/security-multipart-review.md](docs/security-multipart-review.md) linked from SECURITY.md (size limits, filenames, SSRF URI pass-through, `key_hash` only).
-- Ops: Prometheus `/metrics` and provider health endpoints are **open product work** ([#95](https://github.com/inja-online/llm-gateway/issues/95), [#94](https://github.com/inja-online/llm-gateway/issues/94)); today use hooks + `/healthz` liveness only.
+- Ops: Prometheus `/metrics` and provider health shipped later under Unreleased (see Added); earlier note deferred to hooks-only.
 - **Experimental Completions / DeepSeek FIM:** `POST /v1/completions` and `POST /beta/completions` OpenAI-family passthrough (model rewrite + usage). `/beta` rewrites provider base `…/v1` or host root → `…/beta` for DeepSeek FIM. Not multi-dialect translated.
 - **Docs:** [SDK hermetic compatibility matrix](docs/sdk-compatibility-matrix.md) (OpenAI/Anthropic/Google; named hermetic tests; default CI has no `-tags live`).
 - **Docs:** Moonshot/Kimi token-estimate + balance helpers tracked open ([#89](https://github.com/inja-online/llm-gateway/issues/89)); DeepSeek FIM experimental under Provider notes ([#90](https://github.com/inja-online/llm-gateway/issues/90)).
