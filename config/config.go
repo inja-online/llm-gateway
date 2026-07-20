@@ -102,6 +102,25 @@ type Config struct {
 	// (comma-separated field names only, never payloads) on cross-dialect translate
 	// paths where known vendor fields are not mapped. Default false (#152).
 	ObserveDroppedFields bool `yaml:"observe_dropped_fields"`
+	// HealthChecks configures optional upstream provider probes (#94/#153).
+	// Distinct from GET /healthz (process liveness only).
+	HealthChecks HealthChecks `yaml:"health_checks"`
+}
+
+// HealthChecks gates GET /v1/health/providers (default disabled).
+type HealthChecks struct {
+	// Enabled must be true for the route to probe upstreams (default false).
+	Enabled bool `yaml:"enabled"`
+	// Timeout per-provider probe; 0 → 2s.
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+// HealthTimeout returns the per-provider probe timeout (default 2s).
+func (h HealthChecks) HealthTimeout() time.Duration {
+	if h.Timeout > 0 {
+		return h.Timeout
+	}
+	return 2 * time.Second
 }
 
 func Load(path string) (*Config, error) {
