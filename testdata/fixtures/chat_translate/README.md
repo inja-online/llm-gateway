@@ -31,7 +31,7 @@ chat_translate/
 |---|---|
 | `n` / `candidateCount` | Translate supports **n=1 only**; `n>1` is `bad_request` |
 | Non-function OpenAI tools | **error** (not silent skip) |
-| Anthropic `cache_control` | **Passthrough-only** — stripped on translate rebuild |
+| Anthropic `cache_control` | **Preserved** on Anthropic egress (PT + translate IR); **dropped** cross-family (#108) |
 | Google `safetySettings` | Preserved on Google→Google translate; dropped for other ingress |
 | `logprobs`, `logit_bias`, `top_logprobs` | Dropped |
 | OpenAI `seed` / penalties / `response_format` / `reasoning_effort` | OpenAI→OpenAI preserved; Anthropic/Google may drop or map later |

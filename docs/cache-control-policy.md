@@ -1,38 +1,46 @@
-# Anthropic `cache_control` policy (#41)
+# Prompt caching policy (#108)
 
 **Last updated:** 2026-07-21  
-**Decision:** **Option B — passthrough only** (not modeled on canonical IR)
+**Status:** Cross-dialect IR implemented (preserve within family; drop cross-family)
 
-## Options
+## Summary
 
-| Option | Meaning |
-|---|---|
-| **A — Implement on translate** | Carry breakpoints through IR ↔ all dialects |
-| **B — PT-only (chosen)** | Preserve `cache_control` only on Anthropic→Anthropic **passthrough**; strip on translate rebuild |
+| Dialect | Request-side caching | On translate |
+|---|---|---|
+| **Anthropic** | `cache_control` on system / content / tools | **Preserved** on Anthropic egress (PT + IR rebuild). **Dropped** toward OpenAI/Google. |
+| **OpenAI** | `prompt_cache_key`, `prompt_cache_retention` | **Preserved** on OpenAI egress. **Dropped** toward Anthropic/Google (no auto breakpoints). |
+| **Google** | `cachedContent` / `cached_content` resource name | **Preserved** on Google egress. **Dropped** toward others. |
 
-## Rationale
+**Usage (response):** `CacheReadTokens` / `CacheWriteTokens` continue to map from all three vendors when present.
 
-- Prompt caching breakpoints are Anthropic-specific wire shapes (system / tools / content blocks).
-- Canonical chat IR does not yet model cache breakpoints; full cross-dialect mapping is tracked under broader caching work ([#108](https://github.com/inja-online/llm-gateway/issues/108)).
-- Claude Code and native Anthropic clients use **passthrough** (same-family) where fidelity is required.
+## Supersedes #41 Option B
 
-## Behavior
+#41 documented **passthrough-only** (strip on any IR rebuild). **#108 supersedes** that for Anthropic→Anthropic **translate**: breakpoints are modeled in canonical IR and rebuilt.
 
-| Path | `cache_control` |
-|---|---|
-| Anthropic → Anthropic passthrough | **Preserved** (JSON map; model rewrite only) |
-| Anthropic → OpenAI / Google translate | **Dropped** (rebuild from IR) |
-| OpenAI → Anthropic translate | **Not invented** |
-| OpenAI → OpenAI passthrough | N/A (OpenAI uses different cache knobs) |
+Passthrough Anthropic→Anthropic still never touches IR (byte path).
 
-## Acceptance
+## Canonical IR
 
-- [x] Written policy Option A or B → **B**
-- [x] Tests lock policy (translate drops + passthrough keeps)
-- [x] Passthrough caching unbroken
+- `canonical.CacheControl` on `Block` and `Tool`
+- `Request.PromptCacheKey`, `Request.PromptCacheRetention`
+- `Request.CachedContent`
+
+## Non-goals (still)
+
+- Gateway-local prompt cache store
+- Guaranteeing cache hits
+- Auto-insert breakpoints without client intent
+- Full Google `cachedContents` CRUD (see #112)
 
 ## Tests
 
-- `proxy.TestCacheControlPassthroughAnthropic`
-- `proxy` translate fixtures (`anthropic_to_*` drop `cache_control`)
-- Drop list: `testdata/fixtures/chat_translate/drops/common_drops.txt`
+- `ingress/anthropic.TestCacheControlParseAndRoundTrip`
+- `ingress/openai.TestPromptCacheKeyRoundTrip`
+- `ingress/google.TestCachedContentRoundTrip`
+- `proxy.TestChatTranslateFixtures` (`anthropic_to_anthropic_preserves_cache_control`)
+- `proxy.TestCacheControlPassthroughAnthropic` (PT regression)
+
+## Related
+
+- [deprecation-policy.md](deprecation-policy.md)
+- [compatibility-matrix.md](compatibility-matrix.md)

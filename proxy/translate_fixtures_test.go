@@ -104,13 +104,13 @@ func TestChatTranslateFixtures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// cache_control is PT-only: not modeled on canonical → stripped on rebuild
+		// Cross-family: Anthropic breakpoints must not leak as cache_control on OpenAI wire.
 		body, err := openaiegress.BuildRequest(req, "gpt-test")
 		if err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(string(body), "cache_control") {
-			t.Fatalf("cache_control must be dropped on translate: %s", body)
+			t.Fatalf("cache_control must be dropped on OpenAI egress: %s", body)
 		}
 		var out map[string]any
 		json.Unmarshal(body, &out)
@@ -127,18 +127,22 @@ func TestChatTranslateFixtures(t *testing.T) {
 		}
 	})
 
-	t.Run("anthropic_to_anthropic_drops_cache_control", func(t *testing.T) {
-		// Even Anthropic→Anthropic *translate* (not passthrough) strips cache_control.
+	t.Run("anthropic_to_anthropic_preserves_cache_control", func(t *testing.T) {
+		// #108: Anthropic→Anthropic translate rebuild preserves cache_control.
 		req, err := antingress.ParseRequest(readFixture(t, "anthropic", "kitchen_sink.json"))
 		if err != nil {
 			t.Fatal(err)
+		}
+		// IR must have parsed breakpoints
+		if len(req.System) == 0 || req.System[0].CacheControl == nil {
+			t.Fatalf("system cache_control not in IR: %+v", req.System)
 		}
 		body, err := anthropicegress.BuildRequest(req, "claude-test")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(body), "cache_control") {
-			t.Fatalf("cache_control PT-only: must not reappear on translate egress: %s", body)
+		if !strings.Contains(string(body), "cache_control") {
+			t.Fatalf("cache_control must be preserved on Anthropic translate egress: %s", body)
 		}
 		// System text still present
 		if !strings.Contains(string(body), "You are concise") {
@@ -265,7 +269,8 @@ func TestChatTranslateDropListFilePresent(t *testing.T) {
 		"openai.n>1",
 		"cache_control",
 		"openai.logprobs",
-		"openai.seed",
+		"openai.prompt_cache_key",
+		"google.cachedContent",
 	} {
 		if !strings.Contains(raw, want) {
 			t.Fatalf("drop list missing %q", want)

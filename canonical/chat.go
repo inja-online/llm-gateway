@@ -70,6 +70,15 @@ type DocumentSource struct {
 	Title     string // optional
 }
 
+// CacheControl is a dialect-neutral prompt-cache breakpoint (Anthropic-shaped).
+// Type is typically "ephemeral". TTL is optional and kept as a string to avoid
+// enum churn across API versions. Cross-family translate does not invent
+// OpenAI/Google cache semantics from this field (#108).
+type CacheControl struct {
+	Type string // e.g. "ephemeral"
+	TTL  string // optional; seconds or vendor enum as string
+}
+
 // Block is one unit of message content. Only the fields relevant to Type are
 // populated; the tagged-struct shape avoids an interface for trivial JSON.
 type Block struct {
@@ -97,6 +106,10 @@ type Block struct {
 	// thinking continuity; do not attempt to decrypt or display it.
 	// (Issue #48: redacted_thinking support.)
 	Redacted bool
+
+	// CacheControl is an optional Anthropic-style breakpoint on this block
+	// (system text, message content). Rebuilt on Anthropic egress only (#108).
+	CacheControl *CacheControl
 }
 
 // Message is one turn.
@@ -110,6 +123,9 @@ type Tool struct {
 	Name        string
 	Description string
 	Schema      json.RawMessage // JSON Schema for the arguments
+	// CacheControl is an optional Anthropic-style breakpoint on the tool def.
+	// Rebuilt on Anthropic egress only (#108).
+	CacheControl *CacheControl
 }
 
 // ToolChoiceMode controls tool selection.
@@ -207,6 +223,15 @@ type Request struct {
 	// ServiceTier is an optional OpenAI request hint (e.g. "auto", "default").
 	// Other dialects omit it on egress.
 	ServiceTier string
+
+	// PromptCacheKey / PromptCacheRetention are OpenAI request-level prompt
+	// cache knobs. Rebuilt on OpenAI egress only; dropped cross-family (#108).
+	PromptCacheKey       string
+	PromptCacheRetention string
+
+	// CachedContent is a Google context-cache resource name (e.g.
+	// "cachedContents/abc"). Google egress only; dropped cross-family (#108).
+	CachedContent string
 
 	// SafetySettings is raw Google Gemini safetySettings JSON when present on
 	// Google ingress. Re-emitted only on Google egress; other dialects drop it.

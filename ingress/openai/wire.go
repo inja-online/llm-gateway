@@ -33,6 +33,9 @@ type chatRequest struct {
 	N *int `json:"n,omitempty"`
 	// ServiceTier is optional OpenAI routing/priority hint.
 	ServiceTier string `json:"service_tier,omitempty"`
+	// Prompt cache knobs (#108).
+	PromptCacheKey       string `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string `json:"prompt_cache_retention,omitempty"`
 }
 
 // responseFormatWire is the OpenAI chat-completions response_format object.

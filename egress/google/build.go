@@ -23,6 +23,9 @@ func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	if sys := concatText(req.System); sys != "" {
 		out.SystemInstruction = &content{Parts: []part{{Text: sys}}}
 	}
+	if req.CachedContent != "" {
+		out.CachedContent = req.CachedContent
+	}
 	if len(req.SafetySettings) > 0 {
 		out.SafetySettings = req.SafetySettings
 	}

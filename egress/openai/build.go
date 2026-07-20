@@ -12,16 +12,18 @@ import (
 // tool_calls, and tool_result blocks become role:tool messages.
 func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 	out := chatRequest{
-		Model:             model,
-		Stream:            req.Stream,
-		Temperature:       req.Temperature,
-		TopP:              req.TopP,
-		Stop:              req.StopSequences,
-		ServiceTier:       req.ServiceTier,
-		ParallelToolCalls: req.ParallelToolCalls,
-		FrequencyPenalty:  req.FrequencyPenalty,
-		PresencePenalty:   req.PresencePenalty,
-		Seed:              req.Seed,
+		Model:                model,
+		Stream:               req.Stream,
+		Temperature:          req.Temperature,
+		TopP:                 req.TopP,
+		Stop:                 req.StopSequences,
+		ServiceTier:          req.ServiceTier,
+		PromptCacheKey:       req.PromptCacheKey,
+		PromptCacheRetention: req.PromptCacheRetention,
+		ParallelToolCalls:    req.ParallelToolCalls,
+		FrequencyPenalty:     req.FrequencyPenalty,
+		PresencePenalty:      req.PresencePenalty,
+		Seed:                 req.Seed,
 	}
 	// Preserve max_tokens vs max_completion_tokens source for reasoning models.
 	// Default (empty / max_tokens): emit max_tokens. Completion source: emit

@@ -44,6 +44,7 @@ func openaiTranslateDrops(body []byte) []string {
 		"logprobs", "top_logprobs", "logit_bias", "stream_options",
 		"service_tier", "prediction", "modalities", "user",
 		"parallel_tool_calls", "store",
+		"prompt_cache_key", "prompt_cache_retention",
 	}
 	for _, k := range keys {
 		if _, ok := m[k]; ok {

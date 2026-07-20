@@ -65,6 +65,16 @@ type block struct {
 	Thinking  string `json:"thinking,omitempty"`
 	Signature string `json:"signature,omitempty"`
 	Data      string `json:"data,omitempty"` // redacted_thinking opaque payload
+
+	// CacheControl is Anthropic prompt caching breakpoint (#108).
+	CacheControl *cacheControlWire `json:"cache_control,omitempty"`
+}
+
+// cacheControlWire is Anthropic cache_control on system/content/tools.
+type cacheControlWire struct {
+	Type string `json:"type"`
+	// TTL may be a string duration or number depending on API version.
+	TTL json.RawMessage `json:"ttl,omitempty"`
 }
 
 type imageSourceWire struct {
@@ -76,9 +86,10 @@ type imageSourceWire struct {
 }
 
 type tool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description,omitempty"`
+	InputSchema  json.RawMessage   `json:"input_schema,omitempty"`
+	CacheControl *cacheControlWire `json:"cache_control,omitempty"`
 }
 
 // --- response wire types ---

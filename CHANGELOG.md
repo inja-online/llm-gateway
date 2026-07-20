@@ -27,6 +27,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
+- **Prompt caching IR (#108):** Anthropic `cache_control` on system/content/tools preserved on Anthropic translate rebuild; OpenAI `prompt_cache_key` / `prompt_cache_retention`; Google `cachedContent` resource name. Cross-family still drops foreign directives. [docs/cache-control-policy.md](docs/cache-control-policy.md).
 - **Fidelity:** OpenAI `service_tier` request + `system_fingerprint` / response `service_tier` passthrough; never invent on Anthropic/Google translate ([#51](https://github.com/inja-online/llm-gateway/issues/51)); [docs/service-tier-fingerprint.md](docs/service-tier-fingerprint.md).
 - **Policy:** Non-function OpenAI tools **error** on translation path; passthrough still forwards wire tools ([#49](https://github.com/inja-online/llm-gateway/issues/49)); [docs/tools-policy.md](docs/tools-policy.md).
 - **Policy:** Anthropic `cache_control` **passthrough-only** (Option B); translate strips breakpoints ([#41](https://github.com/inja-online/llm-gateway/issues/41)); [docs/cache-control-policy.md](docs/cache-control-policy.md).

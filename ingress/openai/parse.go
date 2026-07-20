@@ -21,15 +21,17 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 	}
 
 	req := &canonical.Request{
-		Model:             in.Model,
-		Stream:            in.Stream,
-		Temperature:       in.Temperature,
-		TopP:              in.TopP,
-		ServiceTier:       in.ServiceTier,
-		ParallelToolCalls: in.ParallelToolCalls,
-		FrequencyPenalty:  in.FrequencyPenalty,
-		PresencePenalty:   in.PresencePenalty,
-		Seed:              in.Seed,
+		Model:                in.Model,
+		Stream:               in.Stream,
+		Temperature:          in.Temperature,
+		TopP:                 in.TopP,
+		ServiceTier:          in.ServiceTier,
+		PromptCacheKey:       in.PromptCacheKey,
+		PromptCacheRetention: in.PromptCacheRetention,
+		ParallelToolCalls:    in.ParallelToolCalls,
+		FrequencyPenalty:     in.FrequencyPenalty,
+		PresencePenalty:      in.PresencePenalty,
+		Seed:                 in.Seed,
 	}
 	// Multi-choice policy: translation only supports a single choice (n=1).
 	// n omitted or n=1 is accepted; n>1 is rejected so clients never silently
