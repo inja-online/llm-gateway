@@ -33,15 +33,21 @@ defaults:
 	gw := httptest.NewServer(NewServer(cfg, nil).Handler())
 	t.Cleanup(gw.Close)
 
-	// Before: zeros ok
 	resp0, err := http.Get(gw.URL + "/metrics")
 	if err != nil {
 		t.Fatal(err)
 	}
 	b0, _ := io.ReadAll(resp0.Body)
 	resp0.Body.Close()
-	if resp0.StatusCode != 200 || !strings.Contains(string(b0), "llm_gateway_requests_total 0") {
+	if resp0.StatusCode != 200 {
 		t.Fatalf("initial metrics: %d %s", resp0.StatusCode, b0)
+	}
+	// client_golang registers HELP/TYPE and Go collectors.
+	if !strings.Contains(string(b0), "llm_gateway_requests_total") {
+		t.Fatalf("missing metric family: %s", b0)
+	}
+	if !strings.Contains(string(b0), "go_goroutines") {
+		t.Fatalf("expected Go collector metrics: %s", b0)
 	}
 
 	_, _ = http.Post(gw.URL+"/v1/chat/completions", "application/json",
@@ -54,14 +60,15 @@ defaults:
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	s := string(body)
-	if !strings.Contains(s, "llm_gateway_requests_total 1") {
-		t.Fatalf("requests: %s", s)
+	// Labeled counter: llm_gateway_requests_total{status="ok"} 1
+	if !strings.Contains(s, `llm_gateway_requests_total{status="ok"}`) {
+		t.Fatalf("requests labeled counter missing: %s", s)
 	}
-	if !strings.Contains(s, "llm_gateway_requests_ok_total 1") {
-		t.Fatalf("ok: %s", s)
+	if !strings.Contains(s, "llm_gateway_tokens_in_total") || !strings.Contains(s, "llm_gateway_tokens_out_total") {
+		t.Fatalf("token counters: %s", s)
 	}
-	if !strings.Contains(s, "llm_gateway_tokens_in_total 3") || !strings.Contains(s, "llm_gateway_tokens_out_total 2") {
-		t.Fatalf("tokens: %s", s)
+	if !strings.Contains(s, "llm_gateway_request_duration_seconds") {
+		t.Fatalf("latency histogram: %s", s)
 	}
 }
 

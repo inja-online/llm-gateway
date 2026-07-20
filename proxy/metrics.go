@@ -2,75 +2,106 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"sync/atomic"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/inja-online/llm-gateway/hooks"
 )
 
-// processMetrics holds low-cardinality counters for GET /metrics (#95/#154).
-// No Prometheus client library — Prometheus text exposition format only.
-type processMetrics struct {
-	requestsTotal  atomic.Uint64
-	requestsOK     atomic.Uint64
-	requestsError  atomic.Uint64
-	tokensInTotal  atomic.Uint64
-	tokensOutTotal atomic.Uint64
+// gatewayMetrics holds Prometheus instruments registered on a private registry
+// so library consumers of NewServer do not clash with the default global registry.
+type gatewayMetrics struct {
+	reg            *prometheus.Registry
+	requestsTotal  *prometheus.CounterVec
+	tokensInTotal  prometheus.Counter
+	tokensOutTotal prometheus.Counter
+	latencySeconds *prometheus.HistogramVec
+	handler        http.Handler
 }
 
-func (m *processMetrics) observe(ev hooks.UsageEvent) {
+func newGatewayMetrics() *gatewayMetrics {
+	reg := prometheus.NewRegistry()
+	// Process/Go collectors are useful for ops scrapes of the binary.
+	reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	reg.MustRegister(prometheus.NewGoCollector())
+
+	factory := promauto.With(reg)
+	m := &gatewayMetrics{
+		reg: reg,
+		requestsTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Name: "llm_gateway_requests_total",
+			Help: "Total usage events (proxied requests) by status.",
+		}, []string{"status"}),
+		tokensInTotal: factory.NewCounter(prometheus.CounterOpts{
+			Name: "llm_gateway_tokens_in_total",
+			Help: "Sum of tokens_in from usage events.",
+		}),
+		tokensOutTotal: factory.NewCounter(prometheus.CounterOpts{
+			Name: "llm_gateway_tokens_out_total",
+			Help: "Sum of tokens_out from usage events.",
+		}),
+		latencySeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "llm_gateway_request_duration_seconds",
+			Help:    "Request latency from usage events (seconds).",
+			Buckets: prometheus.DefBuckets,
+		}, []string{"status"}),
+	}
+	// Pre-create low-cardinality status series so scrapes show zeros before traffic.
+	for _, st := range []string{
+		hooks.StatusOK, hooks.StatusUpstreamError, hooks.StatusClientAbort, hooks.StatusBadRequest,
+	} {
+		m.requestsTotal.WithLabelValues(st)
+		m.latencySeconds.WithLabelValues(st)
+	}
+	m.handler = promhttp.HandlerFor(reg, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	})
+	return m
+}
+
+func (m *gatewayMetrics) observe(ev hooks.UsageEvent) {
 	if m == nil {
 		return
 	}
-	m.requestsTotal.Add(1)
-	if ev.Status == hooks.StatusOK {
-		m.requestsOK.Add(1)
-	} else {
-		m.requestsError.Add(1)
+	status := ev.Status
+	if status == "" {
+		status = "unknown"
 	}
+	m.requestsTotal.WithLabelValues(status).Inc()
 	if ev.TokensIn > 0 {
-		m.tokensInTotal.Add(uint64(ev.TokensIn))
+		m.tokensInTotal.Add(float64(ev.TokensIn))
 	}
 	if ev.TokensOut > 0 {
-		m.tokensOutTotal.Add(uint64(ev.TokensOut))
+		m.tokensOutTotal.Add(float64(ev.TokensOut))
 	}
+	// Always observe latency (0 if unknown) so the histogram series stay live.
+	m.latencySeconds.WithLabelValues(status).Observe(float64(ev.LatencyMS) / 1000.0)
 }
 
-// metricsHook records usage then forwards to the next hook.
+// metricsHook records usage into Prometheus then forwards to the next hook.
 type metricsHook struct {
-	m    *processMetrics
+	m    *gatewayMetrics
 	next hooks.Hook
 }
 
 func (h metricsHook) OnUsage(ctx context.Context, ev hooks.UsageEvent) {
-	h.m.observe(ev)
+	if h.m != nil {
+		h.m.observe(ev)
+	}
 	if h.next != nil {
 		h.next.OnUsage(ctx, ev)
 	}
 }
 
-// handleMetrics serves GET /metrics (Prometheus text format). Always on;
-// low cardinality only. Exempt from edge auth like /healthz.
-func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	m := s.metrics
-	if m == nil {
-		m = &processMetrics{}
+// handleMetrics serves GET /metrics via promhttp (Prometheus / OpenMetrics).
+// Always on; exempt from edge auth like /healthz.
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if s.metrics == nil || s.metrics.handler == nil {
+		http.Error(w, "metrics unavailable", http.StatusServiceUnavailable)
+		return
 	}
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	_, _ = fmt.Fprintf(w, "# HELP llm_gateway_requests_total Total usage events (proxied requests).\n")
-	_, _ = fmt.Fprintf(w, "# TYPE llm_gateway_requests_total counter\n")
-	_, _ = fmt.Fprintf(w, "llm_gateway_requests_total %d\n", m.requestsTotal.Load())
-	_, _ = fmt.Fprintf(w, "# HELP llm_gateway_requests_ok_total Usage events with status ok.\n")
-	_, _ = fmt.Fprintf(w, "# TYPE llm_gateway_requests_ok_total counter\n")
-	_, _ = fmt.Fprintf(w, "llm_gateway_requests_ok_total %d\n", m.requestsOK.Load())
-	_, _ = fmt.Fprintf(w, "# HELP llm_gateway_requests_error_total Usage events not ok.\n")
-	_, _ = fmt.Fprintf(w, "# TYPE llm_gateway_requests_error_total counter\n")
-	_, _ = fmt.Fprintf(w, "llm_gateway_requests_error_total %d\n", m.requestsError.Load())
-	_, _ = fmt.Fprintf(w, "# HELP llm_gateway_tokens_in_total Sum of tokens_in from usage events.\n")
-	_, _ = fmt.Fprintf(w, "# TYPE llm_gateway_tokens_in_total counter\n")
-	_, _ = fmt.Fprintf(w, "llm_gateway_tokens_in_total %d\n", m.tokensInTotal.Load())
-	_, _ = fmt.Fprintf(w, "# HELP llm_gateway_tokens_out_total Sum of tokens_out from usage events.\n")
-	_, _ = fmt.Fprintf(w, "# TYPE llm_gateway_tokens_out_total counter\n")
-	_, _ = fmt.Fprintf(w, "llm_gateway_tokens_out_total %d\n", m.tokensOutTotal.Load())
+	s.metrics.handler.ServeHTTP(w, r)
 }
