@@ -76,6 +76,9 @@ type UsageEvent struct {
 	// KeyHash is a short sha256 prefix of the forwarded credential — enough to
 	// correlate usage per key without ever storing the key itself.
 	KeyHash string `json:"key_hash,omitempty"`
+	// DroppedFields lists translation field names when observe_dropped_fields is
+	// enabled (names only; never request/response payloads). Omitted when empty.
+	DroppedFields []string `json:"dropped_fields,omitempty"`
 }
 
 // Hook receives usage events. Implementations must not block: the proxy calls

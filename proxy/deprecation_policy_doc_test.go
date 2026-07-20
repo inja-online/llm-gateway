@@ -36,7 +36,7 @@ func TestDeprecationPolicyDocDecisions(t *testing.T) {
 		"Warning",
 		"Not used",
 		"x-gateway-dropped-fields",
-		"Not implemented in v1",
+		"observe_dropped_fields",
 		"MAJOR",
 		"MINOR",
 		"PATCH",

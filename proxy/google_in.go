@@ -547,6 +547,7 @@ func (s *Server) openAIToGoogle(x *exchange, route Route, body []byte) {
 		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
+	x.noteDroppedFields(openaiTranslateDrops(body))
 	upstreamBody, err := googleegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
 		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)
@@ -592,6 +593,7 @@ func (s *Server) anthropicToGoogle(x *exchange, route Route, body []byte) {
 		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
+	x.noteDroppedFields(anthropicTranslateDrops(body))
 	upstreamBody, err := googleegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
 		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)

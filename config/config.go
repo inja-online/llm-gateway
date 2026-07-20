@@ -98,6 +98,10 @@ type Config struct {
 	EdgeAuth     EdgeAuth            `yaml:"edge_auth"`
 	// MaxBodyBytes caps request and response bodies (bytes). 0 / unset → DefaultMaxBodyBytes (32 MiB).
 	MaxBodyBytes int64 `yaml:"max_body_bytes"`
+	// ObserveDroppedFields, when true, sets response header x-gateway-dropped-fields
+	// (comma-separated field names only, never payloads) on cross-dialect translate
+	// paths where known vendor fields are not mapped. Default false (#152).
+	ObserveDroppedFields bool `yaml:"observe_dropped_fields"`
 }
 
 func Load(path string) (*Config, error) {
