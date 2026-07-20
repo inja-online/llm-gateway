@@ -1,0 +1,22 @@
+# service_tier & system_fingerprint (#51)
+
+**Last updated:** 2026-07-21  
+**Status:** Implemented for OpenAI-family paths
+
+| Field | Direction | Behavior |
+|---|---|---|
+| `service_tier` | Request | Parsed into canonical; rebuilt on **OpenAI egress** only. Passthrough JSON keeps the field (model rewrite only). **Not** sent to Anthropic/Google. |
+| `system_fingerprint` | Response | Forwarded when upstream returns it (passthrough body or OpenAI serialize). **Never invented** for other dialects. |
+| `service_tier` | Response | Forwarded when present on OpenAI-shaped upstream responses. |
+
+## Acceptance
+
+- [x] Request `service_tier` OpenAI map (ingress + egress + passthrough)
+- [x] Response fingerprint when present
+- [x] Never invent on other dialects
+
+## Tests
+
+- `proxy.TestServiceTierPassthroughOpenAI`
+- `proxy.TestServiceTierNotInventedOnAnthropicTranslate`
+- Unit: `ingress/openai.TestParseServiceTier`, `egress/openai.TestBuildServiceTier`, serialize/parse usage tests
