@@ -23,6 +23,9 @@ type generateRequest struct {
 	SafetySettings json.RawMessage `json:"safety_settings,omitempty"`
 	// Also accept camelCase as used by some clients/docs.
 	SafetySettingsCamel json.RawMessage `json:"safetySettings,omitempty"`
+	// CachedContent is a context-cache resource name (#108).
+	CachedContent      string `json:"cached_content,omitempty"`
+	CachedContentCamel string `json:"cachedContent,omitempty"`
 }
 
 type content struct {

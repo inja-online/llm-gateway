@@ -15,6 +15,8 @@ type generateRequest struct {
 	GenerationConfig  *generationConfig `json:"generation_config,omitempty"`
 	// SafetySettings is re-emitted when present on canonical (Google ingress).
 	SafetySettings json.RawMessage `json:"safety_settings,omitempty"`
+	// CachedContent is a context-cache resource name (#108).
+	CachedContent string `json:"cachedContent,omitempty"`
 }
 
 type content struct {

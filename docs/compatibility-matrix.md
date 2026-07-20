@@ -57,6 +57,17 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 **Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` (or alias `whisper-fast`) while leaving `defaults.openai_dialect` on another chat provider. Full guide: [providers/groq-stt.md](providers/groq-stt.md).
 
+## Prompt caching (#108)
+
+| Ingress → Egress | Behavior |
+|---|---|
+| Anthropic → Anthropic | **P** / **T** preserve `cache_control` breakpoints |
+| OpenAI → OpenAI | **P** (body) / **T** preserve `prompt_cache_key` / `prompt_cache_retention` |
+| Google → Google | **P** / **T** preserve `cachedContent` resource name |
+| Cross-family | **Drop** foreign cache directives (no illegal wire fields) |
+
+Usage: cache read/write tokens map when upstream reports them (all dialects).
+
 ## Conversations (OpenAI stateful threads)
 
 | Ingress | Route | All provider kinds |

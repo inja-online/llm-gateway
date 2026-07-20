@@ -37,7 +37,11 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 	}
 	for _, b := range req.System {
 		if b.Type == canonical.BlockText {
-			out.System = append(out.System, systemBlock{Type: "text", Text: b.Text})
+			out.System = append(out.System, systemBlock{
+				Type:         "text",
+				Text:         b.Text,
+				CacheControl: toWireCacheControl(b.CacheControl),
+			})
 		}
 	}
 	for _, t := range req.Tools {
@@ -46,9 +50,10 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 			schema = json.RawMessage(`{"type":"object"}`)
 		}
 		out.Tools = append(out.Tools, tool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: schema,
+			Name:         t.Name,
+			Description:  t.Description,
+			InputSchema:  schema,
+			CacheControl: toWireCacheControl(t.CacheControl),
 		})
 	}
 	if req.ToolChoice != nil || req.ParallelToolCalls != nil {
@@ -204,12 +209,13 @@ func buildToolChoice(tc *canonical.ToolChoice, parallel *bool) json.RawMessage {
 }
 
 func buildBlock(b canonical.Block) (block, bool) {
+	cc := toWireCacheControl(b.CacheControl)
 	switch b.Type {
 	case canonical.BlockText:
 		if b.Text == "" {
 			return block{}, false
 		}
-		return block{Type: "text", Text: b.Text}, true
+		return block{Type: "text", Text: b.Text, CacheControl: cc}, true
 
 	case canonical.BlockImage:
 		if b.Image == nil {
@@ -222,37 +228,52 @@ func buildBlock(b canonical.Block) (block, bool) {
 		} else {
 			src.URL = b.Image.Data
 		}
-		return block{Type: "image", Source: src}, true
+		return block{Type: "image", Source: src, CacheControl: cc}, true
 
 	case canonical.BlockDocument:
 		if b.Document == nil {
 			return block{}, false
 		}
 		src := documentToSource(b.Document)
-		return block{Type: "document", Source: src, Title: b.Document.Title}, true
+		return block{Type: "document", Source: src, Title: b.Document.Title, CacheControl: cc}, true
 
 	case canonical.BlockToolUse:
 		input := b.Input
 		if len(input) == 0 {
 			input = json.RawMessage(`{}`)
 		}
-		return block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: input}, true
+		return block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: input, CacheControl: cc}, true
 
 	case canonical.BlockToolResult:
 		return block{
-			Type:      "tool_result",
-			ToolUseID: b.ToolUseID,
-			Content:   buildToolResultContent(b),
-			IsError:   b.IsError,
+			Type:         "tool_result",
+			ToolUseID:    b.ToolUseID,
+			Content:      buildToolResultContent(b),
+			IsError:      b.IsError,
+			CacheControl: cc,
 		}, true
 
 	case canonical.BlockThinking:
 		if b.Redacted {
-			return block{Type: "redacted_thinking", Data: b.Text}, true
+			return block{Type: "redacted_thinking", Data: b.Text, CacheControl: cc}, true
 		}
-		return block{Type: "thinking", Thinking: b.Text, Signature: b.Signature}, true
+		return block{Type: "thinking", Thinking: b.Text, Signature: b.Signature, CacheControl: cc}, true
 	}
 	return block{}, false
+}
+
+func toWireCacheControl(cc *canonical.CacheControl) *cacheControlWire {
+	if cc == nil || (cc.Type == "" && cc.TTL == "") {
+		return nil
+	}
+	w := &cacheControlWire{Type: cc.Type}
+	if cc.TTL != "" {
+		w.TTL = cc.TTL
+	}
+	if w.Type == "" {
+		w.Type = "ephemeral"
+	}
+	return w
 }
 
 func documentToSource(doc *canonical.DocumentSource) *imageSourceWire {

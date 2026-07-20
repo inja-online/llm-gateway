@@ -24,8 +24,10 @@ type chatRequest struct {
 	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
 	Seed              *int64              `json:"seed,omitempty"`
 	ResponseFormat    *responseFormatWire `json:"response_format,omitempty"`
-	ReasoningEffort   string              `json:"reasoning_effort,omitempty"`
-	ServiceTier       string              `json:"service_tier,omitempty"`
+	ReasoningEffort      string `json:"reasoning_effort,omitempty"`
+	ServiceTier          string `json:"service_tier,omitempty"`
+	PromptCacheKey       string `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string `json:"prompt_cache_retention,omitempty"`
 }
 
 // responseFormatWire is the OpenAI chat-completions response_format object.

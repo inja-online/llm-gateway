@@ -33,6 +33,11 @@ func ParseRequest(body []byte, modelFromPath string) (*canonical.Request, error)
 	} else if len(in.SafetySettingsCamel) > 0 {
 		req.SafetySettings = in.SafetySettingsCamel
 	}
+	if in.CachedContent != "" {
+		req.CachedContent = in.CachedContent
+	} else if in.CachedContentCamel != "" {
+		req.CachedContent = in.CachedContentCamel
+	}
 	gc := in.GenerationConfig
 	if gc == nil {
 		gc = in.GenerationConfigCamel

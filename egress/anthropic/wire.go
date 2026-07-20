@@ -41,8 +41,15 @@ type outputFormatWire struct {
 }
 
 type systemBlock struct {
+	Type         string            `json:"type"`
+	Text         string            `json:"text"`
+	CacheControl *cacheControlWire `json:"cache_control,omitempty"`
+}
+
+// cacheControlWire is Anthropic cache_control on system/content/tools (#108).
+type cacheControlWire struct {
 	Type string `json:"type"`
-	Text string `json:"text"`
+	TTL  string `json:"ttl,omitempty"`
 }
 
 type message struct {
@@ -75,6 +82,8 @@ type block struct {
 	Signature string `json:"signature,omitempty"`
 	// redacted_thinking opaque payload
 	Data string `json:"data,omitempty"`
+
+	CacheControl *cacheControlWire `json:"cache_control,omitempty"`
 }
 
 type imageSourceWire struct {
@@ -86,9 +95,10 @@ type imageSourceWire struct {
 }
 
 type tool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description,omitempty"`
+	InputSchema  json.RawMessage   `json:"input_schema"`
+	CacheControl *cacheControlWire `json:"cache_control,omitempty"`
 }
 
 // --- response wire types ---

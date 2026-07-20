@@ -19,13 +19,17 @@ openai.logit_bias
 # openai.response_format → Anthropic/Google mapping may still be partial
 # openai.image_url.detail → Anthropic/Google drop (OpenAI round-trip only)
 
-# Anthropic prompt caching breakpoints — passthrough only (#41 Option B)
-anthropic.system[].cache_control
-anthropic.messages[].content[].cache_control
-anthropic.tools[].cache_control
+# Anthropic prompt caching breakpoints (#108): preserved on Anthropic egress
+# (passthrough + translate). Cross-family drops:
+# anthropic.*.cache_control → OpenAI/Google (no illegal cache_control JSON)
+# openai.prompt_cache_key / prompt_cache_retention → Anthropic/Google
+# google.cachedContent → OpenAI/Anthropic
 
 # OpenAI stream options not rebuilt on non-OpenAI egress
 openai.stream_options
 
 # Vendor-specific metadata dropped cross-family
 openai.user
+openai.prompt_cache_key
+openai.prompt_cache_retention
+google.cachedContent

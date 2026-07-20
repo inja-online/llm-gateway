@@ -3,6 +3,7 @@ package anthropic
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/inja-online/llm-gateway/canonical"
 )
@@ -42,9 +43,10 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 
 	for _, t := range in.Tools {
 		req.Tools = append(req.Tools, canonical.Tool{
-			Name:        t.Name,
-			Description: t.Description,
-			Schema:      t.InputSchema,
+			Name:         t.Name,
+			Description:  t.Description,
+			Schema:       t.InputSchema,
+			CacheControl: toCanonicalCacheControl(t.CacheControl),
 		})
 	}
 	if in.ToolChoice != nil {
@@ -138,7 +140,11 @@ func parseSystem(raw json.RawMessage) ([]canonical.Block, error) {
 	var out []canonical.Block
 	for _, b := range blocks {
 		if b.Type == "text" {
-			out = append(out, canonical.Block{Type: canonical.BlockText, Text: b.Text})
+			out = append(out, canonical.Block{
+				Type:         canonical.BlockText,
+				Text:         b.Text,
+				CacheControl: toCanonicalCacheControl(b.CacheControl),
+			})
 		}
 	}
 	return out, nil
@@ -166,9 +172,10 @@ func parseContent(raw json.RawMessage) ([]canonical.Block, error) {
 }
 
 func parseBlock(b block) (canonical.Block, bool) {
+	cc := toCanonicalCacheControl(b.CacheControl)
 	switch b.Type {
 	case "text":
-		return canonical.Block{Type: canonical.BlockText, Text: b.Text}, true
+		return canonical.Block{Type: canonical.BlockText, Text: b.Text, CacheControl: cc}, true
 	case "image":
 		if b.Source == nil {
 			return canonical.Block{}, false
@@ -180,16 +187,16 @@ func parseBlock(b block) (canonical.Block, bool) {
 		} else {
 			img.Data = b.Source.URL
 		}
-		return canonical.Block{Type: canonical.BlockImage, Image: img}, true
+		return canonical.Block{Type: canonical.BlockImage, Image: img, CacheControl: cc}, true
 	case "document":
 		if b.Source == nil {
 			return canonical.Block{}, false
 		}
 		doc := documentFromSource(b.Source)
 		doc.Title = b.Title
-		return canonical.Block{Type: canonical.BlockDocument, Document: doc}, true
+		return canonical.Block{Type: canonical.BlockDocument, Document: doc, CacheControl: cc}, true
 	case "tool_use":
-		return canonical.Block{Type: canonical.BlockToolUse, ID: b.ID, Name: b.Name, Input: b.Input}, true
+		return canonical.Block{Type: canonical.BlockToolUse, ID: b.ID, Name: b.Name, Input: b.Input, CacheControl: cc}, true
 	case "tool_result":
 		result, resultBlocks := parseToolResultContent(b.Content)
 		return canonical.Block{
@@ -198,18 +205,45 @@ func parseBlock(b block) (canonical.Block, bool) {
 			Result:       result,
 			ResultBlocks: resultBlocks,
 			IsError:      b.IsError,
+			CacheControl: cc,
 		}, true
 	case "thinking":
-		return canonical.Block{Type: canonical.BlockThinking, Text: b.Thinking, Signature: b.Signature}, true
+		return canonical.Block{Type: canonical.BlockThinking, Text: b.Thinking, Signature: b.Signature, CacheControl: cc}, true
 	case "redacted_thinking":
 		// Preserve opaque data so multi-turn Claude thinking history stays valid.
 		return canonical.Block{
-			Type:     canonical.BlockThinking,
-			Text:     b.Data,
-			Redacted: true,
+			Type:         canonical.BlockThinking,
+			Text:         b.Data,
+			Redacted:     true,
+			CacheControl: cc,
 		}, true
 	}
 	return canonical.Block{}, false
+}
+
+func toCanonicalCacheControl(w *cacheControlWire) *canonical.CacheControl {
+	if w == nil || (w.Type == "" && len(w.TTL) == 0) {
+		return nil
+	}
+	cc := &canonical.CacheControl{Type: w.Type}
+	if len(w.TTL) > 0 && string(w.TTL) != "null" {
+		var s string
+		if json.Unmarshal(w.TTL, &s) == nil {
+			cc.TTL = s
+		} else {
+			var n json.Number
+			if json.Unmarshal(w.TTL, &n) == nil {
+				cc.TTL = n.String()
+			} else {
+				// Keep raw JSON as string for opaque forward.
+				cc.TTL = strings.Trim(string(w.TTL), `"`)
+			}
+		}
+	}
+	if cc.Type == "" && cc.TTL == "" {
+		return nil
+	}
+	return cc
 }
 
 func documentFromSource(src *imageSourceWire) *canonical.DocumentSource {
