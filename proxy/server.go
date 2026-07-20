@@ -69,6 +69,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/files/{id}/content", s.handleFilesContent)
 	mux.HandleFunc("DELETE /v1/files/{id}", s.handleFilesDelete)
 	mux.HandleFunc("POST /v1/moderations", s.handleModerations)
+	// Moonshot / Kimi helpers (openai_compat; regional base via provider).
+	mux.HandleFunc("POST /v1/tokenizers/estimate-token-count", s.handleMoonshotEstimateTokens)
+	mux.HandleFunc("GET /v1/users/me/balance", s.handleMoonshotBalance)
 	// Conversations API: intentional 501 stubs (stateless gateway; see README).
 	mux.HandleFunc("POST /v1/conversations", s.handleConversationsNotImplemented)
 	mux.HandleFunc("GET /v1/conversations", s.handleConversationsNotImplemented)
