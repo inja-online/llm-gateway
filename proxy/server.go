@@ -146,6 +146,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/conversations/{id}/{rest...}", s.handleConversationsNotImplemented)
 	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
+	// Google File Search stores (#132).
+	mux.HandleFunc("POST /v1beta/fileSearchStores", s.handleGoogleFileSearchStoresRoot)
+	mux.HandleFunc("GET /v1beta/fileSearchStores", s.handleGoogleFileSearchStoresRoot)
+	mux.HandleFunc("GET /v1beta/fileSearchStores/{id}", s.handleGoogleFileSearchStoresID)
+	mux.HandleFunc("DELETE /v1beta/fileSearchStores/{id}", s.handleGoogleFileSearchStoresID)
+	mux.HandleFunc("POST /v1beta/fileSearchStores/{id}/{rest...}", s.handleGoogleFileSearchStoresID)
+	mux.HandleFunc("GET /v1beta/fileSearchStores/{id}/{rest...}", s.handleGoogleFileSearchStoresID)
+	mux.HandleFunc("DELETE /v1beta/fileSearchStores/{id}/{rest...}", s.handleGoogleFileSearchStoresID)
 	mux.HandleFunc("GET /v1beta/models", s.handleGoogleModelsList)
 	// Single path param — Live WS (:bidiGenerateContent) vs model get.
 	mux.HandleFunc("GET /v1beta/models/{model}", s.handleGoogleModelOrLive)
