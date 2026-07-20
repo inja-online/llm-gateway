@@ -220,6 +220,9 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `POST` | `/v1/responses` | OpenAI Responses (stream SSE supported) |
 | `GET` / `DELETE` | `/v1/responses/{id}` | `?provider=` or default OpenAI dialect |
 | `POST` / `GET` / `DELETE` | `/v1/files…` | OpenAI Files **or** Anthropic Files when `anthropic-version` is set |
+| `POST` / `GET` / `DELETE` | `/v1/vector_stores…` | OpenAI Vector stores (upstream-owned) |
+| `POST` / `GET` | `/v1/uploads…` | OpenAI Uploads (multipart resume; upstream-owned) |
+| `POST` / `GET` / `DELETE` | `/v1/containers…` | OpenAI Containers (upstream-owned) |
 | `GET` | `/v1/files/{id}/content` | Streamed download |
 | `POST` / `GET` | `/v1/messages/batches…` | Anthropic Message Batches (`kind: anthropic` only) |
 | `POST` / `GET` | `/v1/batches…` | OpenAI Batches (`openai` / `openai_compat`; cancel via `POST …/cancel`) |
