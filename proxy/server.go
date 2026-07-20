@@ -64,6 +64,14 @@ func (s *Server) Handler() http.Handler {
 	// Anthropic Message Batches (upstream-owned; gateway does not store results).
 	// Anthropic Skills Management (#127).
 	// Anthropic MCP tunnels (#129).
+	// Anthropic agent memory stores (#130).
+	mux.HandleFunc("POST /v1/memory_stores", s.handleAnthropicMemoryStoresRoot)
+	mux.HandleFunc("GET /v1/memory_stores", s.handleAnthropicMemoryStoresRoot)
+	mux.HandleFunc("GET /v1/memory_stores/{id}", s.handleAnthropicMemoryStoresID)
+	mux.HandleFunc("DELETE /v1/memory_stores/{id}", s.handleAnthropicMemoryStoresID)
+	mux.HandleFunc("POST /v1/memory_stores/{id}/{rest...}", s.handleAnthropicMemoryStoresID)
+	mux.HandleFunc("GET /v1/memory_stores/{id}/{rest...}", s.handleAnthropicMemoryStoresID)
+	mux.HandleFunc("DELETE /v1/memory_stores/{id}/{rest...}", s.handleAnthropicMemoryStoresID)
 	mux.HandleFunc("POST /v1/tunnels", s.handleAnthropicTunnelsRoot)
 	mux.HandleFunc("GET /v1/tunnels", s.handleAnthropicTunnelsRoot)
 	mux.HandleFunc("GET /v1/tunnels/{id}", s.handleAnthropicTunnelsID)

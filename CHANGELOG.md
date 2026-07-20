@@ -43,6 +43,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **OpenAI platform:** Vector stores, Uploads, and Containers pure proxy ([#113](https://github.com/inja-online/llm-gateway/issues/113)).
 - **Anthropic Skills API** proxy: `/v1/skills` (+ versions nested) ([#127](https://github.com/inja-online/llm-gateway/issues/127)).
 - **Anthropic MCP tunnels** proxy: `/v1/tunnels` ([#129](https://github.com/inja-online/llm-gateway/issues/129)).
+- **Anthropic memory stores** proxy: `/v1/memory_stores` ([#130](https://github.com/inja-online/llm-gateway/issues/130)).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).
