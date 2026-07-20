@@ -8,6 +8,48 @@ import (
 // Hermetic snippets lock operator docs for regional openai_compat providers
 // (docs/providers/*.md + gateway.example.yaml). No network.
 
+func TestGroqSTTFirstSnippetParse(t *testing.T) {
+	t.Parallel()
+	yaml := `
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+  groq:
+    kind: openai_compat
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: GROQ_API_KEY
+    capabilities:
+      text: true
+      audio_transcribe: true
+      audio_speech: false
+defaults:
+  openai_dialect: openai
+aliases:
+  whisper-fast: groq/whisper-large-v3
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Defaults.OpenAIDialect != "openai" {
+		t.Fatalf("chat default should stay openai, got %q", cfg.Defaults.OpenAIDialect)
+	}
+	g, ok := cfg.Providers["groq"]
+	if !ok || g.Kind != KindOpenAICompat {
+		t.Fatalf("groq: %+v ok=%v", g, ok)
+	}
+	if !g.Supports(ModalityAudioTranscribe) {
+		t.Fatal("groq must support audio_transcribe for STT-first pattern")
+	}
+	if g.Supports(ModalityAudioSpeech) {
+		t.Fatal("sample disables audio_speech")
+	}
+	if cfg.Aliases["whisper-fast"] != "groq/whisper-large-v3" {
+		t.Fatalf("alias whisper-fast=%q", cfg.Aliases["whisper-fast"])
+	}
+}
+
 func TestXAISnippetCapabilitiesAndAliasParse(t *testing.T) {
 	t.Parallel()
 	yaml := `

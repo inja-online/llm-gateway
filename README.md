@@ -403,6 +403,7 @@ Full comments: [`gateway.example.yaml`](gateway.example.yaml). Matrices: [docs/c
 | **Z.AI / Zhipu (GLM)** | `openai_compat` | **Regional bases** (intl vs CN) — [docs/providers/zai.md](docs/providers/zai.md); wrong region ⇒ auth fail |
 | **Qwen (DashScope)** | `openai_compat` | **Regional bases** + `compatible-mode` path — [docs/providers/qwen.md](docs/providers/qwen.md); aliases `qwen-turbo` / `qwen-plus` |
 | **xAI (Grok)** | `openai_compat` | Chat + Responses; Imagine images need `image_gen` — [docs/providers/xai.md](docs/providers/xai.md); alias `grok` |
+| **Groq** | `openai_compat` | **STT-first** split routing — [docs/providers/groq-stt.md](docs/providers/groq-stt.md); `audio_transcribe` + alias `whisper-fast` |
 | **Moonshot helpers** | — | Token-estimate / balance: tracked in [#89](https://github.com/inja-online/llm-gateway/issues/89) / [#137](https://github.com/inja-online/llm-gateway/issues/137) (not shipped yet; call vendor base until then) |
 | **Vertex** | `google` + `auth: adc` | Inject TokenSource in library mode; no Google SDK bundled |
 

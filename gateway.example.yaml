@@ -135,16 +135,17 @@ providers:
   #   # api_key_env: ZAI_API_KEY
   # openai_compat media defaults off (text only) unless capabilities set.
 
-  # Groq — fast openai_compat. Chat and STT:
-  # set capabilities.audio_transcribe: true and call models as groq/<whisper-model>.
-  # Keep chat on another provider via defaults.openai_dialect while STT uses groq/.
+  # Groq — fast openai_compat. STT-first multi-provider pattern:
+  # set capabilities.audio_transcribe: true and call models as groq/<whisper-model>
+  # (or alias whisper-fast). Keep chat on defaults.openai_dialect (e.g. openai).
+  # Full guide: docs/providers/groq-stt.md (updated 2026-07-21). console.groq.com/docs — 2026-07.
   groq:
     kind: openai_compat
     base_url: "https://api.groq.com/openai/v1"
     # api_key_env: GROQ_API_KEY
     # capabilities:
     #   text: true
-    #   audio_transcribe: true
+    #   audio_transcribe: true   # required for /v1/audio/transcriptions|translations
     #   audio_speech: false
 
   together:
@@ -222,7 +223,8 @@ aliases:
   kimi: moonshot/kimi-latest
   qwen-turbo: qwen/qwen-turbo
   qwen-plus: qwen/qwen-plus
-  # whisper-fast: groq/whisper-large-v3  # STT when audio_transcribe routes exist
+  # STT-first: enable after capabilities.audio_transcribe: true on groq (see docs/providers/groq-stt.md)
+  whisper-fast: groq/whisper-large-v3
 
 # Optional edge auth (off by default). When enabled, every route except GET /healthz
 # requires Authorization: Bearer <key> or x-api-key matching keys / keys_env.
