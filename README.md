@@ -219,6 +219,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `POST` / `GET` / `DELETE` | `/v1/files…` | OpenAI Files **or** Anthropic Files when `anthropic-version` is set |
 | `GET` | `/v1/files/{id}/content` | Streamed download |
 | `POST` / `GET` | `/v1/messages/batches…` | Anthropic Message Batches (`kind: anthropic` only) |
+| `POST` / `GET` | `/v1/batches…` | OpenAI Batches (`openai` / `openai_compat`; cancel via `POST …/cancel`) |
 | `POST` | `/v1/moderations` | OpenAI-family passthrough |
 | `POST` | `/v1/tokenizers/estimate-token-count` | Moonshot helper (openai_compat; `?provider=` / default) |
 | `GET` | `/v1/users/me/balance` | Moonshot balance helper (openai_compat) |

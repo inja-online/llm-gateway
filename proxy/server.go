@@ -57,6 +57,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/messages/batches/{id}", s.handleBatchesGet)
 	mux.HandleFunc("POST /v1/messages/batches/{id}/cancel", s.handleBatchesCancel)
 	mux.HandleFunc("GET /v1/messages/batches/{id}/results", s.handleBatchesResults)
+	// OpenAI Batches API (openai / openai_compat; upstream-owned).
+	mux.HandleFunc("POST /v1/batches", s.handleOpenAIBatchesCreate)
+	mux.HandleFunc("GET /v1/batches", s.handleOpenAIBatchesList)
+	mux.HandleFunc("GET /v1/batches/{id}", s.handleOpenAIBatchesGet)
+	mux.HandleFunc("POST /v1/batches/{id}/cancel", s.handleOpenAIBatchesCancel)
 	mux.HandleFunc("GET /v1/models", s.handleModelsList)
 	mux.HandleFunc("GET /v1/models/{id...}", s.handleModelsGet)
 	mux.HandleFunc("POST /v1/embeddings", s.handleEmbeddings)
