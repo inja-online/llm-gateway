@@ -8,6 +8,44 @@ import (
 // Hermetic snippets lock operator docs for regional openai_compat providers
 // (docs/providers/*.md + gateway.example.yaml). No network.
 
+func TestXAISnippetCapabilitiesAndAliasParse(t *testing.T) {
+	t.Parallel()
+	yaml := `
+providers:
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    api_key_env: XAI_API_KEY
+    capabilities:
+      text: true
+      image_gen: true
+defaults:
+  openai_dialect: xai
+aliases:
+  grok: xai/grok-3
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := cfg.Providers["xai"]
+	if !ok || p.Kind != KindOpenAICompat {
+		t.Fatalf("xai: %+v ok=%v", p, ok)
+	}
+	if p.BaseURL != "https://api.x.ai/v1" {
+		t.Fatalf("base_url=%q", p.BaseURL)
+	}
+	if p.Capabilities == nil || !p.Capabilities.ImageGen {
+		t.Fatalf("image_gen should be true for Imagine docs sample: %+v", p.Capabilities)
+	}
+	if !p.Supports(ModalityImageGen) {
+		t.Fatal("Supports(xai, image_gen) = false")
+	}
+	if cfg.Aliases["grok"] != "xai/grok-3" {
+		t.Fatalf("alias grok=%q", cfg.Aliases["grok"])
+	}
+}
+
 func TestQwenRegionalSnippetsAndAliasesParse(t *testing.T) {
 	t.Parallel()
 	yaml := `

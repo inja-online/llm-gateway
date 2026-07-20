@@ -1,0 +1,122 @@
+# xAI (Grok) via the gateway
+
+**Last updated:** 2026-07-21  
+**Issue:** [#91](https://github.com/inja-online/llm-gateway/issues/91)  
+**Kind:** `openai_compat` · base `https://api.x.ai/v1`
+
+xAI speaks an **OpenAI-compatible** wire for chat and several agent/media surfaces. Through this gateway you get model rewrite, auth, metering, and optional capability gates — **not** an xAI-specific dialect.
+
+## Official surface (date-stamped)
+
+| Area | Upstream (typical) | Via gateway | Notes |
+|---|---|---|---|
+| Chat Completions | `POST /v1/chat/completions` | `POST /v1/chat/completions` | Always available for `openai_compat` text |
+| Responses | `POST /v1/responses` (+ get/delete) | Same paths | OpenAI-family Responses proxy; confirm host support for your model |
+| Images (Imagine) | OpenAI-shaped image routes | `POST /v1/images/generations` (+ edits/variations as supported) | Requires `capabilities.image_gen: true` |
+| Video / voice extras | Vendor-specific | Gateway media routes when opt-in | Confirm in [xAI docs](https://docs.x.ai/) — checked **2026-07**; not every Imagine/voice path is guaranteed on every plan |
+
+Vendor docs: [https://docs.x.ai/](https://docs.x.ai/) (API reference / models) — re-check if paths change.
+
+## Config
+
+```yaml
+providers:
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    api_key_env: XAI_API_KEY
+    capabilities:
+      text: true
+      image_gen: true          # Imagine-style OpenAI image routes
+      # video_gen: true        # only if your account + host expose video
+      # audio_speech: true
+      # realtime: true         # only if xAI realtime is available to you
+
+defaults:
+  openai_dialect: openai     # or xai if bare model ids should hit xAI
+
+aliases:
+  grok: xai/grok-3           # example — pick a model id your key can call
+```
+
+### Required capabilities
+
+| Route family | Capability flag |
+|---|---|
+| Chat / Responses (text) | `text` (default **on** for `openai_compat`) |
+| Images | `image_gen` (**off** by default for `openai_compat`) |
+| Video | `video_gen` (off by default) |
+| TTS / STT | `audio_speech` / `audio_transcribe` (off by default) |
+| Realtime WS | `realtime` (off by default) |
+
+Fail-closed: opt-in modalities return a dialect-shaped error when the flag is false — no upstream call.
+
+## Curl / SDK samples
+
+### Chat
+
+```bash
+export XAI_API_KEY=...
+
+curl -s http://localhost:8787/v1/chat/completions \
+  -H "Authorization: Bearer $XAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "xai/grok-3",
+    "messages": [{"role": "user", "content": "ping"}]
+  }'
+```
+
+### Responses
+
+```bash
+curl -s http://localhost:8787/v1/responses \
+  -H "Authorization: Bearer $XAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "xai/grok-3",
+    "input": "Summarize: hello from the gateway"
+  }'
+```
+
+### Imagine-style image generation
+
+Requires `capabilities.image_gen: true` on the `xai` provider:
+
+```bash
+curl -s http://localhost:8787/v1/images/generations \
+  -H "Authorization: Bearer $XAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "xai/grok-imagine-image",
+    "prompt": "a red cube on a table",
+    "n": 1
+  }'
+```
+
+Use the **exact model id** from xAI’s catalog for your account (names change). Prefer `xai/<model>` or the `grok` alias.
+
+### Python (OpenAI SDK)
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8787/v1", api_key="...")
+print(client.chat.completions.create(
+    model="xai/grok-3",
+    messages=[{"role": "user", "content": "ping"}],
+))
+# Responses / images use the same base_url when capabilities allow.
+```
+
+## Checklist
+
+- [x] `base_url`, models, aliases documented
+- [x] Required `capabilities` for media/Responses usage called out
+- [x] Curl + SDK samples
+
+## Related
+
+- [`gateway.example.yaml`](../../gateway.example.yaml) — `xai` + `aliases.grok`
+- [Compatibility matrix](../compatibility-matrix.md) — image **P (opt)** for `openai_compat`
+- README HTTP API — Responses + images tables
