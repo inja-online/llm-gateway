@@ -78,6 +78,7 @@ Follow the capability-centric checklist below (and the modality matrix in `proxy
 - Logging bodies, multipart filenames as secrets, or raw keys
 - Half-bridging realtime protocols without explicit drop lists / errors
 - Silent capability allow when `openai_compat` defaults media off
+- **Gateway-persisted Conversations / threads** — `/v1/conversations*` stays **501** (Option A); see [docs/conversations-decision.md](docs/conversations-decision.md). Prefer Responses + client state / Files.
 
 ### Example issue themes
 

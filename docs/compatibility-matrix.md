@@ -61,7 +61,7 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 | Ingress | Route | All provider kinds |
 |---|---|---|
-| OpenAI | `/v1/conversations*` (nested included) | **U** — HTTP **501** `not_implemented` (stateless; no gateway store). Prefer Responses + client state / Files. See README. |
+| OpenAI | `/v1/conversations*` (nested included) | **U** — HTTP **501** `not_implemented` (stateless; no gateway store). Prefer Responses + client state / Files. Decision: [conversations-decision.md](conversations-decision.md) (Option A). |
 
 ## Realtime (WebSocket)
 

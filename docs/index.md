@@ -52,6 +52,7 @@ Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway:
 | [Qwen / DashScope regions](providers/qwen.md) | CN vs intl + `compatible-mode` + aliases |
 | [xAI Grok / Imagine](providers/xai.md) | Chat, Responses, image capabilities, samples |
 | [Groq STT-first](providers/groq-stt.md) | Split chat + STT providers, curl samples |
+| [Conversations decision](conversations-decision.md) | Option A permanent 501 (no gateway store) |
 | [Security (multipart)](security-multipart-review.md) | Size limits, SSRF posture, logging |
 | [Contributing](contributing.md) | Modality checklist |
 | [Changelog](changelog.md) | Release history |
