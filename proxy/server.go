@@ -51,6 +51,11 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
+	// Stored Chat Completions (store=true) resource API — openai family only.
+	mux.HandleFunc("GET /v1/chat/completions", s.handleChatCompletionsList)
+	mux.HandleFunc("GET /v1/chat/completions/{id}", s.handleChatCompletionsGet)
+	mux.HandleFunc("POST /v1/chat/completions/{id}", s.handleChatCompletionsUpdate)
+	mux.HandleFunc("DELETE /v1/chat/completions/{id}", s.handleChatCompletionsDelete)
 	// Experimental: OpenAI Completions + DeepSeek FIM (prefix/suffix). See README.
 	mux.HandleFunc("POST /v1/completions", s.handleCompletions)
 	mux.HandleFunc("POST /beta/completions", s.handleCompletions)
