@@ -28,6 +28,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 ### Added
 
 - **Fidelity:** OpenAI `service_tier` request + `system_fingerprint` / response `service_tier` passthrough; never invent on Anthropic/Google translate ([#51](https://github.com/inja-online/llm-gateway/issues/51)); [docs/service-tier-fingerprint.md](docs/service-tier-fingerprint.md).
+- **Policy:** Non-function OpenAI tools **error** on translation path; passthrough still forwards wire tools ([#49](https://github.com/inja-online/llm-gateway/issues/49)); [docs/tools-policy.md](docs/tools-policy.md).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).
