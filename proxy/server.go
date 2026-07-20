@@ -106,6 +106,8 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+	// Optional upstream probes (health_checks.enabled); not process liveness.
+	mux.HandleFunc("GET /v1/health/providers", s.handleProviderHealth)
 	return s.withEdgeAuth(mux)
 }
 

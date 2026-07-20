@@ -206,6 +206,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `GET` | `/v1beta/models` | Gemini models list passthrough (`?provider=` or `defaults.google_dialect`) |
 | `GET` | `/v1beta/models/{model}` | Gemini model get / Live upgrade when `:bidiGenerateContent` |
 | `GET` | `/healthz` | `{"status":"ok"}` — process liveness only |
+| `GET` | `/v1/health/providers` | Optional upstream probes when `health_checks.enabled` (default off) |
 
 ### Embeddings, Responses, Files, Batches
 
@@ -358,6 +359,8 @@ Single YAML file. Unknown fields are rejected.
 | `aliases` | no | Public id → `provider/upstream-model` |
 | `max_body_bytes` | no | Default `33554432` (32 MiB) |
 | `observe_dropped_fields` | no | Default `false`. When `true`, translate responses set `X-Gateway-Dropped-Fields` (names only) and usage `dropped_fields` |
+| `health_checks.enabled` | no | Default `false`. Enables `GET /v1/health/providers` upstream probes |
+| `health_checks.timeout` | no | Per-provider probe timeout (default `2s`) |
 | `edge_auth` | no | Optional shared-secret gate (see Auth) |
 | `realtime.*` | no | Session caps |
 | `hooks.jsonl` / `hooks.webhook` | no | Usage sinks |

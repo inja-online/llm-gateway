@@ -34,6 +34,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Moonshot helpers:** `POST /v1/tokenizers/estimate-token-count` and `GET /v1/users/me/balance` thin openai_compat proxy ([#89](https://github.com/inja-online/llm-gateway/issues/89), [#137](https://github.com/inja-online/llm-gateway/issues/137)).
 - **Docs:** DeepSeek experimental Completions/FIM operator guide ([#90](https://github.com/inja-online/llm-gateway/issues/90)); [docs/providers/deepseek-fim.md](docs/providers/deepseek-fim.md).
 - **OpenAI Batches API** proxy: `POST/GET /v1/batches`, `GET …/{id}`, `POST …/{id}/cancel` for openai/openai_compat ([#109](https://github.com/inja-online/llm-gateway/issues/109)).
+- **Ops:** optional `GET /v1/health/providers` when `health_checks.enabled` (timeouts, no key logging) ([#94](https://github.com/inja-online/llm-gateway/issues/94), [#153](https://github.com/inja-online/llm-gateway/issues/153)).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).

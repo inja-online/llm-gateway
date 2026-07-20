@@ -220,6 +220,12 @@ defaults:
 # (names only) and usage events get dropped_fields. Default off (#152).
 # observe_dropped_fields: true
 
+# Optional upstream provider probes (GET /v1/health/providers). Default off.
+# Distinct from GET /healthz process liveness. Never logs API keys (#94/#153).
+# health_checks:
+#   enabled: true
+#   timeout: 2s
+
 aliases:
   fast: deepseek/deepseek-chat
   grok: xai/grok-3
