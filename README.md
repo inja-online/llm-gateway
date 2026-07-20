@@ -256,9 +256,25 @@ Same-protocol passthrough only. Cross-protocol Realtime↔Live attempts return *
 
 Not multi-dialect translated. Prefer chat for normal use.
 
-### Conversations (stub)
+### Conversations (not supported)
 
-`/v1/conversations*` returns **501** OpenAI-shaped `not_implemented`. Prefer **Responses** + client-side state / Files. Gateway stays stateless.
+`/v1/conversations*` (including nested paths such as `/{id}/items`) returns HTTP **501** with an OpenAI-shaped error:
+
+| Field | Value |
+|---|---|
+| status | **501** |
+| `error.type` / code | `not_implemented` |
+| guidance | Prefer **`POST /v1/responses`** with **client-side** conversation/history state; use **Files** for durable assets |
+
+**Decision:** permanent skip of gateway-side conversation storage (stateless). Routes are registered so SDKs get a structured 501 instead of a bare 404. Do **not** add a gateway database or Redis thread store.
+
+Alternatives:
+
+1. `POST /v1/responses` (+ get/delete by id on upstream when supported)
+2. Client-owned message history on subsequent chat/Responses calls
+3. Files / vector-store workstreams for stored assets (upstream-owned)
+
+Formal product decision (Option A permanent 501 vs pure upstream proxy): issue [#118](https://github.com/inja-online/llm-gateway/issues/118).
 
 ### Dialect pairing (chat)
 

@@ -57,6 +57,12 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 **Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` (or alias `whisper-fast`) while leaving `defaults.openai_dialect` on another chat provider. Full guide: [providers/groq-stt.md](providers/groq-stt.md).
 
+## Conversations (OpenAI stateful threads)
+
+| Ingress | Route | All provider kinds |
+|---|---|---|
+| OpenAI | `/v1/conversations*` (nested included) | **U** — HTTP **501** `not_implemented` (stateless; no gateway store). Prefer Responses + client state / Files. See README. |
+
 ## Realtime (WebSocket)
 
 | Ingress | `openai` | `openai_compat` | `anthropic` | `google` |

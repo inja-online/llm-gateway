@@ -35,6 +35,7 @@ defaults:
 		{http.MethodDelete, "/v1/conversations/conv_123"},
 		{http.MethodGet, "/v1/conversations/conv_123/items"},
 		{http.MethodPost, "/v1/conversations/conv_123/items"},
+		{http.MethodDelete, "/v1/conversations/conv_123/items/item_1"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
@@ -55,6 +56,7 @@ defaults:
 				Error struct {
 					Message string `json:"message"`
 					Type    string `json:"type"`
+					Code    string `json:"code"`
 				} `json:"error"`
 			}
 			if err := json.Unmarshal(body, &envelope); err != nil {
@@ -63,12 +65,35 @@ defaults:
 			if envelope.Error.Type != "not_implemented" {
 				t.Fatalf("type = %q want not_implemented", envelope.Error.Type)
 			}
-			if !strings.Contains(envelope.Error.Message, "Conversations") {
-				t.Fatalf("message missing Conversations: %q", envelope.Error.Message)
+			// Code may mirror type depending on writeOpenAIError; accept either.
+			msg := envelope.Error.Message
+			if !strings.Contains(msg, "Conversations") {
+				t.Fatalf("message missing Conversations: %q", msg)
 			}
-			if !strings.Contains(envelope.Error.Message, "/v1/responses") {
-				t.Fatalf("message should point to Responses: %q", envelope.Error.Message)
+			if !strings.Contains(msg, "/v1/responses") {
+				t.Fatalf("message should point to Responses: %q", msg)
+			}
+			if !strings.Contains(strings.ToLower(msg), "files") {
+				t.Fatalf("message should mention Files alternative: %q", msg)
+			}
+			if !strings.Contains(strings.ToLower(msg), "stateless") {
+				t.Fatalf("message should mention stateless: %q", msg)
 			}
 		})
+	}
+}
+
+func TestConversationsMessageStableGuidance(t *testing.T) {
+	// Lock migration keywords so clients/string-matchers keep working (#67).
+	for _, needle := range []string{
+		"not implemented",
+		"/v1/responses",
+		"Files",
+		"stateless",
+	} {
+		if !strings.Contains(conversationsNotImplementedMsg, needle) &&
+			!strings.Contains(strings.ToLower(conversationsNotImplementedMsg), strings.ToLower(needle)) {
+			t.Fatalf("conversationsNotImplementedMsg missing %q: %s", needle, conversationsNotImplementedMsg)
+		}
 	}
 }
