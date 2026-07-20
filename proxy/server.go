@@ -62,6 +62,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 	mux.HandleFunc("POST /v1/messages/count_tokens", s.handleCountTokens)
 	// Anthropic Message Batches (upstream-owned; gateway does not store results).
+	// Anthropic Skills Management (#127).
+	mux.HandleFunc("POST /v1/skills", s.handleAnthropicSkillsRoot)
+	mux.HandleFunc("GET /v1/skills", s.handleAnthropicSkillsRoot)
+	mux.HandleFunc("GET /v1/skills/{id}", s.handleAnthropicSkillsID)
+	mux.HandleFunc("DELETE /v1/skills/{id}", s.handleAnthropicSkillsID)
+	mux.HandleFunc("POST /v1/skills/{id}/{rest...}", s.handleAnthropicSkillsID)
+	mux.HandleFunc("GET /v1/skills/{id}/{rest...}", s.handleAnthropicSkillsID)
+	mux.HandleFunc("DELETE /v1/skills/{id}/{rest...}", s.handleAnthropicSkillsID)
 	mux.HandleFunc("POST /v1/messages/batches", s.handleBatchesCreate)
 	mux.HandleFunc("GET /v1/messages/batches", s.handleBatchesList)
 	mux.HandleFunc("GET /v1/messages/batches/{id}", s.handleBatchesGet)
