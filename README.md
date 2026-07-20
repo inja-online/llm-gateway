@@ -433,7 +433,7 @@ Client dialect matches provider kind → near-verbatim proxy: model rewrite, aut
 
 ### Translation (cross family)
 
-Client and upstream disagree → parse to **canonical IR**, rebuild wire, stream map. Chat fidelity includes tools, structured outputs, thinking/reasoning, sampling knobs, document/audio blocks where mapped. Some vendor-only fields are still dropped — see [docs/deprecation-policy.md](docs/deprecation-policy.md) and `testdata/fixtures/chat_translate/drops/`.
+Client and upstream disagree → parse to **canonical IR**, rebuild wire, stream map. Chat fidelity includes tools, structured outputs, thinking/reasoning, sampling knobs, document/audio blocks where mapped. Some vendor-only fields are still dropped — see [docs/deprecation-policy.md](docs/deprecation-policy.md) (passthrough **never** drops; translation drop lists + semver) and `testdata/fixtures/chat_translate/drops/`.
 
 **Not** multi-dialect translated: Completions/FIM, most media jobs (family passthrough + limited speech translate), Files, Batches.
 
