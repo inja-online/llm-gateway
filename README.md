@@ -201,8 +201,8 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/v1/models` | Config-derived catalog + `capabilities` flags |
-| `GET` | `/v1/models/{id}` | Single entry (`provider/model` ids supported) |
+| `GET` | `/v1/models` | Config-derived catalog + `capabilities`; live Anthropic when `anthropic-version` or `?live=1` |
+| `GET` | `/v1/models/{id}` | Single entry (`provider/model` ids); live Anthropic with same triggers |
 | `GET` | `/v1beta/models` | Gemini models list passthrough (`?provider=` or `defaults.google_dialect`) |
 | `GET` | `/v1beta/models/{model}` | Gemini model get / Live upgrade when `:bidiGenerateContent` |
 | `GET` | `/healthz` | `{"status":"ok"}` — process liveness only |
