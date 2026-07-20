@@ -135,6 +135,11 @@ func (s *Server) Handler() http.Handler {
 	// Moonshot / Kimi helpers (openai_compat; regional base via provider).
 	mux.HandleFunc("POST /v1/tokenizers/estimate-token-count", s.handleMoonshotEstimateTokens)
 	mux.HandleFunc("GET /v1/users/me/balance", s.handleMoonshotBalance)
+	// OpenRouter helpers (#139).
+	mux.HandleFunc("GET /v1/credits", s.handleOpenRouterCredits)
+	mux.HandleFunc("GET /v1/key", s.handleOpenRouterKey)
+	mux.HandleFunc("GET /v1/generation", s.handleOpenRouterGeneration)
+
 	// Conversations API: intentional 501 stubs (stateless gateway; see README).
 	mux.HandleFunc("POST /v1/conversations", s.handleConversationsNotImplemented)
 	mux.HandleFunc("GET /v1/conversations", s.handleConversationsNotImplemented)
