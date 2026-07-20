@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -113,9 +114,15 @@ func buildModelsCatalog(cfg *config.Config) []modelEntry {
 	return out
 }
 
-// handleModelsList serves GET /v1/models — OpenAI list envelope from config.
-// No usage event (discovery only).
-func (s *Server) handleModelsList(w http.ResponseWriter, _ *http.Request) {
+// handleModelsList serves GET /v1/models.
+// Default: OpenAI list envelope from config (no network).
+// Live Anthropic: when anthropic-version is set OR ?live=1 with an anthropic
+// provider, proxy GET {base}/models (#126). No usage event (discovery only).
+func (s *Server) handleModelsList(w http.ResponseWriter, r *http.Request) {
+	if s.wantAnthropicLiveModels(r) {
+		s.proxyAnthropicModels(w, r, "/models")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"object": "list",
 		"data":   buildModelsCatalog(s.cfg),
@@ -124,9 +131,19 @@ func (s *Server) handleModelsList(w http.ResponseWriter, _ *http.Request) {
 
 // handleModelsGet serves GET /v1/models/{id} — single model or OpenAI 404.
 // {id...} allows slash-containing public ids (provider/model).
+// Live Anthropic path: proxy GET {base}/models/{id} when anthropic-version or ?live=1.
 // No usage event (discovery only).
 func (s *Server) handleModelsGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if s.wantAnthropicLiveModels(r) {
+		// Strip provider/ prefix for bare upstream model ids when present.
+		upID := id
+		if _, rest, ok := strings.Cut(id, "/"); ok && rest != "" {
+			upID = rest
+		}
+		s.proxyAnthropicModels(w, r, "/models/"+upID)
+		return
+	}
 	for _, m := range buildModelsCatalog(s.cfg) {
 		if m.ID == id {
 			writeJSON(w, http.StatusOK, m)
@@ -135,4 +152,56 @@ func (s *Server) handleModelsGet(w http.ResponseWriter, r *http.Request) {
 	}
 	writeOpenAIError(w, http.StatusNotFound, "invalid_request_error",
 		"The model '"+id+"' does not exist")
+}
+
+func (s *Server) wantAnthropicLiveModels(r *http.Request) bool {
+	if r.Header.Get("anthropic-version") != "" {
+		return true
+	}
+	return r.URL.Query().Get("live") == "1" || strings.EqualFold(r.URL.Query().Get("live"), "true")
+}
+
+// proxyAnthropicModels forwards discovery to a kind:anthropic provider.
+func (s *Server) proxyAnthropicModels(w http.ResponseWriter, r *http.Request, path string) {
+	route, err := s.resolveAnthropicProvider(r)
+	if err != nil {
+		// OpenAI-shaped when no anthropic-version; Anthropic-shaped when present.
+		if r.Header.Get("anthropic-version") != "" {
+			writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
+		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	key := clientKey(r)
+	if k, msg := s.resolveUpstreamKey(r, route.ProviderName, route.Provider); msg == "" && k != "" {
+		key = k
+	} else if msg != "" && key == "" {
+		writeOpenAIError(w, http.StatusBadGateway, "api_error", msg)
+		return
+	}
+	upReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, route.Provider.BaseURL+path+stripProviderQuery(r), nil)
+	if err != nil {
+		writeOpenAIError(w, http.StatusBadGateway, "api_error", "failed to build upstream request")
+		return
+	}
+	applyAuth(upReq, route.Provider, key)
+	copyForwardHeaders(upReq, r)
+	resp, err := s.client.Do(upReq)
+	if err != nil {
+		writeOpenAIError(w, http.StatusBadGateway, "api_error", "upstream request failed")
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, s.bodyLimit()))
+	if err != nil {
+		writeOpenAIError(w, http.StatusBadGateway, "api_error", "failed to read upstream response")
+		return
+	}
+	copyAllowlistedResponseHeaders(w.Header(), resp.Header)
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(body)
 }
