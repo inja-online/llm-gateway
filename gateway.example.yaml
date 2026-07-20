@@ -216,6 +216,10 @@ defaults:
   anthropic_dialect: anthropic
   google_dialect: google
 
+# When true, cross-dialect translate responses include X-Gateway-Dropped-Fields
+# (names only) and usage events get dropped_fields. Default off (#152).
+# observe_dropped_fields: true
+
 aliases:
   fast: deepseek/deepseek-chat
   grok: xai/grok-3

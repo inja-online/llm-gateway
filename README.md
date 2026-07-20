@@ -354,6 +354,7 @@ Single YAML file. Unknown fields are rejected.
 | `defaults.google_dialect` | no | Bare models on Gemini ingress |
 | `aliases` | no | Public id → `provider/upstream-model` |
 | `max_body_bytes` | no | Default `33554432` (32 MiB) |
+| `observe_dropped_fields` | no | Default `false`. When `true`, translate responses set `X-Gateway-Dropped-Fields` (names only) and usage `dropped_fields` |
 | `edge_auth` | no | Optional shared-secret gate (see Auth) |
 | `realtime.*` | no | Session caps |
 | `hooks.jsonl` / `hooks.webhook` | no | Usage sinks |

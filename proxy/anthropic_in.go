@@ -122,6 +122,7 @@ func (s *Server) anthropicToOpenAI(x *exchange, route Route, body []byte) {
 		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
+	x.noteDroppedFields(anthropicTranslateDrops(body))
 	upstreamBody, err := openaiegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
 		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)

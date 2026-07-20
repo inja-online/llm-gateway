@@ -11,8 +11,8 @@ This document defines how **Inja LLM Gateway** handles removed features and **fi
 | Criterion | Status |
 |---|---|
 | Passthrough never drops request/response JSON fields (except documented model rewrite / stream usage injection) | **Policy + tests** |
-| Decision on HTTP `Warning` vs `x-gateway-dropped-fields` | **Decided** (see below) |
-| Metrics / hooks for drops | **Optional / not in v1** |
+| Decision on HTTP `Warning` vs `x-gateway-dropped-fields` | **Decided** (Warning unused; header opt-in) |
+| Metrics / hooks for drops | **Opt-in** `observe_dropped_fields` + usage `dropped_fields` |
 | Semver rules when drop behavior changes | **Documented** |
 
 ## Passthrough vs translation
@@ -49,16 +49,22 @@ Thinking / tool / multimodal blocks that *are* mapped are listed in the README �
 | Mechanism | Status |
 |---|---|
 | HTTP `Warning` header | **Not used** (ambiguous, often stripped by intermediaries) |
-| Custom `x-gateway-dropped-fields` | **Not implemented in v1** — reserved for a future optional opt-in ([#152](https://github.com/inja-online/llm-gateway/issues/152)) |
-| Hooks / metrics counters for drops | **Not implemented in v1**; prefer tests + changelog. Optional metrics exporter is separate product work. |
+| Custom `x-gateway-dropped-fields` | **Optional opt-in** via `observe_dropped_fields: true` ([#152](https://github.com/inja-online/llm-gateway/issues/152)) |
+| Hooks / usage `dropped_fields` | Same opt-in; names only on the usage event. Prometheus counters still separate (#154). |
 
-**Rationale:** translation drop lists are stable and tested; spamming large headers with field names on every request is costly and rarely consumed by SDKs. If product needs runtime observability later, add opt-in `x-gateway-dropped-fields: field1,field2` (names only, never payloads) behind config, **MINOR** release.
+**Rationale:** translation drop lists are stable and tested; headers are **off by default** so SDKs are not spammed. Enable only when operators want runtime visibility.
 
-Until then:
+When `observe_dropped_fields: true`:
+
+1. Response header `X-Gateway-Dropped-Fields: openai.logprobs,openai.service_tier,…` (names only, never payloads).
+2. Usage event field `dropped_fields` mirrors the same names.
+3. Passthrough paths set **no** header (they do not drop).
+
+Also:
 
 1. Keep **explicit drop-list tests** next to translators (`common_drops.txt` + goldens).
 2. Document behavioral changes in `CHANGELOG.md`.
-3. Prefer fail-closed errors for **unsupported tool types / modalities** over silent skip when fidelity matters (policy may evolve per modality).
+3. Prefer fail-closed errors for **unsupported tool types / modalities** over silent skip when fidelity matters.
 
 ## Media / realtime
 

@@ -17,6 +17,7 @@ aliases:
   best: anthropic/claude-sonnet-5
 hooks:
   jsonl: { output: stdout }
+observe_dropped_fields: true
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -26,6 +27,9 @@ hooks:
 	}
 	if cfg.Providers["anthropic"].BaseURL != "https://api.anthropic.com" {
 		t.Errorf("trailing slash not trimmed: %q", cfg.Providers["anthropic"].BaseURL)
+	}
+	if !cfg.ObserveDroppedFields {
+		t.Error("observe_dropped_fields want true")
 	}
 }
 
