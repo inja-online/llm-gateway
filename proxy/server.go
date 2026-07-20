@@ -147,6 +147,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
 	// Google File Search stores (#132).
+	// Google Tuned models (#133).
+	mux.HandleFunc("POST /v1beta/tunedModels", s.handleGoogleTunedModelsRoot)
+	mux.HandleFunc("GET /v1beta/tunedModels", s.handleGoogleTunedModelsRoot)
+	mux.HandleFunc("GET /v1beta/tunedModels/{id}", s.handleGoogleTunedModelsID)
+	mux.HandleFunc("PATCH /v1beta/tunedModels/{id}", s.handleGoogleTunedModelsID)
+	mux.HandleFunc("DELETE /v1beta/tunedModels/{id}", s.handleGoogleTunedModelsID)
+	mux.HandleFunc("POST /v1beta/tunedModels/{id}/{rest...}", s.handleGoogleTunedModelsID)
+	mux.HandleFunc("GET /v1beta/tunedModels/{id}/{rest...}", s.handleGoogleTunedModelsID)
 	mux.HandleFunc("POST /v1beta/fileSearchStores", s.handleGoogleFileSearchStoresRoot)
 	mux.HandleFunc("GET /v1beta/fileSearchStores", s.handleGoogleFileSearchStoresRoot)
 	mux.HandleFunc("GET /v1beta/fileSearchStores/{id}", s.handleGoogleFileSearchStoresID)
