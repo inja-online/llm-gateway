@@ -191,6 +191,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/v1/chat/completions` | OpenAI dialect (also Gemini OpenAI-compat clients) |
+| `GET` / `POST` / `DELETE` | `/v1/chat/completions` · `/{id}` | Stored completions (`store=true`) openai-family proxy |
 | `POST` | `/v1/messages` | Anthropic dialect (`anthropic-version` required by clients) |
 | `POST` | `/v1/messages/count_tokens` | Anthropic proxy, Google `:countTokens` map, or local estimate |
 | `POST` | `/v1beta/models/{model}:generateContent` | Native Gemini |
