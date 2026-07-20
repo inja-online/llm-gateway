@@ -55,7 +55,7 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 **Fidelity:** same-family TTS body + multipart STT are byte-passthrough; translation uses base64 wrap/unwrap only (no codec re-encode). Multipart limit **32 MiB**.
 
-**Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` while leaving `defaults.openai_dialect` on another chat provider.
+**Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` (or alias `whisper-fast`) while leaving `defaults.openai_dialect` on another chat provider. Full guide: [providers/groq-stt.md](providers/groq-stt.md).
 
 ## Realtime (WebSocket)
 
