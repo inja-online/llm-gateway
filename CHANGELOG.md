@@ -32,6 +32,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Policy:** Anthropic `cache_control` **passthrough-only** (Option B); translate strips breakpoints ([#41](https://github.com/inja-online/llm-gateway/issues/41)); [docs/cache-control-policy.md](docs/cache-control-policy.md).
 - **Config:** optional `observe_dropped_fields` → response `X-Gateway-Dropped-Fields` + usage `dropped_fields` (names only) on translate ([#152](https://github.com/inja-online/llm-gateway/issues/152)).
 - **Moonshot helpers:** `POST /v1/tokenizers/estimate-token-count` and `GET /v1/users/me/balance` thin openai_compat proxy ([#89](https://github.com/inja-online/llm-gateway/issues/89), [#137](https://github.com/inja-online/llm-gateway/issues/137)).
+- **Docs:** DeepSeek experimental Completions/FIM operator guide ([#90](https://github.com/inja-online/llm-gateway/issues/90)); [docs/providers/deepseek-fim.md](docs/providers/deepseek-fim.md).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).
