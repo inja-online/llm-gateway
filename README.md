@@ -400,6 +400,7 @@ Full comments: [`gateway.example.yaml`](gateway.example.yaml). Matrices: [docs/c
 | **Gemini OpenAI-compat** | `openai_compat` | `…/v1beta/openai` base; opt-in media capabilities |
 | **DeepSeek** | `openai_compat` | Chat + experimental Completions/FIM (`/v1` or `/beta`) |
 | **OpenRouter / xAI / Moonshot / Groq / Qwen / …** | `openai_compat` | Passthrough; set `capabilities` for media/realtime |
+| **Z.AI / Zhipu (GLM)** | `openai_compat` | **Regional bases** (intl vs CN) — [docs/providers/zai.md](docs/providers/zai.md); wrong region ⇒ auth fail |
 | **Moonshot helpers** | — | Token-estimate / balance: tracked in [#89](https://github.com/inja-online/llm-gateway/issues/89) / [#137](https://github.com/inja-online/llm-gateway/issues/137) (not shipped yet; call vendor base until then) |
 | **Vertex** | `google` + `auth: adc` | Inject TokenSource in library mode; no Google SDK bundled |
 
