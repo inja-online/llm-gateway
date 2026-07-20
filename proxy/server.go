@@ -141,6 +141,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/generation", s.handleOpenRouterGeneration)
 
 	// Conversations API: intentional 501 stubs (stateless gateway; see README).
+	// OpenAI Assistants / Threads / Runs legacy surface (#120). Prefer Responses for new apps.
+	mux.HandleFunc("POST /v1/assistants", s.handleAssistantsRoot)
+	mux.HandleFunc("GET /v1/assistants", s.handleAssistantsRoot)
+	mux.HandleFunc("GET /v1/assistants/{id}", s.handleAssistantsID)
+	mux.HandleFunc("POST /v1/assistants/{id}", s.handleAssistantsID)
+	mux.HandleFunc("DELETE /v1/assistants/{id}", s.handleAssistantsID)
+	mux.HandleFunc("GET /v1/assistants/{id}/{rest...}", s.handleAssistantsID)
+	mux.HandleFunc("POST /v1/assistants/{id}/{rest...}", s.handleAssistantsID)
+	mux.HandleFunc("POST /v1/threads", s.handleThreadsRoot)
+	mux.HandleFunc("GET /v1/threads/{id}", s.handleThreadsID)
+	mux.HandleFunc("POST /v1/threads/{id}", s.handleThreadsID)
+	mux.HandleFunc("DELETE /v1/threads/{id}", s.handleThreadsID)
+	mux.HandleFunc("GET /v1/threads/{id}/{rest...}", s.handleThreadsID)
+	mux.HandleFunc("POST /v1/threads/{id}/{rest...}", s.handleThreadsID)
+	mux.HandleFunc("DELETE /v1/threads/{id}/{rest...}", s.handleThreadsID)
 	mux.HandleFunc("POST /v1/conversations", s.handleConversationsNotImplemented)
 	mux.HandleFunc("GET /v1/conversations", s.handleConversationsNotImplemented)
 	mux.HandleFunc("GET /v1/conversations/{id}", s.handleConversationsNotImplemented)
