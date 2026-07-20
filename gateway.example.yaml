@@ -179,7 +179,9 @@ providers:
     # api_key_env: SILICONFLOW_API_KEY
 
   # Alibaba DashScope (Qwen) OpenAI-compatible mode.
-  # Use the region that matches your DashScope key; path includes compatible-mode.
+  # Use the region that matches your DashScope key; path MUST include compatible-mode.
+  # Full guide: docs/providers/qwen.md (updated 2026-07-21).
+  # Vendor: help.aliyun.com DashScope OpenAI compatible — checked 2026-07.
   # CN (default example):
   qwen:
     kind: openai_compat
@@ -191,7 +193,7 @@ providers:
   #   base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
   #   # api_key_env: DASHSCOPE_API_KEY
   # Model ids are often bare (qwen-turbo, qwen-plus) or with provider prefix:
-  #   qwen/qwen-turbo  |  alias below.
+  #   qwen/qwen-turbo  |  aliases below (qwen-turbo / qwen-plus).
 
   # Local / self-hosted (uncomment and point at your server)
   # vllm:
@@ -214,7 +216,8 @@ aliases:
   grok: xai/grok-3
   gemini: google/gemini-2.0-flash
   kimi: moonshot/kimi-latest
-  # qwen-turbo: qwen/qwen-turbo
+  qwen-turbo: qwen/qwen-turbo
+  qwen-plus: qwen/qwen-plus
   # whisper-fast: groq/whisper-large-v3  # STT when audio_transcribe routes exist
 
 # Optional edge auth (off by default). When enabled, every route except GET /healthz

@@ -8,6 +8,47 @@ import (
 // Hermetic snippets lock operator docs for regional openai_compat providers
 // (docs/providers/*.md + gateway.example.yaml). No network.
 
+func TestQwenRegionalSnippetsAndAliasesParse(t *testing.T) {
+	t.Parallel()
+	yaml := `
+providers:
+  qwen:
+    kind: openai_compat
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: DASHSCOPE_API_KEY
+  qwen_intl:
+    kind: openai_compat
+    base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    api_key_env: DASHSCOPE_API_KEY
+defaults:
+  openai_dialect: qwen
+aliases:
+  qwen-turbo: qwen/qwen-turbo
+  qwen-plus: qwen/qwen-plus
+`
+	cfg, err := Parse([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cn, ok := cfg.Providers["qwen"]
+	if !ok || cn.Kind != KindOpenAICompat {
+		t.Fatalf("qwen provider: %+v ok=%v", cn, ok)
+	}
+	if !strings.Contains(cn.BaseURL, "compatible-mode") {
+		t.Fatalf("CN base must include compatible-mode: %q", cn.BaseURL)
+	}
+	intl, ok := cfg.Providers["qwen_intl"]
+	if !ok || !strings.Contains(intl.BaseURL, "dashscope-intl") {
+		t.Fatalf("qwen_intl base=%q ok=%v", intl.BaseURL, ok)
+	}
+	if cfg.Aliases["qwen-turbo"] != "qwen/qwen-turbo" {
+		t.Fatalf("alias qwen-turbo=%q", cfg.Aliases["qwen-turbo"])
+	}
+	if cfg.Aliases["qwen-plus"] != "qwen/qwen-plus" {
+		t.Fatalf("alias qwen-plus=%q", cfg.Aliases["qwen-plus"])
+	}
+}
+
 func TestZAIRegionalSnippetsParse(t *testing.T) {
 	t.Parallel()
 	intl := `
