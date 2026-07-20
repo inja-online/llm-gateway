@@ -116,7 +116,9 @@ providers:
   #   base_url: "https://api.moonshot.cn/v1"
 
   # Zhipu / Z.AI (GLM) — pick the regional OpenAI-compat base that matches your key.
-  # Bases change; confirm in Z.AI / BigModel docs (note written 2026-07).
+  # Wrong region ⇒ auth fail. Full guide: docs/providers/zai.md (updated 2026-07-21).
+  # Vendor docs (verify hosts): docs.z.ai (intl) · open.bigmodel.cn/dev/api (CN) — checked 2026-07.
+  # kind: openai_compat → Bearer; media/realtime OFF unless capabilities.* set.
   # International (example):
   zai:
     kind: openai_compat

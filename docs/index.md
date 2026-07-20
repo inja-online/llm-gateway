@@ -48,6 +48,7 @@ Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway:
 | [Compatibility](compatibility-matrix.md) | Implemented P / T / U matrix |
 | [SDK hermetic matrix](sdk-compatibility-matrix.md) | CI test anchors, no live vendors |
 | [Deprecation policy](deprecation-policy.md) | Translation field drops |
+| [Z.AI / Zhipu regions](providers/zai.md) | Intl vs CN `openai_compat` bases |
 | [Security (multipart)](security-multipart-review.md) | Size limits, SSRF posture, logging |
 | [Contributing](contributing.md) | Modality checklist |
 | [Changelog](changelog.md) | Release history |

@@ -1,0 +1,89 @@
+# Z.AI / Zhipu (GLM) — regional bases
+
+**Last updated:** 2026-07-21  
+**Issue:** [#87](https://github.com/inja-online/llm-gateway/issues/87)  
+**Kind:** `openai_compat` (Bearer; same wire family as OpenAI Chat Completions)
+
+Zhipu / Z.AI (GLM) exposes **OpenAI-compatible** HTTP under different **regional bases**. Using the wrong base for your API key typically yields **auth failures** (401/403), not a helpful routing error. Configure **one region per provider entry** and match the key you export.
+
+## Official docs (date-stamped)
+
+Confirm current hostnames in the vendor docs — bases can change:
+
+| Region | Vendor docs (verify before production) | Notes |
+|---|---|---|
+| **International (Z.AI)** | [Z.AI API overview](https://docs.z.ai/guides/overview/quick-start) — checked **2026-07** | OpenAI-compatible path under `api.z.ai` |
+| **China (BigModel)** | [BigModel open platform](https://open.bigmodel.cn/dev/api) — checked **2026-07** | Often `open.bigmodel.cn` OpenAI-compat paas path |
+
+If a link 404s after a vendor restructure, prefer the product’s “OpenAI compatible” / “compatible-mode” section for the region that issued your key.
+
+## Example YAML (both regions)
+
+Copy from [`gateway.example.yaml`](../../gateway.example.yaml). **Uncomment only the region that matches your key.**
+
+```yaml
+providers:
+  # International (example base — confirm in Z.AI docs)
+  zai:
+    kind: openai_compat
+    base_url: "https://api.z.ai/api/paas/v4"
+    api_key_env: ZAI_API_KEY
+    # media defaults off for openai_compat; opt in only if the host supports it:
+    # capabilities:
+    #   text: true
+    #   image_gen: true
+
+  # China / BigModel OpenAI-compat (alternate — do not use both keys on one entry)
+  # zai_cn:
+  #   kind: openai_compat
+  #   base_url: "https://open.bigmodel.cn/api/paas/v4"
+  #   api_key_env: ZAI_API_KEY
+```
+
+### `kind: openai_compat` notes
+
+| Topic | Behavior |
+|---|---|
+| Auth | `Authorization: Bearer <key>` (client key or `api_key_env`) |
+| Chat | `POST /v1/chat/completions` passthrough (model rewrite only) |
+| Media / Realtime | **Off by default** — set `capabilities.image_gen` / `video_gen` / `audio_*` / `realtime` only when the regional host actually supports those routes |
+| Cross-dialect | OpenAI→Anthropic/Google still goes through translation; same-family extras (plugins, vendor fields) stay on **passthrough** |
+
+## Model routing
+
+```text
+zai/<model-id>          # explicit provider prefix
+aliases:
+  glm: zai/glm-4-flash  # example alias → provider/model
+```
+
+Bare model ids use `defaults.openai_dialect` (not necessarily `zai`). Prefer `provider/model` or aliases for multi-provider configs.
+
+## Curl (via gateway)
+
+```bash
+export ZAI_API_KEY=...
+# gateway.yaml: providers.zai with api_key_env: ZAI_API_KEY
+
+curl -s http://localhost:8787/v1/chat/completions \
+  -H "Authorization: Bearer $ZAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "zai/glm-4-flash",
+    "messages": [{"role": "user", "content": "ping"}]
+  }'
+```
+
+With **edge auth** enabled, clients send the edge key; upstream uses `api_key_env`.
+
+## Checklist
+
+- [x] Example blocks for **intl** and **CN** bases
+- [x] Explicit `kind: openai_compat` behavior notes
+- [x] Date-stamped vendor doc links (2026-07)
+
+## Related
+
+- [`gateway.example.yaml`](../../gateway.example.yaml) — `zai` / `zai_cn` comments
+- [Compatibility matrix](../compatibility-matrix.md) — `openai_compat` defaults
+- [Deprecation policy](../deprecation-policy.md) — passthrough never drops body fields
