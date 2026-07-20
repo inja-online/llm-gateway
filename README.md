@@ -235,6 +235,7 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `POST` | `/v1/moderations` | OpenAI-family passthrough |
 | `POST` | `/v1/tokenizers/estimate-token-count` | Moonshot helper (openai_compat; `?provider=` / default) |
 | `GET` | `/v1/users/me/balance` | Moonshot balance helper (openai_compat) |
+| `GET` | `/v1/credits` · `/v1/key` · `/v1/generation` | OpenRouter account/generation helpers |
 
 Files and batches are **upstream-owned** (no gateway disk store). Body cap: `max_body_bytes` (default **32 MiB**).
 
