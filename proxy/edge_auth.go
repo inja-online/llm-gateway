@@ -20,7 +20,8 @@ func (s *Server) withEdgeAuth(h http.Handler) http.Handler {
 	}
 	keys := s.cfg.EdgeKeys()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
+		// Process liveness + scrape endpoints stay open when edge auth is on.
+		if r.URL.Path == "/healthz" || r.URL.Path == "/metrics" {
 			h.ServeHTTP(w, r)
 			return
 		}

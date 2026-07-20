@@ -20,15 +20,20 @@ type Server struct {
 	client       *http.Client
 	tokenSources map[string]TokenSource // provider name → ADC / SA token source
 	sessions     *sessionLimiter
+	metrics      *processMetrics
 }
 
 func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 	if hook == nil {
 		hook = hooks.Multi{}
 	}
+	m := &processMetrics{}
+	// Always record low-cardinality counters for GET /metrics (#95).
+	hook = metricsHook{m: m, next: hook}
 	return &Server{
 		cfg:      cfg,
 		hook:     hook,
+		metrics:  m,
 		sessions: newSessionLimiter(cfg.Realtime.MaxSessions, cfg.Realtime.MaxSessionMinutes),
 		client: &http.Client{
 			// No overall timeout: streams are long-lived. Per-request contexts
@@ -108,6 +113,8 @@ func (s *Server) Handler() http.Handler {
 	})
 	// Optional upstream probes (health_checks.enabled); not process liveness.
 	mux.HandleFunc("GET /v1/health/providers", s.handleProviderHealth)
+	// Prometheus text metrics (low cardinality; always on).
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	return s.withEdgeAuth(mux)
 }
 
