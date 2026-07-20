@@ -57,6 +57,7 @@ Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway:
 | [Tools policy](tools-policy.md) | Non-function tools: error on translate (#49) |
 | [cache_control policy](cache-control-policy.md) | Anthropic caching PT-only Option B (#41) |
 | [DeepSeek FIM](providers/deepseek-fim.md) | Experimental Completions / beta FIM (#90) |
+| [Header matrix](header-matrix.md) | Rate-limit / request-id allowlist (#151) |
 | [Security (multipart)](security-multipart-review.md) | Size limits, SSRF posture, logging |
 | [Contributing](contributing.md) | Modality checklist |
 | [Changelog](changelog.md) | Release history |
