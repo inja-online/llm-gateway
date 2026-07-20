@@ -7,7 +7,7 @@ import (
 // Conversations / Assistants-style stateful thread APIs are intentionally not
 // implemented. The gateway is stateless and prefers Responses + client-side
 // state (and Files for provider-side assets). See README "Conversations (not
-// supported)" — permanent 501 (Option A; see issue #118).
+// supported)" and docs/conversations-decision.md — permanent 501 (Option A).
 //
 // Common routes are registered so SDKs receive an OpenAI-shaped 501
 // (not_implemented) instead of a bare 404.

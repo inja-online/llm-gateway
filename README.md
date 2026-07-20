@@ -274,7 +274,7 @@ Alternatives:
 2. Client-owned message history on subsequent chat/Responses calls
 3. Files / vector-store workstreams for stored assets (upstream-owned)
 
-Formal product decision (Option A permanent 501 vs pure upstream proxy): issue [#118](https://github.com/inja-online/llm-gateway/issues/118).
+Formal product decision (**Option A** permanent 501): [docs/conversations-decision.md](docs/conversations-decision.md) ([#118](https://github.com/inja-online/llm-gateway/issues/118)).
 
 ### Dialect pairing (chat)
 

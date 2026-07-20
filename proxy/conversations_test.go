@@ -84,7 +84,7 @@ defaults:
 }
 
 func TestConversationsMessageStableGuidance(t *testing.T) {
-	// Lock migration keywords so clients/string-matchers keep working (#67).
+	// Lock migration keywords so clients/string-matchers keep working (#67/#118 Option A).
 	for _, needle := range []string{
 		"not implemented",
 		"/v1/responses",
@@ -95,5 +95,29 @@ func TestConversationsMessageStableGuidance(t *testing.T) {
 			!strings.Contains(strings.ToLower(conversationsNotImplementedMsg), strings.ToLower(needle)) {
 			t.Fatalf("conversationsNotImplementedMsg missing %q: %s", needle, conversationsNotImplementedMsg)
 		}
+	}
+}
+
+func TestConversationsDecisionOptionANoPassthrough(t *testing.T) {
+	// Option A (#118): stub must never dial upstream — use unreachable base and
+	// assert 501 without needing a listener.
+	cfg, err := config.Parse([]byte(`
+providers:
+  openai: { kind: openai, base_url: "http://127.0.0.1:1" }
+defaults:
+  openai_dialect: openai
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServer(cfg, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/conversations", strings.NewReader(`{"metadata":{}}`))
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotImplemented {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "not_implemented") {
+		t.Fatalf("body=%s", rr.Body.String())
 	}
 }
