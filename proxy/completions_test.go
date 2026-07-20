@@ -6,12 +6,29 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
 )
+
+func TestDeepSeekFIMDocPresent(t *testing.T) {
+	// Locks operator docs for #90 experimental FIM surface.
+	root := repoRoot(t)
+	raw, err := os.ReadFile(filepath.Join(root, "docs", "providers", "deepseek-fim.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(raw)
+	for _, n := range []string{"/beta/completions", "experimental", "suffix", "#90"} {
+		if !strings.Contains(doc, n) {
+			t.Errorf("deepseek-fim.md missing %q", n)
+		}
+	}
+}
 
 func TestCompletionsV1Passthrough(t *testing.T) {
 	var gotPath, gotModel, gotAuth, gotPrompt, gotSuffix string
