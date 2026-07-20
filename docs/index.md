@@ -54,6 +54,7 @@ Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway:
 | [Groq STT-first](providers/groq-stt.md) | Split chat + STT providers, curl samples |
 | [Conversations decision](conversations-decision.md) | Option A permanent 501 (no gateway store) |
 | [service_tier / fingerprint](service-tier-fingerprint.md) | OpenAI optional metadata fidelity (#51) |
+| [Tools policy](tools-policy.md) | Non-function tools: error on translate (#49) |
 | [Security (multipart)](security-multipart-review.md) | Size limits, SSRF posture, logging |
 | [Contributing](contributing.md) | Modality checklist |
 | [Changelog](changelog.md) | Release history |
