@@ -39,6 +39,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Models:** live Anthropic `GET /v1/models` (+ `/{id}`) when `anthropic-version` or `?live=1` ([#126](https://github.com/inja-online/llm-gateway/issues/126)).
 - **Proxy:** header matrix docs; forward `X-Client-Request-Id`; expand response allowlist notes ([#151](https://github.com/inja-online/llm-gateway/issues/151)).
 - **OpenAI Chat storage:** `GET/POST/DELETE /v1/chat/completions[/{id}]` for stored completions ([#122](https://github.com/inja-online/llm-gateway/issues/122)).
+- **OpenAI Fine-tuning:** `/v1/fine_tuning/jobs` create/list/get/cancel/events/checkpoints proxy ([#119](https://github.com/inja-online/llm-gateway/issues/119)).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).

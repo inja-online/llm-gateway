@@ -67,6 +67,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/messages/batches/{id}", s.handleBatchesGet)
 	mux.HandleFunc("POST /v1/messages/batches/{id}/cancel", s.handleBatchesCancel)
 	mux.HandleFunc("GET /v1/messages/batches/{id}/results", s.handleBatchesResults)
+	// OpenAI Fine-tuning Jobs (openai / openai_compat; upstream-owned).
+	mux.HandleFunc("POST /v1/fine_tuning/jobs", s.handleFineTuningJobsCreate)
+	mux.HandleFunc("GET /v1/fine_tuning/jobs", s.handleFineTuningJobsList)
+	mux.HandleFunc("GET /v1/fine_tuning/jobs/{id}", s.handleFineTuningJobsGet)
+	mux.HandleFunc("POST /v1/fine_tuning/jobs/{id}/cancel", s.handleFineTuningJobsCancel)
+	mux.HandleFunc("GET /v1/fine_tuning/jobs/{id}/events", s.handleFineTuningJobsEvents)
+	mux.HandleFunc("GET /v1/fine_tuning/jobs/{id}/checkpoints", s.handleFineTuningJobsCheckpoints)
 	// OpenAI Batches API (openai / openai_compat; upstream-owned).
 	mux.HandleFunc("POST /v1/batches", s.handleOpenAIBatchesCreate)
 	mux.HandleFunc("GET /v1/batches", s.handleOpenAIBatchesList)
