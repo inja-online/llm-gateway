@@ -212,6 +212,7 @@ func copyForwardHeaders(dst, src *http.Request) {
 		"X-Title",
 		"anthropic-beta",
 		"anthropic-version",
+		"X-Client-Request-Id", // client correlation (#151)
 	} {
 		if v := src.Header.Get(h); v != "" {
 			dst.Header.Set(h, v)

@@ -62,19 +62,70 @@ defaults:
 
 func TestAllowResponseHeader(t *testing.T) {
 	cases := map[string]bool{
-		"X-Ratelimit-Remaining-Requests":     true,
+		"X-Ratelimit-Remaining-Requests":       true,
 		"anthropic-ratelimit-tokens-remaining": true,
-		"Retry-After":                        true,
-		"x-request-id":                       true,
-		"Content-Type":                       true,
-		"Set-Cookie":                         false,
-		"Authorization":                      false,
-		"X-Custom-Secret":                    false,
+		"Retry-After":                          true,
+		"x-request-id":                         true,
+		"X-Client-Request-Id":                  true,
+		"Openai-Processing-Ms":                 true,
+		"X-Goog-Quota-User":                    true,
+		"Content-Type":                         true,
+		"Set-Cookie":                           false,
+		"Authorization":                        false,
+		"X-Custom-Secret":                      false,
 	}
 	for h, want := range cases {
 		if got := allowResponseHeader(h); got != want {
 			t.Errorf("%s: got %v want %v", h, got, want)
 		}
+	}
+}
+
+func TestClientRequestIdForwarded(t *testing.T) {
+	var got string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("X-Client-Request-Id")
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Request-Id", "up-1")
+		w.Header().Set("Openai-Processing-Ms", "12")
+		fmt.Fprint(w, `{"id":"c","object":"chat.completion","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`)
+	}))
+	t.Cleanup(up.Close)
+
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai: { kind: openai, base_url: %q }
+defaults:
+  openai_dialect: openai
+`, up.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw := httptest.NewServer(NewServer(cfg, nil).Handler())
+	t.Cleanup(gw.Close)
+
+	req, _ := http.NewRequest(http.MethodPost, gw.URL+"/v1/chat/completions",
+		strings.NewReader(`{"model":"openai/m","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Authorization", "Bearer sk")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Client-Request-Id", "client-abc")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	io.ReadAll(resp.Body)
+	if got != "client-abc" {
+		t.Fatalf("X-Client-Request-Id not forwarded: %q", got)
+	}
+	if resp.Header.Get("X-Request-Id") != "up-1" {
+		t.Fatalf("upstream request-id: %q", resp.Header.Get("X-Request-Id"))
+	}
+	if resp.Header.Get("Openai-Processing-Ms") != "12" {
+		t.Fatalf("processing-ms: %q", resp.Header.Get("Openai-Processing-Ms"))
+	}
+	if resp.Header.Get("X-Gateway-Request-Id") == "" {
+		t.Fatal("missing X-Gateway-Request-Id")
 	}
 }
 

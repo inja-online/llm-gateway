@@ -15,6 +15,7 @@ var openAIRequestHeaders = []string{
 }
 
 // Exact response headers always considered safe to relay.
+// See docs/header-matrix.md (#151).
 var responseHeaderExact = map[string]bool{
 	"Content-Type":              true,
 	"Content-Length":            true,
@@ -22,9 +23,11 @@ var responseHeaderExact = map[string]bool{
 	"Retry-After":               true,
 	"X-Request-Id":              true,
 	"Request-Id":                true,
+	"X-Client-Request-Id":       true, // some providers echo client id
 	"Openai-Organization":       true,
 	"Openai-Processing-Ms":      true,
 	"Openai-Version":            true,
+	"Openai-Model":              true,
 	"Anthropic-Organization-Id": true,
 }
 

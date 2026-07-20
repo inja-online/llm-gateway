@@ -37,6 +37,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Ops:** optional `GET /v1/health/providers` when `health_checks.enabled` (timeouts, no key logging) ([#94](https://github.com/inja-online/llm-gateway/issues/94), [#153](https://github.com/inja-online/llm-gateway/issues/153)).
 - **Ops:** `GET /metrics` Prometheus text counters (requests/tokens; no external deps) ([#95](https://github.com/inja-online/llm-gateway/issues/95), [#154](https://github.com/inja-online/llm-gateway/issues/154)).
 - **Models:** live Anthropic `GET /v1/models` (+ `/{id}`) when `anthropic-version` or `?live=1` ([#126](https://github.com/inja-online/llm-gateway/issues/126)).
+- **Proxy:** header matrix docs; forward `X-Client-Request-Id`; expand response allowlist notes ([#151](https://github.com/inja-online/llm-gateway/issues/151)).
 - **Docs:** [Z.AI / Zhipu regional bases](docs/providers/zai.md) — intl vs CN `openai_compat` examples, date-stamped vendor links, curl sample ([#87](https://github.com/inja-online/llm-gateway/issues/87)).
 - **Docs:** [Qwen / DashScope regional bases](docs/providers/qwen.md) — CN vs intl `compatible-mode` URLs, alias samples, README pointer ([#88](https://github.com/inja-online/llm-gateway/issues/88)).
 - **Docs:** [xAI Grok / Responses / Imagine](docs/providers/xai.md) — base_url, capabilities, curl + SDK samples ([#91](https://github.com/inja-online/llm-gateway/issues/91)).
