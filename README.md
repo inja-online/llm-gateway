@@ -220,6 +220,8 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | `GET` | `/v1/files/{id}/content` | Streamed download |
 | `POST` / `GET` | `/v1/messages/batches…` | Anthropic Message Batches (`kind: anthropic` only) |
 | `POST` | `/v1/moderations` | OpenAI-family passthrough |
+| `POST` | `/v1/tokenizers/estimate-token-count` | Moonshot helper (openai_compat; `?provider=` / default) |
+| `GET` | `/v1/users/me/balance` | Moonshot balance helper (openai_compat) |
 
 Files and batches are **upstream-owned** (no gateway disk store). Body cap: `max_body_bytes` (default **32 MiB**).
 
@@ -421,7 +423,7 @@ Full comments: [`gateway.example.yaml`](gateway.example.yaml). Matrices: [docs/c
 | **Qwen (DashScope)** | `openai_compat` | **Regional bases** + `compatible-mode` path — [docs/providers/qwen.md](docs/providers/qwen.md); aliases `qwen-turbo` / `qwen-plus` |
 | **xAI (Grok)** | `openai_compat` | Chat + Responses; Imagine images need `image_gen` — [docs/providers/xai.md](docs/providers/xai.md); alias `grok` |
 | **Groq** | `openai_compat` | **STT-first** split routing — [docs/providers/groq-stt.md](docs/providers/groq-stt.md); `audio_transcribe` + alias `whisper-fast` |
-| **Moonshot helpers** | — | Token-estimate / balance: tracked in [#89](https://github.com/inja-online/llm-gateway/issues/89) / [#137](https://github.com/inja-online/llm-gateway/issues/137) (not shipped yet; call vendor base until then) |
+| **Moonshot helpers** | `openai_compat` | `POST /v1/tokenizers/estimate-token-count`, `GET /v1/users/me/balance` via `?provider=` / default OpenAI dialect (regional base) |
 | **Vertex** | `google` + `auth: adc` | Inject TokenSource in library mode; no Google SDK bundled |
 
 ---

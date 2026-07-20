@@ -108,9 +108,9 @@ providers:
     #   realtime: false
 
   # Moonshot / Kimi (use the regional base that matches your key).
-  # Token-estimate + balance helper APIs are NOT proxied (call Moonshot directly):
-  #   POST {base}/tokenizers/estimate-token-count
-  #   GET  {base}/users/me/balance
+  # Helpers proxied when defaults.openai_dialect or ?provider= points here (#89/#137):
+  #   POST /v1/tokenizers/estimate-token-count
+  #   GET  /v1/users/me/balance
   moonshot:
     kind: openai_compat
     base_url: "https://api.moonshot.ai/v1"
