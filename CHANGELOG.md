@@ -27,6 +27,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
+- **Opt-in Anthropic auto breakpoints:** `caching.auto_breakpoints` injects `cache_control` on system/tools when translating OpenAI/Google → Anthropic (default off; client wins; `X-Gateway-Cache-Auto` header). [docs/cache-control-policy.md](docs/cache-control-policy.md).
 - **Prompt caching IR (#108):** Anthropic `cache_control` on system/content/tools preserved on Anthropic translate rebuild; OpenAI `prompt_cache_key` / `prompt_cache_retention`; Google `cachedContent` resource name. Cross-family still drops foreign directives. [docs/cache-control-policy.md](docs/cache-control-policy.md).
 - **Google `cachedContents` CRUD** proxy: `/v1beta/cachedContents*` for kind:google ([#112](https://github.com/inja-online/llm-gateway/issues/112) cache slice).
 - **Fidelity:** OpenAI `service_tier` request + `system_fingerprint` / response `service_tier` passthrough; never invent on Anthropic/Google translate ([#51](https://github.com/inja-online/llm-gateway/issues/51)); [docs/service-tier-fingerprint.md](docs/service-tier-fingerprint.md).

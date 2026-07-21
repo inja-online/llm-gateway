@@ -220,6 +220,14 @@ defaults:
 # (names only) and usage events get dropped_fields. Default off (#152).
 # observe_dropped_fields: true
 
+# Optional Anthropic cache_control injection on OpenAI/Google → Anthropic translate.
+# Default off. Client-supplied cache_control always wins. See docs/cache-control-policy.md.
+# caching:
+#   auto_breakpoints:
+#     enabled: true
+#     min_chars: 2048          # default 2048
+#     targets: [system, tools] # default both; system | tools only
+
 # Optional upstream provider probes (GET /v1/health/providers). Default off.
 # Distinct from GET /healthz process liveness. Never logs API keys (#94/#153).
 # health_checks:

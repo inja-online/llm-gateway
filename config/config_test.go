@@ -91,6 +91,60 @@ func TestMaxBodyBytesDefaultAndOverride(t *testing.T) {
 	}
 }
 
+func TestParseCachingAutoBreakpoints(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  anthropic: { kind: anthropic, base_url: "https://api.anthropic.com" }
+caching:
+  auto_breakpoints:
+    enabled: true
+    min_chars: 1024
+    targets: [system, tools]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ab := cfg.Caching.AutoBreakpoints
+	if !ab.Enabled || ab.MinChars != 1024 {
+		t.Fatalf("auto_breakpoints=%+v", ab)
+	}
+	if ab.AutoBreakpointMinChars() != 1024 {
+		t.Fatalf("min=%d", ab.AutoBreakpointMinChars())
+	}
+	// Default min when unset
+	cfg2, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+caching:
+  auto_breakpoints:
+    enabled: true
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg2.Caching.AutoBreakpoints.AutoBreakpointMinChars() != DefaultAutoBreakpointMinChars {
+		t.Fatalf("default min=%d", cfg2.Caching.AutoBreakpoints.AutoBreakpointMinChars())
+	}
+	tg := cfg2.Caching.AutoBreakpoints.AutoBreakpointTargets()
+	if len(tg) != 2 || tg[0] != "system" || tg[1] != "tools" {
+		t.Fatalf("default targets=%v", tg)
+	}
+}
+
+func TestParseCachingRejectsBadTarget(t *testing.T) {
+	_, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+caching:
+  auto_breakpoints:
+    enabled: true
+    targets: [messages]
+`))
+	if err == nil {
+		t.Fatal("expected unknown target error")
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/gw.yaml"

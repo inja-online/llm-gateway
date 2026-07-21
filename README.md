@@ -456,7 +456,7 @@ Client dialect matches provider kind → near-verbatim proxy: model rewrite, aut
 
 Client and upstream disagree → parse to **canonical IR**, rebuild wire, stream map. Chat fidelity includes tools, structured outputs, thinking/reasoning, sampling knobs, document/audio blocks where mapped. Some vendor-only fields are still dropped — see [docs/deprecation-policy.md](docs/deprecation-policy.md) (passthrough **never** drops; translation drop lists + semver) and `testdata/fixtures/chat_translate/drops/`. Non-function OpenAI tools: **error** on translate, forward on passthrough — [docs/tools-policy.md](docs/tools-policy.md).
 
-**Prompt caching:** Anthropic `cache_control`, OpenAI `prompt_cache_*`, and Google `cachedContent` are preserved **within family** (including Anthropic translate rebuild). Cross-family hops drop foreign cache directives — [docs/cache-control-policy.md](docs/cache-control-policy.md).
+**Prompt caching:** Anthropic `cache_control`, OpenAI `prompt_cache_*`, and Google `cachedContent` are preserved **within family** (including Anthropic translate rebuild). Cross-family hops drop foreign cache directives. Optional `caching.auto_breakpoints` can inject Anthropic breakpoints on OpenAI/Google → Anthropic translate (default off) — [docs/cache-control-policy.md](docs/cache-control-policy.md).
 
 **Not** multi-dialect translated: Completions/FIM, most media jobs (family passthrough + limited speech translate), Files, Batches.
 

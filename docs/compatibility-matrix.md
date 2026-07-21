@@ -65,6 +65,7 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 | OpenAI → OpenAI | **P** (body) / **T** preserve `prompt_cache_key` / `prompt_cache_retention` |
 | Google → Google | **P** / **T** preserve `cachedContent` resource name |
 | Cross-family | **Drop** foreign cache directives (no illegal wire fields) |
+| OpenAI/Google → Anthropic + `caching.auto_breakpoints.enabled` | Opt-in inject `cache_control` on system/tools (client wins; see [cache-control-policy.md](cache-control-policy.md)) |
 
 Usage: cache read/write tokens map when upstream reports them (all dialects).
 
