@@ -1,0 +1,74 @@
+---
+title: "Conversations"
+description: "Re-open **Option B** only with a **named** customer or SDK constraint that cannot use Responses through the gateway."
+sidebar:
+  order: 5
+  label: "Conversations"
+  group:
+    label: "Guides"
+---
+
+**Status:** Accepted  
+**Date:** 2026-07-21  
+**Issue:** [#118](https://github.com/inja-online/llm-gateway/issues/118)  
+**Related:** [#67](https://github.com/inja-online/llm-gateway/issues/67) (501 stub + docs)
+
+## Decision
+
+**Option A — Permanent 501 (not supported on this gateway).**
+
+| Choice | Outcome |
+|---|---|
+| Gateway-persisted conversation store | **Never** (violates stateless design) |
+| Pure upstream proxy of `/v1/conversations*` | **Not adopted** unless a named product constraint forces revisit |
+| Current behavior | Keep OpenAI-shaped **HTTP 501** `not_implemented` on all `/v1/conversations*` routes |
+
+## Options considered
+
+### A — Permanent 501 + docs (chosen)
+
+- Register routes so SDKs get structured 501 instead of bare 404.
+- Message points at **`POST /v1/responses`**, client-side history, and **Files**.
+- Compatibility matrix: Conversations = **U**.
+
+### B — Pure upstream proxy
+
+- Passthrough to OpenAI-family upstream (like Files/Batches).
+- Still no gateway DB; state lives on the provider account.
+- Rejected for now: few `openai_compat` hosts implement Conversations; large nested surface; Responses + client state cover most agents.
+
+### Hybrid
+
+- 501 by default, passthrough when `capabilities.conversations: true`.
+- Discouraged: extra config surface without a clear customer need.
+
+## Rationale
+
+1. Architecture principle: **stateless** — no database, no sticky conversation ownership in the gateway process.
+2. Preferred agent path is already shipped: **Responses** + client-owned thread state + **Files** for assets.
+3. Avoid maintaining a large nested OpenAI surface that most openai_compat vendors lack.
+4. Stubs already prevent catastrophic 404s; remaining work is communication, not storage.
+
+## Non-goals
+
+- Gateway Redis/DB conversation store
+- Full Assistants v1 (`/v1/assistants`, threads, runs) unless a **separate** decision
+- Cross-provider conversation portability
+
+## Implementation (current)
+
+| Artifact | Role |
+|---|---|
+| `proxy/conversations.go` | 501 handler + message |
+| `proxy/server.go` | Route registration (incl. nested `{rest...}`) |
+| `proxy/conversations_test.go` | Hermetic 501 + guidance keyword tests |
+| README “Conversations (not supported)” | Operator-facing alternatives |
+| [compatibility-matrix.md](/compatibility-matrix/) | **U** row |
+
+## Revisit criteria
+
+Re-open **Option B** only with a **named** customer or SDK constraint that cannot use Responses through the gateway. Track any future proxy work as a new issue (do not silently implement `/v1/threads` or Assistants).
+
+## Contributor rule
+
+**Do not add gateway-persisted threads** or half-implement Conversations storage. See [CONTRIBUTING.md](https://github.com/inja-online/llm-gateway/blob/master/CONTRIBUTING.md) ban list.

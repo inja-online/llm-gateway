@@ -1,85 +1,120 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
-import Sidebar from "../components/Sidebar.astro";
-import { getCollection } from "astro:content";
+import { Sidebar } from "@/components/ui/sidebar";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { Pagination } from "@/components/ui/pagination";
+import { TOC } from "@/components/ui/toc";
+import { PageActions } from "@/components/ui/page-actions";
+import {
+  getSidebar,
+  getPrevNext,
+  getBreadcrumbs,
+  getTOC,
+} from "nimbus-docs";
+import type { HeadElement } from "nimbus-docs/types";
 
 interface Props {
   title: string;
   description?: string;
-  current?: string;
+  slug: string;
+  headings?: { depth: number; text: string; slug: string }[];
+  markdownUrl?: string;
+  noindex?: boolean;
+  lastUpdated?: Date;
+  head?: HeadElement[];
+  collection?: string;
+  entryId?: string;
+  showSidebar?: boolean;
+  showToc?: boolean;
+  entry?: { id: string; filePath?: string; data: Record<string, unknown> };
 }
 
-const { title, description, current } = Astro.props;
-const docs = await getCollection("docs");
-const items = docs.map((d) => ({
-  slug: d.id.replace(/\.mdx?$/, "").replace(/\/index$/, ""),
-  title: d.data.title,
-  group: d.data.group,
-  order: d.data.order,
-}));
+const {
+  title,
+  description,
+  slug,
+  headings = [],
+  markdownUrl,
+  noindex,
+  lastUpdated,
+  head,
+  collection = "docs",
+  entryId,
+  showSidebar = true,
+  showToc = true,
+} = Astro.props;
+
+const sidebar = showSidebar ? await getSidebar(slug, { collection }) : [];
+const crumbs = await getBreadcrumbs(slug, {
+  collection,
+  root: { label: "Docs", href: `${import.meta.env.BASE_URL}start/getting-started/` },
+});
+const prevNext = await getPrevNext(slug);
+const toc = showToc ? getTOC(headings) : [];
+const pageMarkdownUrl =
+  markdownUrl ??
+  `${Astro.site?.href?.replace(/\/$/, "") ?? ""}${import.meta.env.BASE_URL.replace(/\/$/, "")}/${slug ? slug + "/" : ""}index.md`.replace(
+    /([^:]\/)\/+/g,
+    "$1",
+  );
 ---
 
-<BaseLayout title={title} description={description}>
-  <div class="shell container">
-    <Sidebar items={items} current={current} />
-    <main class="main">
-      <article class="prose">
-        <header class="doc-header">
-          <p class="eyebrow">Documentation</p>
-          <h1>{title}</h1>
-          {description && <p class="lead">{description}</p>}
-        </header>
-        <slot />
-      </article>
-    </main>
+<BaseLayout
+  title={title}
+  description={description}
+  markdownUrl={pageMarkdownUrl}
+  noindex={noindex}
+  lastUpdated={lastUpdated}
+  head={head}
+  collection={collection}
+  entryId={entryId}
+  current={slug}
+>
+  <div class="mx-auto flex w-full max-w-[90rem] flex-1">
+    {
+      showSidebar && (
+        <aside
+          class="sticky top-[var(--nb-header-height)] hidden h-[calc(100vh-var(--nb-header-height))] w-[var(--nb-sidebar-width)] shrink-0 overflow-y-auto border-r border-border px-3 py-6 lg:block"
+          data-nimbus-sidebar
+        >
+          <Sidebar items={sidebar} persist />
+        </aside>
+      )
+    }
+
+    <div class="min-w-0 flex-1">
+      <div class="mx-auto flex max-w-[75rem] gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        <article class="min-w-0 flex-1">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <Breadcrumbs items={crumbs} />
+            <PageActions markdownUrl={pageMarkdownUrl} lastUpdated={lastUpdated} />
+          </div>
+          <header class="mb-8">
+            <h1 class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              {title}
+            </h1>
+            {
+              description && (
+                <p class="mt-3 max-w-2xl text-base text-muted-foreground sm:text-lg">
+                  {description}
+                </p>
+              )
+            }
+          </header>
+          <div class="nimbus-prose">
+            <slot />
+          </div>
+          <Pagination prevNext={prevNext} />
+        </article>
+
+        {
+          showToc && toc.length > 0 && (
+            <aside class="sticky top-[calc(var(--nb-header-height)+1.5rem)] hidden h-fit w-[var(--nb-toc-width)] shrink-0 xl:block">
+              <TOC headings={toc} />
+            </aside>
+          )
+        }
+      </div>
+    </div>
   </div>
 </BaseLayout>
-
-<style>
-  .shell {
-    display: grid;
-    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-    gap: 2rem;
-    padding: 1.5rem 0 3rem;
-    align-items: start;
-  }
-
-  .main {
-    min-width: 0;
-  }
-
-  .prose {
-    max-width: var(--content-max);
-    background: linear-gradient(180deg, rgba(18, 24, 38, 0.55), rgba(18, 24, 38, 0.25));
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) + 2px);
-    padding: clamp(1.25rem, 3vw, 2rem);
-    box-shadow: var(--shadow);
-  }
-
-  .doc-header {
-    margin-bottom: 1.5rem;
-  }
-
-  .eyebrow {
-    margin: 0 0 0.4rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .lead {
-    margin: 0.65rem 0 0;
-    color: var(--text-muted);
-    font-size: 1.05rem;
-  }
-
-  @media (max-width: 960px) {
-    .shell {
-      grid-template-columns: 1fr;
-      gap: 0;
-    }
-  }
-</style>

@@ -1,0 +1,61 @@
+---
+title: "Deepseek Fim"
+description: "Not multi-dialect translated."
+sidebar:
+  order: 1
+  label: "Deepseek Fim"
+  group:
+    label: "Providers"
+---
+
+**Last updated:** 2026-07-21  
+**Status:** Implemented (experimental)  
+**Kind:** `openai_compat`
+
+## Routes
+
+| Gateway path | Upstream | Notes |
+|---|---|---|
+| `POST /v1/completions` | `{base}/completions` | Legacy Completions; OpenAI-family only |
+| `POST /beta/completions` | `{beta-base}/completions` | DeepSeek FIM: rewrites `…/v1` → `…/beta` or appends `/beta` |
+
+Not multi-dialect translated. Model rewrite + one usage event. Streaming supported.
+
+## Config
+
+```yaml
+providers:
+  deepseek:
+    kind: openai_compat
+    base_url: "https://api.deepseek.com"   # or …/v1
+    api_key_env: DEEPSEEK_API_KEY
+
+defaults:
+  openai_dialect: deepseek   # optional bare-model routing
+```
+
+## Curl (FIM)
+
+```bash
+export DEEPSEEK_API_KEY=...
+
+curl -s http://localhost:8787/beta/completions \
+  -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek/deepseek-coder",
+    "prompt": "def add(a, b):",
+    "suffix": "\n    return a + b",
+    "max_tokens": 64
+  }'
+```
+
+## Acceptance
+
+- [x] Paths identified + PT implemented (`proxy/completions.go`)
+- [x] Model rewrite + usage
+- [x] Experimental docs flag (README Completions section + this page)
+
+## Tests
+
+- `proxy/completions_test.go` — `/v1` and `/beta` path rewrite, model rewrite, wrong kind

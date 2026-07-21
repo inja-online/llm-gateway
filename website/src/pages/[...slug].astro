@@ -1,22 +1,64 @@
 ---
-import { getCollection, render } from "astro:content";
-import DocsLayout from "../layouts/DocsLayout.astro";
+import { getDocsStaticPaths, getDocsPageProps } from "nimbus-docs";
+import DocsLayout from "@/layouts/DocsLayout.astro";
 
-export async function getStaticPaths() {
-  const docs = await getCollection("docs");
-  return docs.map((entry) => {
-    const slug = entry.id.replace(/\.mdx?$/, "").replace(/\/index$/, "");
-    return {
-      params: { slug },
-      props: { entry, slug },
-    };
-  });
+export const prerender = true;
+export const getStaticPaths = getDocsStaticPaths;
+
+const { entry, Content, headings } = await getDocsPageProps(Astro);
+const data = entry.data;
+const mode = data.mode ?? "doc";
+
+// Custom mode pages render without docs chrome (landing-style).
+if (mode === "custom") {
+  // Handled by dedicated routes when needed; still render content wide.
 }
-
-const { entry, slug } = Astro.props;
-const { Content } = await render(entry);
+const showSidebar = data.sidebar !== false && mode !== "custom";
+const showToc = data.tableOfContents !== false && mode !== "custom";
+const slug = entry.id === "index" ? "" : entry.id;
+const base = import.meta.env.BASE_URL.replace(/\/$/, "") || "";
+const markdownUrl = `${Astro.site?.toString().replace(/\/$/, "")}${base}/${slug ? slug + "/" : ""}index.md`.replace(
+  /([^:]\/)\/+/g,
+  "$1",
+);
 ---
 
-<DocsLayout title={entry.data.title} description={entry.data.description} current={slug}>
-  <Content />
-</DocsLayout>
+{
+  mode === "custom" ? (
+    <DocsLayout
+      title={data.title}
+      description={data.description}
+      slug={entry.id}
+      headings={headings}
+      markdownUrl={markdownUrl}
+      noindex={data.noindex}
+      lastUpdated={data.lastUpdated}
+      head={data.head}
+      collection={entry.collection}
+      entryId={entry.id}
+      showSidebar={false}
+      showToc={false}
+      entry={entry}
+    >
+      <Content />
+    </DocsLayout>
+  ) : (
+    <DocsLayout
+      title={data.title}
+      description={data.description}
+      slug={entry.id}
+      headings={headings}
+      markdownUrl={markdownUrl}
+      noindex={data.noindex}
+      lastUpdated={data.lastUpdated}
+      head={data.head}
+      collection={entry.collection}
+      entryId={entry.id}
+      showSidebar={showSidebar}
+      showToc={showToc}
+      entry={entry}
+    >
+      <Content />
+    </DocsLayout>
+  )
+}
