@@ -145,6 +145,57 @@ caching:
 	}
 }
 
+func TestParseCachingRejectsNegativeMinChars(t *testing.T) {
+	_, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+caching:
+  auto_breakpoints:
+    enabled: true
+    min_chars: -1
+`))
+	if err == nil {
+		t.Fatal("expected min_chars error")
+	}
+}
+
+func TestAutoBreakpointTargetsNormalize(t *testing.T) {
+	ab := AutoBreakpoints{Targets: []string{" Tools ", "", "SYSTEM", "tools", "system"}}
+	got := ab.AutoBreakpointTargets()
+	if len(got) != 2 || got[0] != "tools" || got[1] != "system" {
+		t.Fatalf("got %v", got)
+	}
+	// blank-only list → empty after normalize (not the default; caller may still treat as empty)
+	ab2 := AutoBreakpoints{Targets: []string{"", "  "}}
+	if len(ab2.AutoBreakpointTargets()) != 0 {
+		t.Fatalf("blank targets: %v", ab2.AutoBreakpointTargets())
+	}
+}
+
+func TestHealthTimeoutDefaultAndOverride(t *testing.T) {
+	var h HealthChecks
+	if h.HealthTimeout() != 2*time.Second {
+		t.Fatalf("default=%v", h.HealthTimeout())
+	}
+	h.Timeout = 5 * time.Second
+	if h.HealthTimeout() != 5*time.Second {
+		t.Fatalf("override=%v", h.HealthTimeout())
+	}
+	cfg, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+health_checks:
+  enabled: true
+  timeout: 1500ms
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.HealthChecks.HealthTimeout() != 1500*time.Millisecond {
+		t.Fatalf("parsed timeout=%v", cfg.HealthChecks.HealthTimeout())
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/gw.yaml"
