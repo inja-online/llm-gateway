@@ -1,63 +1,20 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import { LinkButton } from "@/components/ui/link-button";
-import { Card } from "@/components/ui/card";
-import { CardGrid } from "@/components/ui/card-grid";
 import { Badge } from "@/components/ui/badge";
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, "") || "";
 
-const stats = [
-  { value: "3", label: "client dialects" },
-  { value: "4", label: "provider kinds" },
-  { value: "1", label: "usage event / request" },
-  { value: "0", label: "vendor SDK lock-in" },
+const bullets = [
+  "Route by model id, alias, or provider prefix",
+  "Same-family passthrough; cross-family translation via canonical IR",
+  "One usage event per request (JSONL / webhook)",
 ];
 
-const steps = [
-  {
-    n: "01",
-    title: "Speak any dialect",
-    body: "Clients use OpenAI Chat Completions, Anthropic Messages, or native Gemini generateContent — same gateway, same keys story.",
-  },
-  {
-    n: "02",
-    title: "Route by model id",
-    body: "Bare models hit defaults; provider/model prefixes and aliases pick the upstream. openai_compat covers DeepSeek, xAI, Groq, OpenRouter, and more.",
-  },
-  {
-    n: "03",
-    title: "Passthrough or translate",
-    body: "Same-family traffic is byte-faithful passthrough. Cross-family hops rebuild through a canonical IR — fail closed on unsupported shapes.",
-  },
-  {
-    n: "04",
-    title: "Meter everything",
-    body: "Every request emits one usage event (JSONL / webhook): model, provider, tokens, cache, latency, status — ready for billing and ops.",
-  },
-];
-
-const features = [
-  {
-    title: "Claude Code ready",
-    body: "Point ANTHROPIC_BASE_URL at the gateway and route Claude Code to any upstream model with Anthropic-shaped fidelity.",
-    href: `${base}/guides/claude-code/`,
-  },
-  {
-    title: "Prompt caching policy",
-    body: "Preserve cache_control, prompt_cache_*, and cachedContent within family. Opt-in auto breakpoints for OpenAI/Google → Anthropic.",
-    href: `${base}/guides/cache-control-policy/`,
-  },
-  {
-    title: "Platform proxies",
-    body: "Files, Batches, Assistants, Skills, Tuned models, File Search stores, cachedContents — thin upstream-owned proxies.",
-    href: `${base}/reference/compatibility-matrix/`,
-  },
-  {
-    title: "Ops surfaces",
-    body: "GET /metrics (Prometheus), optional provider health probes, edge auth, body limits, and drop-field observability.",
-    href: `${base}/start/getting-started/`,
-  },
+const links = [
+  { href: `${base}/start/getting-started/`, label: "Getting started" },
+  { href: `${base}/reference/compatibility-matrix/`, label: "Compatibility" },
+  { href: `${base}/guides/claude-code/`, label: "Claude Code" },
 ];
 ---
 
@@ -67,7 +24,6 @@ const features = [
   current=""
 >
   <main>
-    <!-- Hero -->
     <section class="relative overflow-hidden border-b border-border">
       <div
         class="pointer-events-none absolute inset-0 opacity-70"
@@ -76,35 +32,48 @@ const features = [
           radial-gradient(ellipse 80% 50% at 20% -10%, color-mix(in oklch, var(--nb-primary) 28%, transparent), transparent 55%),
           radial-gradient(ellipse 60% 40% at 90% 10%, color-mix(in oklch, var(--nb-info) 18%, transparent), transparent 50%);"
       ></div>
-      <div class="relative mx-auto grid max-w-[90rem] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.95fr] lg:items-center lg:py-24">
+      <div class="relative mx-auto grid max-w-[90rem] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-24">
         <div>
           <div class="mb-4 flex flex-wrap items-center gap-2">
             <Badge>Open source · AGPL-3.0</Badge>
-            <Badge variant="info">Go 1.25+</Badge>
-            <Badge variant="note">Nimbus docs</Badge>
+            <Badge variant="info">OpenAI · Anthropic · Gemini</Badge>
           </div>
           <h1 class="max-w-xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-[3.25rem] lg:leading-[1.08]">
-            One gateway.<br />Every LLM dialect.
+            Inja LLM Gateway
           </h1>
           <p class="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Inja LLM Gateway sits in front of your providers. Clients keep talking
-            OpenAI, Anthropic, or Gemini — you route, translate, meter, and ship
-            without rewriting agents for every backend.
+            Multi-dialect LLM API gateway — one edge for OpenAI, Anthropic, and Gemini clients.
+            Route to any provider without rewriting agents.
           </p>
+          <ul class="mt-6 max-w-xl space-y-2.5 text-sm leading-relaxed text-foreground">
+            {
+              bullets.map((b) => (
+                <li class="flex gap-2.5">
+                  <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                  <span>{b}</span>
+                </li>
+              ))
+            }
+          </ul>
           <div class="mt-8 flex flex-wrap gap-3">
             <LinkButton href={`${base}/start/getting-started/`}>Get started</LinkButton>
-            <LinkButton href={`${base}/how-it-works/`} variant="outline">
-              How it works
-            </LinkButton>
             <LinkButton
               href="https://github.com/inja-online/llm-gateway"
-              variant="ghost"
+              variant="outline"
               target="_blank"
               rel="noopener noreferrer"
             >
               View on GitHub
             </LinkButton>
           </div>
+          <p class="mt-8 text-sm text-muted-foreground">
+            Clients: OpenAI · Anthropic · Gemini
+            <span class="mx-2 text-border">|</span>
+            Kinds: <code class="font-mono text-xs">openai</code>
+            · <code class="font-mono text-xs">openai_compat</code>
+            · <code class="font-mono text-xs">anthropic</code>
+            · <code class="font-mono text-xs">google</code>
+          </p>
         </div>
 
         <div class="rounded-xl border border-border bg-card/80 shadow-lg ring-1 ring-border/60 backdrop-blur">
@@ -140,177 +109,19 @@ hooks:
       </div>
     </section>
 
-    <!-- Stats -->
-    <section class="border-b border-border bg-muted/25">
-      <div class="mx-auto grid max-w-[90rem] grid-cols-2 gap-px bg-border sm:grid-cols-4">
+    <section class="mx-auto max-w-[90rem] px-4 py-12 sm:px-6">
+      <nav class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" aria-label="Docs">
         {
-          stats.map((s) => (
-            <div class="bg-background px-5 py-6 sm:px-6">
-              <p class="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{s.value}</p>
-              <p class="mt-1 text-sm text-muted-foreground">{s.label}</p>
-            </div>
-          ))
-        }
-      </div>
-    </section>
-
-    <!-- How it works -->
-    <section class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
-      <div class="max-w-2xl">
-        <p class="text-sm font-semibold tracking-wide text-primary uppercase">Architecture</p>
-        <h2 class="mt-2 text-3xl font-semibold tracking-tight">How the gateway works</h2>
-        <p class="mt-3 text-muted-foreground">
-          A thin edge process — YAML config, no vendor SDKs required at runtime.
-          Same-family traffic never pays a translation tax; cross-family is explicit and tested.
-        </p>
-      </div>
-      <ol class="mt-10 grid gap-4 md:grid-cols-2">
-        {
-          steps.map((s) => (
-            <li class="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <span class="font-mono text-xs font-semibold text-primary">{s.n}</span>
-              <h3 class="mt-2 text-lg font-semibold tracking-tight">{s.title}</h3>
-              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
-            </li>
-          ))
-        }
-      </ol>
-      <div class="mt-8">
-        <LinkButton href={`${base}/how-it-works/`} variant="outline">
-          Deep dive: request path
-        </LinkButton>
-      </div>
-    </section>
-
-    <!-- Dialects diagram -->
-    <section class="border-y border-border bg-muted/20">
-      <div class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
-        <div class="max-w-2xl">
-          <p class="text-sm font-semibold tracking-wide text-primary uppercase">Dialects × providers</p>
-          <h2 class="mt-2 text-3xl font-semibold tracking-tight">Clients stay native. Upstreams stay flexible.</h2>
-        </div>
-        <div class="mt-10 grid gap-4 lg:grid-cols-3">
-          <div class="rounded-xl border border-border bg-card p-5">
-            <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Ingress</h3>
-            <ul class="mt-4 space-y-2 text-sm">
-              <li class="rounded-md bg-muted/60 px-3 py-2 font-mono">POST /v1/chat/completions</li>
-              <li class="rounded-md bg-muted/60 px-3 py-2 font-mono">POST /v1/messages</li>
-              <li class="rounded-md bg-muted/60 px-3 py-2 font-mono">…/models/*:generateContent</li>
-              <li class="rounded-md bg-muted/60 px-3 py-2 font-mono">/v1/responses · files · batches</li>
-            </ul>
-          </div>
-          <div class="rounded-xl border border-primary/30 bg-primary/5 p-5 ring-1 ring-primary/20">
-            <h3 class="text-sm font-semibold text-primary uppercase tracking-wide">Gateway</h3>
-            <ul class="mt-4 space-y-3 text-sm text-foreground">
-              <li><strong class="font-semibold">Resolve</strong> — alias / provider / model</li>
-              <li><strong class="font-semibold">Auth</strong> — edge keys + upstream api_key_env / ADC</li>
-              <li><strong class="font-semibold">PT or IR</strong> — passthrough vs translate</li>
-              <li><strong class="font-semibold">Hooks</strong> — usage JSONL / webhook</li>
-            </ul>
-          </div>
-          <div class="rounded-xl border border-border bg-card p-5">
-            <h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Egress kinds</h3>
-            <ul class="mt-4 space-y-2 text-sm">
-              <li class="rounded-md bg-muted/60 px-3 py-2"><code class="font-mono">openai</code> · first-party</li>
-              <li class="rounded-md bg-muted/60 px-3 py-2"><code class="font-mono">openai_compat</code> · any host</li>
-              <li class="rounded-md bg-muted/60 px-3 py-2"><code class="font-mono">anthropic</code> · Messages</li>
-              <li class="rounded-md bg-muted/60 px-3 py-2"><code class="font-mono">google</code> · Gemini native</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature cards -->
-    <section class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
-      <div class="max-w-2xl">
-        <p class="text-sm font-semibold tracking-wide text-primary uppercase">Product surface</p>
-        <h2 class="mt-2 text-3xl font-semibold tracking-tight">Built for production agents</h2>
-        <p class="mt-3 text-muted-foreground">
-          Fidelity policies, platform API proxies, and operator hooks — documented and hermetically tested.
-        </p>
-      </div>
-      <div class="mt-10 grid gap-4 sm:grid-cols-2">
-        {
-          features.map((f) => (
+          links.map((l) => (
             <a
-              href={f.href}
-              class="group rounded-xl border border-border bg-card p-5 shadow-sm no-underline transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+              href={l.href}
+              class="font-medium text-primary no-underline hover:underline"
             >
-              <h3 class="text-lg font-semibold tracking-tight text-foreground group-hover:text-primary">
-                {f.title}
-              </h3>
-              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
-              <span class="mt-4 inline-block text-sm font-medium text-primary">Read more →</span>
+              {l.label} →
             </a>
           ))
         }
-      </div>
-    </section>
-
-    <!-- Docs browse -->
-    <section class="border-t border-border bg-muted/20">
-      <div class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
-        <h2 class="text-3xl font-semibold tracking-tight">Browse the docs</h2>
-        <p class="mt-2 max-w-2xl text-muted-foreground">
-          Start with install, then policy matrices and operator guides. Agent-readable Markdown is available for every page.
-        </p>
-        <CardGrid class="mt-8">
-          <Card title="Getting started" icon="ph:rocket-launch">
-            Binary or Docker, YAML config, <code>/healthz</code>, first request.
-            <p class="mt-3">
-              <a href={`${base}/start/getting-started/`} class="font-medium text-primary no-underline hover:underline">
-                Open guide →
-              </a>
-            </p>
-          </Card>
-          <Card title="Compatibility matrix" icon="ph:table">
-            Dialect × modality × provider kind — passthrough, translate, or fail-closed.
-            <p class="mt-3">
-              <a href={`${base}/reference/compatibility-matrix/`} class="font-medium text-primary no-underline hover:underline">
-                View matrix →
-              </a>
-            </p>
-          </Card>
-          <Card title="Claude Code" icon="ph:terminal">
-            Checklist to point Claude Code at the gateway and multi-provider models.
-            <p class="mt-3">
-              <a href={`${base}/guides/claude-code/`} class="font-medium text-primary no-underline hover:underline">
-                Checklist →
-              </a>
-            </p>
-          </Card>
-          <Card title="Deprecation policy" icon="ph:shield-check">
-            How field drops, MINOR/MAJOR bumps, and observe_dropped_fields work.
-            <p class="mt-3">
-              <a href={`${base}/reference/deprecation-policy/`} class="font-medium text-primary no-underline hover:underline">
-                Policy →
-              </a>
-            </p>
-          </Card>
-        </CardGrid>
-      </div>
-    </section>
-
-    <!-- CTA -->
-    <section class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
-      <div class="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-info/10 p-8 sm:p-12">
-        <h2 class="text-2xl font-semibold tracking-tight sm:text-3xl">Ship multi-provider without multi-SDK pain</h2>
-        <p class="mt-3 max-w-2xl text-muted-foreground">
-          Install the binary, drop a YAML file, and put OpenAI-, Anthropic-, or Gemini-shaped clients behind one edge.
-        </p>
-        <div class="mt-6 flex flex-wrap gap-3">
-          <LinkButton href={`${base}/start/getting-started/`}>Read getting started</LinkButton>
-          <LinkButton
-            href="https://github.com/inja-online/llm-gateway"
-            variant="outline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Star on GitHub
-          </LinkButton>
-        </div>
-      </div>
+      </nav>
     </section>
   </main>
 </BaseLayout>
