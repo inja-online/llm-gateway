@@ -1,12 +1,14 @@
 ---
 title: "Getting started"
-description: "Model routing: `aliases` → `provider/model` → dialect default."
+description: "Install the gateway, write a YAML config, and send your first chat request."
 sidebar:
   order: 1
   label: "Getting started"
   group:
     label: "Start"
 ---
+
+Get a working edge in a few minutes: binary or Docker, one YAML file, one request.
 
 ## Requirements
 
@@ -34,6 +36,8 @@ GATEWAY_CONFIG=/path/to/gateway.yaml
 GATEWAY_LISTEN=0.0.0.0:8787
 ```
 
+Default listen address is `localhost:8787` unless you change it.
+
 ## Docker
 
 ```bash
@@ -53,7 +57,7 @@ curl -s http://localhost:8787/healthz
 # {"status":"ok"}
 ```
 
-`/healthz` is **process liveness** only (no upstream probes). It stays open even when `edge_auth` is enabled.
+`GET /healthz` is **process liveness** only (no upstream probes). It stays open even when `edge_auth` is enabled.
 
 ## First chat (OpenAI dialect)
 
@@ -67,10 +71,17 @@ curl -s http://localhost:8787/v1/chat/completions \
   }'
 ```
 
-Model routing: `aliases` → `provider/model` → dialect default. Details in the [README](https://github.com/inja-online/llm-gateway/blob/master/README.md#model-routing).
+**Model routing** (first match wins):
+
+1. `aliases` in YAML  
+2. Explicit `provider/model` prefix  
+3. Dialect default (`defaults.openai_dialect` / `anthropic_dialect` / `google_dialect`)
+
+Full routing details: [README · Model routing](https://github.com/inja-online/llm-gateway/blob/master/README.md#model-routing).
 
 ## Next
 
-- [Claude Code setup](/claude-code-checklist/)
-- [Compatibility matrix](/compatibility-matrix/)
-- [Full HTTP API](https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api)
+- [How it works](/llm-gateway/how-it-works/) — request path, passthrough vs translate  
+- [Claude Code](/llm-gateway/guides/claude-code/) — point `ANTHROPIC_BASE_URL` at the gateway  
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) — dialect × modality × provider kind  
+- [HTTP API](https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api) — full route list in the README  

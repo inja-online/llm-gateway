@@ -2,6 +2,7 @@
 import { cn } from "@/lib/cn";
 import type { HTMLAttributes } from "astro/types";
 import type { Breadcrumb } from "nimbus-docs/types";
+import { withBase } from "@/lib/withBase";
 
 interface Props extends HTMLAttributes<"nav"> {
   items: Breadcrumb[];
@@ -9,7 +10,10 @@ interface Props extends HTMLAttributes<"nav"> {
   maxVisible?: number;
 }
 
-const { items, maxVisible = 4, class: className, ...attrs } = Astro.props;
+const { items: rawItems, maxVisible = 4, class: className, ...attrs } = Astro.props;
+const items = rawItems.map((c) =>
+  c.href ? { ...c, href: withBase(c.href) } : c,
+);
 
 // Determine if we need to collapse the middle
 const shouldCollapse = items.length > maxVisible;

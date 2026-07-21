@@ -63,7 +63,7 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 
 **Fidelity:** same-family TTS body + multipart STT are byte-passthrough; translation uses base64 wrap/unwrap only (no codec re-encode). Multipart limit **32 MiB**.
 
-**Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` (or alias `whisper-fast`) while leaving `defaults.openai_dialect` on another chat provider. Full guide: [providers/groq-stt.md](providers/groq-stt.md).
+**Operator note (Groq STT-first):** configure `groq` with `capabilities.audio_transcribe: true` and call `model: groq/<whisper-model>` (or alias `whisper-fast`) while leaving `defaults.openai_dialect` on another chat provider. Full guide: [Groq STT](/llm-gateway/providers/groq-stt/).
 
 ## Prompt caching (#108)
 
@@ -73,7 +73,7 @@ OpenAI-compat hosts (OpenRouter, xAI Imagine, etc.) need `capabilities.image_gen
 | OpenAI → OpenAI | **P** (body) / **T** preserve `prompt_cache_key` / `prompt_cache_retention` |
 | Google → Google | **P** / **T** preserve `cachedContent` resource name |
 | Cross-family | **Drop** foreign cache directives (no illegal wire fields) |
-| OpenAI/Google → Anthropic + `caching.auto_breakpoints.enabled` | Opt-in inject `cache_control` on system/tools (client wins; see [cache-control-policy.md](/cache-control-policy/)) |
+| OpenAI/Google → Anthropic + `caching.auto_breakpoints.enabled` | Opt-in inject `cache_control` on system/tools (client wins; see [Prompt caching](/llm-gateway/guides/cache-control-policy/)) |
 
 Usage: cache read/write tokens map when upstream reports them (all dialects).
 
@@ -81,7 +81,7 @@ Usage: cache read/write tokens map when upstream reports them (all dialects).
 
 | Ingress | Route | All provider kinds |
 |---|---|---|
-| OpenAI | `/v1/conversations*` (nested included) | **U** — HTTP **501** `not_implemented` (stateless; no gateway store). Prefer Responses + client state / Files. Decision: [conversations-decision.md](/conversations-decision/) (Option A). |
+| OpenAI | `/v1/conversations*` (nested included) | **U** — HTTP **501** `not_implemented` (stateless; no gateway store). Prefer Responses + client state / Files. Decision: [Conversations](/llm-gateway/guides/conversations/) (Option A). |
 
 ## Realtime (WebSocket)
 
@@ -109,12 +109,12 @@ Usage: cache read/write tokens map when upstream reports them (all dialects).
 
 ## SDK hermetic strategy
 
-Official SDK wire coverage (headers, happy paths, no live keys): **[sdk-compatibility-matrix.md](/sdk-compatibility-matrix/)**.
+Official SDK wire coverage (headers, happy paths, no live keys): **[SDK matrix](/llm-gateway/reference/sdk-compatibility/)**.
 
 Named hermetic anchors: `proxy.TestNonStreamPassthrough` (OpenAI), `proxy.TestAnthropicStreamPassthrough` (Anthropic), `proxy.TestGooglePassthroughStreamAndErrors` (Google).
 
 ## Related
 
 - [README](https://github.com/inja-online/llm-gateway/blob/master/README.md) · [CONTRIBUTING modality guide](https://github.com/inja-online/llm-gateway/blob/master/CONTRIBUTING.md#adding-a-modality)
-- [Deprecation / field drops](/deprecation-policy/)
-- [Claude Code checklist](/claude-code-checklist/)
+- [Deprecation / field drops](/llm-gateway/reference/deprecation-policy/)
+- [Claude Code checklist](/llm-gateway/guides/claude-code/)

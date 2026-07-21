@@ -1,9 +1,9 @@
 ---
-title: "Groq Stt"
-description: "Use **Groq for speech-to-text** while keeping **chat on another provider** (OpenAI, Anthropic, etc."
+title: "Groq STT"
+description: "Route speech-to-text to Groq while keeping chat on another provider via model prefixes and capabilities."
 sidebar:
   order: 2
-  label: "Groq Stt"
+  label: "Groq STT"
   group:
     label: "Providers"
 ---
@@ -93,6 +93,6 @@ curl -s http://localhost:8787/v1/chat/completions \
 
 ## Related
 
-- [`gateway.example.yaml`](../../gateway.example.yaml) — `groq` block + `whisper-fast` alias comment
-- [Compatibility matrix](../compatibility-matrix.md) — Audio STT row + operator note
-- [xAI provider guide](/xai/) — same `openai_compat` capability pattern for media
+- [`gateway.example.yaml`](https://github.com/inja-online/llm-gateway/blob/master/gateway.example.yaml) — `groq` block + `whisper-fast` alias comment
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) — Audio STT row + operator note
+- [xAI provider guide](/llm-gateway/providers/xai/) — same `openai_compat` capability pattern for media

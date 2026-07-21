@@ -1,6 +1,6 @@
 ---
 title: "Contributing"
-description: "Default CI is air-gapped (`httptest` only; no `-tags live`)."
+description: "How to develop and test the gateway — local checks, hermetic CI, and where to start."
 sidebar:
   order: 1
   label: "Contributing"
@@ -23,4 +23,19 @@ go test -race ./...
 go vet ./...
 ```
 
-Default CI is air-gapped (`httptest` only; no `-tags live`). See [SDK hermetic matrix](/sdk-compatibility-matrix/).
+Default CI is air-gapped (`httptest` only; no `-tags live`). See the [SDK matrix](/llm-gateway/reference/sdk-compatibility/) for how we cover official client shapes without live vendor keys.
+
+## Docs site
+
+The site under `website/` is Astro + Nimbus. From that directory:
+
+```bash
+npm ci
+npm run dev    # http://localhost:4321/llm-gateway/
+npm run build
+```
+
+## Related
+
+- [Changelog](/llm-gateway/project/changelog/)  
+- [Deprecation policy](/llm-gateway/reference/deprecation-policy/) — when field drops need a version bump  

@@ -1,6 +1,6 @@
 ---
 title: "Deprecation policy"
-description: "Passthrough regressions that strip headers or body keys are **bugs**, not deprecations."
+description: "How field drops, observe_dropped_fields, and semver work when translation cannot map a vendor field."
 sidebar:
   order: 4
   label: "Deprecation policy"
@@ -47,7 +47,7 @@ On OpenAI ↔ Anthropic ↔ Google **chat** translation, the following OpenAI-or
 - `n` > 1 (policy: single choice; multi-choice rejected/dropped per fixtures)
 - `logprobs`, `top_logprobs`, `logit_bias`
 - `stream_options` on non-OpenAI egress
-- Anthropic `cache_control` preserved on Anthropic family (PT + translate IR); **dropped** cross-family — see [cache-control-policy.md](/cache-control-policy/) (#108)
+- Anthropic `cache_control` preserved on Anthropic family (PT + translate IR); **dropped** cross-family — see [Prompt caching](/llm-gateway/guides/cache-control-policy/) (#108)
 - Other vendor-only extras without a canonical home
 
 Thinking / tool / multimodal blocks that *are* mapped are listed in the README “Passthrough vs translation” table. New drops require a changelog **Changed** or **Removed** entry.
@@ -105,8 +105,8 @@ Deprecation timeline for intentional removals:
 
 ## Related
 
-- [CHANGELOG.md](/changelog/)
-- [docs/compatibility-matrix.md](/compatibility-matrix/)
-- [docs/sdk-compatibility-matrix.md](/sdk-compatibility-matrix/)
+- [Changelog](/llm-gateway/project/changelog/)
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)
+- [SDK matrix](/llm-gateway/reference/sdk-compatibility/)
 - [README.md](https://github.com/inja-online/llm-gateway/blob/master/README.md) HTTP API and translation tables
 - Fixture: [`testdata/fixtures/chat_translate/drops/common_drops.txt`](https://github.com/inja-online/llm-gateway/blob/master/testdata/fixtures/chat_translate/drops/common_drops.txt)

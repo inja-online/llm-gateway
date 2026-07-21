@@ -1,6 +1,6 @@
 ---
 title: "Tools policy"
-description: "Unchanged: name required, parameters JSON schema carried on IR, rebuilt per dialect."
+description: "Function tools translate across dialects; non-function tool types fail closed on the translation path."
 sidebar:
   order: 3
   label: "Tools policy"
@@ -8,8 +8,9 @@ sidebar:
     label: "Guides"
 ---
 
-**Last updated:** 2026-07-21  
 **Decision:** **error** on the **translation** path (not silent skip)
+
+Agents often register tools that are only meaningful on one vendor. The gateway treats that carefully so clients never believe a tool was registered when it was dropped.
 
 ## Policy
 
@@ -22,15 +23,21 @@ sidebar:
 
 ## Function tools
 
-Unchanged: name required, parameters JSON schema carried on IR, rebuilt per dialect.
+Supported on both passthrough and translate:
 
-## Acceptance
+- **Name** is required  
+- **Parameters** JSON Schema is carried on the canonical IR  
+- Each dialect egress rebuilds the vendor-shaped tool definition  
 
-- [x] Document skip \| error \| warn → **error** (translate) / forward (passthrough)
-- [x] Unit tests lock policy (`ingress/openai`, `proxy`)
-- [x] Function tools unchanged
+Tool results and tool-use round-trips follow the same family rules as chat (passthrough vs IR).
+
+## Practical guidance
+
+1. Prefer **passthrough** when you need vendor-specific tool types.  
+2. On **cross-family** routes, send only function tools (or drop tools client-side).  
+3. Watch for future expansions: [#107](https://github.com/inja-online/llm-gateway/issues/107) (tool union), [#161](https://github.com/inja-online/llm-gateway/issues/161) (custom grammar tools).
 
 ## Related
 
-- Future expansion: [#107](https://github.com/inja-online/llm-gateway/issues/107) tool union beyond function-only
-- Custom grammar tools: [#161](https://github.com/inja-online/llm-gateway/issues/161)
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)  
+- [Deprecation policy](/llm-gateway/reference/deprecation-policy/)  

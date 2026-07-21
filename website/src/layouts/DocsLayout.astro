@@ -12,6 +12,7 @@ import {
   getTOC,
 } from "nimbus-docs";
 import type { HeadElement } from "nimbus-docs/types";
+import { siteRoot, withBase } from "@/lib/withBase";
 
 interface Props {
   title: string;
@@ -47,16 +48,14 @@ const {
 const sidebar = showSidebar ? await getSidebar(slug, { collection }) : [];
 const crumbs = await getBreadcrumbs(slug, {
   collection,
-  root: { label: "Docs", href: `${import.meta.env.BASE_URL}start/getting-started/` },
+  root: { label: "Docs", href: withBase("/start/getting-started/") },
 });
 const prevNext = await getPrevNext(slug);
 const toc = showToc ? getTOC(headings) : [];
+// Nimbus sets Astro.site to nimbusConfig.site (already includes base). Do not append BASE_URL again.
 const pageMarkdownUrl =
   markdownUrl ??
-  `${Astro.site?.href?.replace(/\/$/, "") ?? ""}${import.meta.env.BASE_URL.replace(/\/$/, "")}/${slug ? slug + "/" : ""}index.md`.replace(
-    /([^:]\/)\/+/g,
-    "$1",
-  );
+  `${siteRoot(Astro.site)}/${slug ? slug + "/" : ""}index.md`.replace(/([^:]\/)\/+/g, "$1");
 ---
 
 <BaseLayout

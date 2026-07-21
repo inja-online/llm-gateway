@@ -1,6 +1,6 @@
 ---
 title: "Claude Code"
-description: "Use this before tagging a release that touches Anthropic ingress/egress, streaming, headers, or routing."
+description: "Point Claude Code at the gateway, route Anthropic-shaped traffic, and run the release checklist."
 sidebar:
   order: 1
   label: "Claude Code"
@@ -10,7 +10,7 @@ sidebar:
 
 **Last updated:** 2026-07-18
 
-Use this before tagging a release that touches Anthropic ingress/egress, streaming, headers, or routing. Prefer hermetic Go tests over live Claude Code in CI; run the manual block when validating a release candidate.
+Use this guide to run **Claude Code** through the gateway, and as a release checklist when Anthropic ingress/egress, streaming, headers, or routing change. Prefer hermetic Go tests over live Claude Code in CI; run the manual block when validating a release candidate.
 
 ## Why this exists
 
@@ -101,7 +101,7 @@ With **edge_auth** enabled, set `ANTHROPIC_API_KEY` to a configured edge key and
 | Topic | Behavior |
 |---|---|
 | Anthropic → openai_compat stream | `message_start.input_tokens` may be 0 until final usage |
-| OpenAI-only fields | Dropped on translate (see [deprecation-policy.md](/deprecation-policy/)) |
+| OpenAI-only fields | Dropped on translate (see [Deprecation policy](/llm-gateway/reference/deprecation-policy/)) |
 | Files / Batch APIs | Not required for Claude Code chat; track separate issues when proxied |
 | Media Contract Anthropic images | Planned; not required for text Claude Code |
 
@@ -109,4 +109,4 @@ With **edge_auth** enabled, set `ANTHROPIC_API_KEY` to a configured edge key and
 
 - [examples/claude-code.sh](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code.sh)
 - [README § Claude Code](https://github.com/inja-online/llm-gateway/blob/master/README.md#claude-code)
-- [compatibility-matrix.md](/compatibility-matrix/)
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)

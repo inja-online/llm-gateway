@@ -1,9 +1,9 @@
 ---
-title: "Zai"
-description: "If a link 404s after a vendor restructure, prefer the product’s “OpenAI compatible” / “compatible-mode” section for the region that issued your key."
+title: "Z.AI / Zhipu"
+description: "Regional OpenAI-compatible bases for Z.AI (international) and BigModel (China) — match base_url to your API key."
 sidebar:
   order: 5
-  label: "Zai"
+  label: "Z.AI"
   group:
     label: "Providers"
 ---
@@ -27,7 +27,7 @@ If a link 404s after a vendor restructure, prefer the product’s “OpenAI comp
 
 ## Example YAML (both regions)
 
-Copy from [`gateway.example.yaml`](../../gateway.example.yaml). **Uncomment only the region that matches your key.**
+Copy from [`gateway.example.yaml`](https://github.com/inja-online/llm-gateway/blob/master/gateway.example.yaml). **Uncomment only the region that matches your key.**
 
 ```yaml
 providers:
@@ -92,6 +92,6 @@ With **edge auth** enabled, clients send the edge key; upstream uses `api_key_en
 
 ## Related
 
-- [`gateway.example.yaml`](../../gateway.example.yaml) — `zai` / `zai_cn` comments
-- [Compatibility matrix](../compatibility-matrix.md) — `openai_compat` defaults
-- [Deprecation policy](../deprecation-policy.md) — passthrough never drops body fields
+- [`gateway.example.yaml`](https://github.com/inja-online/llm-gateway/blob/master/gateway.example.yaml) — `zai` / `zai_cn` comments
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) — `openai_compat` defaults
+- [Deprecation policy](/llm-gateway/reference/deprecation-policy/) — passthrough never drops body fields

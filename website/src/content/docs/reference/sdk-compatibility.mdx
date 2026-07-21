@@ -1,6 +1,6 @@
 ---
 title: "SDK matrix"
-description: "This document is the **hermetic** strategy for official OpenAI / Anthropic / Google client SDK shapes against the gateway."
+description: "Hermetic coverage strategy for official OpenAI, Anthropic, and Google client shapes — no live vendor keys in default CI."
 sidebar:
   order: 2
   label: "SDK matrix"
@@ -9,9 +9,9 @@ sidebar:
 ---
 
 **Last updated:** 2026-07-19  
-**Related:** [compatibility-matrix.md](/compatibility-matrix/) (modality × provider kind) · [claude-code-checklist.md](/claude-code-checklist/)
+**Related:** [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) · [Claude Code](/llm-gateway/guides/claude-code/)
 
-This document is the **hermetic** strategy for official OpenAI / Anthropic / Google client SDK shapes against the gateway. It is **not** a live vendor certification matrix.
+How we keep official SDK wire contracts honest **without** live vendor calls in default CI. This is **not** a live certification matrix.
 
 ## Strategy
 
@@ -82,10 +82,10 @@ What a typical **official SDK** needs when `base_url` / host points at the gatew
 1. Prefer a **hermetic** `proxy` or `ingress`/`egress` test that mimics the SDK request (headers + body).
 2. Name the test so it can be linked from this matrix.
 3. If introducing a real SDK subprocess job, keep it **opt-in** (separate workflow / `make` target) and still air-gapped with fakes.
-4. Update this file and [compatibility-matrix.md](/compatibility-matrix/) “Related” links.
+4. Update this file and [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) “Related” links.
 
 ## Related
 
-- End-to-end modality matrix: [compatibility-matrix.md](/compatibility-matrix/)
-- Claude Code / Anthropic checklist: [claude-code-checklist.md](/claude-code-checklist/)
+- End-to-end modality matrix: [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)
+- Claude Code / Anthropic checklist: [Claude Code](/llm-gateway/guides/claude-code/)
 - Public API contract: [README.md](https://github.com/inja-online/llm-gateway/blob/master/README.md)

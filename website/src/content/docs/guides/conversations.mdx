@@ -1,6 +1,6 @@
 ---
 title: "Conversations"
-description: "Re-open **Option B** only with a **named** customer or SDK constraint that cannot use Responses through the gateway."
+description: "Why /v1/conversations returns 501, and what to use instead (Responses, client state, Files)."
 sidebar:
   order: 5
   label: "Conversations"
@@ -12,6 +12,18 @@ sidebar:
 **Date:** 2026-07-21  
 **Issue:** [#118](https://github.com/inja-online/llm-gateway/issues/118)  
 **Related:** [#67](https://github.com/inja-online/llm-gateway/issues/67) (501 stub + docs)
+
+## Operator summary
+
+OpenAI’s **Conversations** API (`/v1/conversations*`) is **not supported**. The gateway returns a structured **HTTP 501** `not_implemented` so SDKs get a clear error instead of a bare 404.
+
+**Use instead:**
+
+- **`POST /v1/responses`** for agent turns  
+- **Client-side history** for thread state  
+- **Files** for durable assets on the upstream account  
+
+The gateway stays **stateless** — no conversation database and no sticky ownership of threads.
 
 ## Decision
 
@@ -63,7 +75,7 @@ sidebar:
 | `proxy/server.go` | Route registration (incl. nested `{rest...}`) |
 | `proxy/conversations_test.go` | Hermetic 501 + guidance keyword tests |
 | README “Conversations (not supported)” | Operator-facing alternatives |
-| [compatibility-matrix.md](/compatibility-matrix/) | **U** row |
+| [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) | **U** row |
 
 ## Revisit criteria
 

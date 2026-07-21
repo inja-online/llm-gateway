@@ -1,6 +1,6 @@
 ---
 title: "Service tier"
-description: "Service tier — Inja LLM Gateway docs"
+description: "How OpenAI service_tier and system_fingerprint are handled on passthrough and translate paths."
 sidebar:
   order: 4
   label: "Service tier"
@@ -8,23 +8,33 @@ sidebar:
     label: "Guides"
 ---
 
-**Last updated:** 2026-07-21  
 **Status:** Implemented for OpenAI-family paths
+
+OpenAI clients sometimes send `service_tier` on chat requests and receive `system_fingerprint` / `service_tier` on responses. The gateway keeps those fields honest: forward when the wire supports them, never invent them for other dialects.
+
+## Behavior
 
 | Field | Direction | Behavior |
 |---|---|---|
-| `service_tier` | Request | Parsed into canonical; rebuilt on **OpenAI egress** only. Passthrough JSON keeps the field (model rewrite only). **Not** sent to Anthropic/Google. |
-| `system_fingerprint` | Response | Forwarded when upstream returns it (passthrough body or OpenAI serialize). **Never invented** for other dialects. |
+| `service_tier` | Request | Parsed into canonical IR; rebuilt on **OpenAI egress** only. Passthrough JSON keeps the field (model rewrite only). **Not** sent to Anthropic or Google. |
+| `system_fingerprint` | Response | Forwarded when the upstream returns it (passthrough body or OpenAI serialize). **Never invented** for other dialects. |
 | `service_tier` | Response | Forwarded when present on OpenAI-shaped upstream responses. |
 
-## Acceptance
+## What this means for operators
 
-- [x] Request `service_tier` OpenAI map (ingress + egress + passthrough)
-- [x] Response fingerprint when present
-- [x] Never invent on other dialects
+- Same-family OpenAI → `openai` / `openai_compat`: clients keep tier and fingerprint behavior from the upstream host.
+- Cross-family translate (e.g. OpenAI client → Anthropic): request `service_tier` is dropped; responses will not invent a fingerprint.
+- Passthrough never strips fields it does not understand — see [Deprecation policy](/llm-gateway/reference/deprecation-policy/).
 
 ## Tests
 
+Hermetic coverage:
+
 - `proxy.TestServiceTierPassthroughOpenAI`
 - `proxy.TestServiceTierNotInventedOnAnthropicTranslate`
-- Unit: `ingress/openai.TestParseServiceTier`, `egress/openai.TestBuildServiceTier`, serialize/parse usage tests
+- `ingress/openai.TestParseServiceTier`, `egress/openai.TestBuildServiceTier`, plus serialize/parse usage tests
+
+## Related
+
+- [Deprecation policy](/llm-gateway/reference/deprecation-policy/) — translation field drops  
+- [Header matrix](/llm-gateway/reference/header-matrix/) — correlation and rate-limit headers  

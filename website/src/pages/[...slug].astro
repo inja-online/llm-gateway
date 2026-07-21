@@ -16,11 +16,9 @@ if (mode === "custom") {
 const showSidebar = data.sidebar !== false && mode !== "custom";
 const showToc = data.tableOfContents !== false && mode !== "custom";
 const slug = entry.id === "index" ? "" : entry.id;
-const base = import.meta.env.BASE_URL.replace(/\/$/, "") || "";
-const markdownUrl = `${Astro.site?.toString().replace(/\/$/, "")}${base}/${slug ? slug + "/" : ""}index.md`.replace(
-  /([^:]\/)\/+/g,
-  "$1",
-);
+// Nimbus bridges nimbusConfig.site (includes /llm-gateway) into Astro.site — don't append base twice.
+const site = (Astro.site?.href ?? "").replace(/\/$/, "");
+const markdownUrl = `${site}/${slug ? slug + "/" : ""}index.md`.replace(/([^:]\/)\/+/g, "$1");
 ---
 
 {

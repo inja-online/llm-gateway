@@ -75,7 +75,7 @@ The body is not rebuilt through IR. Only the **model id** (and auth headers) cha
 e.g. OpenAI client → Anthropic upstream.  
 Ingress parses to **canonical IR**, egress rebuilds the target dialect. Unknown or unmappable fields are **dropped** (documented) or **error** (e.g. non-function tools on translate). Optional `observe_dropped_fields: true` exposes `X-Gateway-Dropped-Fields`.
 
-See the [compatibility matrix](/reference/compatibility-matrix/) for the full dialect × modality grid.
+See the [compatibility matrix](/llm-gateway/reference/compatibility-matrix/) for the full dialect × modality grid.
 
 ## Model resolution
 
@@ -101,7 +101,7 @@ caching:
     targets: [system, tools]
 ```
 
-Details: [Prompt caching policy](/guides/cache-control-policy/).
+Details: [Prompt caching policy](/llm-gateway/guides/cache-control-policy/).
 
 ## Usage metering
 
@@ -134,6 +134,6 @@ It **is** a production edge for multi-provider agents: small config, explicit fi
 
 ## Next steps
 
-- [Getting started](/start/getting-started/) — install and first request  
-- [Claude Code checklist](/guides/claude-code/) — point `ANTHROPIC_BASE_URL` at the gateway  
-- [Compatibility matrix](/reference/compatibility-matrix/) — what translates vs passthrough  
+- [Getting started](/llm-gateway/start/getting-started/) — install and first request  
+- [Claude Code checklist](/llm-gateway/guides/claude-code/) — point `ANTHROPIC_BASE_URL` at the gateway  
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) — what translates vs passthrough  

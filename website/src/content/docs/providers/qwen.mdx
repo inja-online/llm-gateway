@@ -1,6 +1,6 @@
 ---
-title: "Qwen"
-description: "DashScope’s **OpenAI-compatible mode** lives under region-specific hosts."
+title: "Qwen (DashScope)"
+description: "DashScope OpenAI-compatible mode with CN vs international base URLs and compatible-mode paths."
 sidebar:
   order: 3
   label: "Qwen"
@@ -25,7 +25,7 @@ Always re-check Alibaba Cloud docs if hosts move; keep **`/compatible-mode/v1`**
 
 ## Example YAML (regional)
 
-From [`gateway.example.yaml`](../../gateway.example.yaml):
+From [`gateway.example.yaml`](https://github.com/inja-online/llm-gateway/blob/master/gateway.example.yaml):
 
 ```yaml
 providers:
@@ -80,6 +80,6 @@ Or with alias `qwen-turbo` → `qwen/qwen-turbo` as in the example above.
 
 ## Related
 
-- [`gateway.example.yaml`](../../gateway.example.yaml) — `qwen` / `qwen_intl`
-- [Z.AI regions](/zai/) — same pattern for another dual-region host
-- [Compatibility matrix](../compatibility-matrix.md)
+- [`gateway.example.yaml`](https://github.com/inja-online/llm-gateway/blob/master/gateway.example.yaml) — `qwen` / `qwen_intl`
+- [Z.AI regions](/llm-gateway/providers/zai/) — same pattern for another dual-region host
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)

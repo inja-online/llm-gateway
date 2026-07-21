@@ -8,8 +8,9 @@ interface Props {
 }
 
 const { markdownUrl } = Astro.props;
+// Astro.site already includes the project base path (via nimbusConfig.site).
 const site = Astro.site?.href?.replace(/\/$/, "") ?? "";
-const llms = `${site}/llms.txt`;
+const llms = site ? `${site}/llms.txt` : "/llms.txt";
 ---
 
 {
