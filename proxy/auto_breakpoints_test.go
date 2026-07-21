@@ -170,6 +170,75 @@ defaults:
 	}
 }
 
+func TestApplyAutoBreakpointsEmptySurfaces(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Caching.AutoBreakpoints.Enabled = true
+	cfg.Caching.AutoBreakpoints.MinChars = 1
+	req := &canonical.Request{}
+	if got := applyAutoBreakpoints(cfg, req); len(got) != 0 {
+		t.Fatalf("empty req: %v", got)
+	}
+	// Non-text system blocks only
+	req.System = []canonical.Block{{Type: canonical.BlockImage}}
+	if got := applyAutoBreakpoints(cfg, req); len(got) != 0 {
+		t.Fatalf("no text system: %v", got)
+	}
+}
+
+func TestGoogleToAnthropicAutoBreakpoints(t *testing.T) {
+	var upBody string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		upBody = string(raw)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"msg_1","type":"message","role":"assistant","model":"claude",
+			"content":[{"type":"text","text":"ok"}],
+			"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":1}
+		}`))
+	}))
+	t.Cleanup(up.Close)
+
+	sys := strings.Repeat("G", 80)
+	cfg, err := config.Parse([]byte(`
+caching:
+  auto_breakpoints:
+    enabled: true
+    min_chars: 40
+    targets: [system]
+providers:
+  anthropic: { kind: anthropic, base_url: "` + up.URL + `" }
+defaults:
+  google_dialect: anthropic
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw := httptest.NewServer(NewServer(cfg, nil).Handler())
+	t.Cleanup(gw.Close)
+
+	// Minimal Gemini generateContent with system_instruction (snake_case wire).
+	body := `{
+		"system_instruction":{"parts":[{"text":"` + sys + `"}]},
+		"contents":[{"role":"user","parts":[{"text":"hi"}]}]
+	}`
+	resp, err := http.Post(gw.URL+"/v1beta/models/claude:generateContent", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d %s", resp.StatusCode, out)
+	}
+	if hdr := resp.Header.Get("X-Gateway-Cache-Auto"); hdr != "system" {
+		t.Fatalf("header=%q body=%s up=%s", hdr, out, upBody)
+	}
+	if !strings.Contains(upBody, "cache_control") {
+		t.Fatalf("upstream missing cache_control: %s", upBody)
+	}
+}
+
 func TestOpenAIToAnthropicAutoBreakpointsOffNoHeader(t *testing.T) {
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
