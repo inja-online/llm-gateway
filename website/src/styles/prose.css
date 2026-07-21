@@ -1,0 +1,83 @@
+/* Docs prose column — complements Nimbus content chrome. */
+@reference "./globals.css";
+
+.nimbus-prose {
+  @apply text-[0.975rem] leading-7 text-foreground;
+  max-width: var(--nb-content-max);
+}
+
+.nimbus-prose :where(h1, h2, h3, h4) {
+  @apply scroll-mt-24 font-semibold tracking-tight text-foreground;
+}
+
+.nimbus-prose :where(h1) {
+  @apply mb-4 text-3xl;
+}
+
+.nimbus-prose :where(h2) {
+  @apply mt-10 mb-3 border-b border-border pb-2 text-xl;
+}
+
+.nimbus-prose :where(h3) {
+  @apply mt-8 mb-2 text-lg;
+}
+
+.nimbus-prose :where(p) {
+  @apply my-4;
+}
+
+.nimbus-prose :where(a) {
+  @apply font-medium text-primary underline-offset-4 hover:underline;
+}
+
+.nimbus-prose :where(ul, ol) {
+  @apply my-4 pl-6;
+}
+
+.nimbus-prose :where(ul) {
+  @apply list-disc;
+}
+
+.nimbus-prose :where(ol) {
+  @apply list-decimal;
+}
+
+.nimbus-prose :where(li) {
+  @apply my-1.5;
+}
+
+.nimbus-prose :where(blockquote) {
+  @apply my-4 border-l-2 border-primary/40 pl-4 text-muted-foreground italic;
+}
+
+.nimbus-prose :where(hr) {
+  @apply my-8 border-border;
+}
+
+.nimbus-prose :where(table) {
+  @apply my-6 w-full border-collapse text-sm;
+}
+
+.nimbus-prose :where(th, td) {
+  @apply border border-border px-3 py-2 text-left align-top;
+}
+
+.nimbus-prose :where(th) {
+  @apply bg-muted/60 font-semibold;
+}
+
+.nimbus-prose :where(code) {
+  @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.875em];
+}
+
+.nimbus-prose :where(pre) {
+  @apply my-5 overflow-x-auto rounded-lg border border-border bg-card p-4 text-sm shadow-sm;
+}
+
+.nimbus-prose :where(pre code) {
+  @apply bg-transparent p-0 text-[0.875rem] leading-6;
+}
+
+.nimbus-prose :where(img) {
+  @apply my-6 max-w-full rounded-lg border border-border;
+}

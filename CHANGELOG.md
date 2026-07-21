@@ -25,6 +25,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Docs cleanup:** removed internal Superpowers SDD/plan trees (`.superpowers/`, `docs/superpowers/`); public contract stays in README + `docs/*.md`.
 - **Product policy:** no more **wontfix / document-skip** for missing endpoints. Incomplete items reopened on GitHub; full surface tracked under [milestone M6](https://github.com/inja-online/llm-gateway/milestone/7) (#104–#164 + reopened stubs). README no longer marks Prometheus/health/Moonshot helpers as permanent wontfix.
 
+### Changed
+
+- **Docs site:** rebuilt on [Nimbus](https://nimbus-docs.com) (Astro 7) with a product landing page, filesystem sidebar, Pagefind search, and agent surfaces (`llms.txt`, per-page Markdown alternates).
+
 ### Added
 
 - **Opt-in Anthropic auto breakpoints:** `caching.auto_breakpoints` injects `cache_control` on system/tools when translating OpenAI/Google → Anthropic (default off; client wins; `X-Gateway-Cache-Auto` header). [docs/cache-control-policy.md](docs/cache-control-policy.md).

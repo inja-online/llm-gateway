@@ -1,0 +1,23 @@
+---
+/**
+ * Hidden agent directive block for AI consumers.
+ * See nimbus-docs feature: ai-native.
+ */
+interface Props {
+  markdownUrl?: string;
+}
+
+const { markdownUrl } = Astro.props;
+const site = Astro.site?.href?.replace(/\/$/, "") ?? "";
+const llms = `${site}/llms.txt`;
+---
+
+{
+  markdownUrl && (
+    <div class="sr-only" data-ai-agent-directive hidden aria-hidden="true">
+      This documentation page has a Markdown alternate at {markdownUrl}. Site
+      index for agents: {llms}. Prefer Markdown over HTML when summarizing or
+      quoting this page.
+    </div>
+  )
+}

@@ -1,0 +1,46 @@
+---
+title: "Header matrix"
+description: "Allowlisted by `copyAllowlistedResponseHeaders` (`proxy/headers."
+sidebar:
+  order: 3
+  label: "Header matrix"
+  group:
+    label: "Reference"
+---
+
+**Last updated:** 2026-07-21
+
+## Response headers (upstream → client)
+
+Allowlisted by `copyAllowlistedResponseHeaders` (`proxy/headers.go`):
+
+| Family | Headers / prefixes |
+|---|---|
+| Common | `Content-Type`, `Content-Length`, `Content-Encoding`, `Retry-After` |
+| Request correlation | `X-Request-Id`, `Request-Id`, `X-Gateway-Request-Id` (gateway-generated if not set) |
+| OpenAI | `Openai-Organization`, `Openai-Processing-Ms`, `Openai-Version`, `X-Ratelimit-*` |
+| Anthropic | `Anthropic-Organization-Id`, `Anthropic-Ratelimit-*` |
+| Google | `X-Goog-*` (quota / request metadata) |
+
+Hop-by-hop headers (`Connection`, `Transfer-Encoding`, …) are never copied.
+
+## Request headers (client → upstream)
+
+| Header | OpenAI family | Anthropic | Google |
+|---|---|---|---|
+| `Authorization` / `x-api-key` / `x-goog-api-key` | via auth | via auth | via auth |
+| `OpenAI-Organization`, `OpenAI-Project`, `OpenAI-Beta` | yes | no | no |
+| `anthropic-version`, `anthropic-beta` | no | yes | no |
+| `HTTP-Referer`, `Referer`, `X-Title` | yes | yes | yes |
+| `X-Client-Request-Id` | forwarded when present | forwarded | forwarded |
+
+## Normalization notes
+
+- Gateway always sets **`X-Gateway-Request-Id`** to the usage `request_id` without clobbering upstream `X-Request-Id`.
+- Rate-limit header **names** are preserved (not rewritten to a single dialect); clients should read the family they expect.
+- Missing upstream headers are not invented.
+
+## Tests
+
+- `proxy/headers_test.go`
+- Integration: OpenRouter / passthrough response header tests

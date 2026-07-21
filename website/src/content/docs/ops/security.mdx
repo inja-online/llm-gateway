@@ -1,0 +1,87 @@
+---
+title: "Security"
+description: "The gateway is a **stateless reverse proxy** with optional translation."
+sidebar:
+  order: 1
+  label: "Security"
+  group:
+    label: "Ops"
+---
+
+Focused review of gateway handling for multipart uploads (STT, image edits/variations, Files API) and binary media (TTS, video content). Complements [SECURITY.md](https://github.com/inja-online/llm-gateway/blob/master/SECURITY.md) and the [limits table](https://github.com/inja-online/llm-gateway/blob/master/README.md#limits--timeouts) in the README.
+
+**Scope date:** 2026-07 (M5 core ops).  
+**Code areas:** `proxy/media.go`, `proxy/audio.go`, `proxy/files.go`, `proxy/exchange.go`, ingress/egress image/file parsers.
+
+---
+
+## Threat model (gateway role)
+
+The gateway is a **stateless reverse proxy** with optional translation. It:
+
+- Does **not** persist uploads or media to disk
+- Does **not** log request/response bodies
+- Forwards credentials (or `api_key_env`) and records only a short `key_hash` on usage events
+- Caps body size via `max_body_bytes` (default **32 MiB**)
+
+Attack surface is primarily: memory exhaustion, log leakage, path traversal via multipart filenames, content-type confusion, and SSRF if the gateway were to fetch client-supplied URLs.
+
+---
+
+## Checklist
+
+| Area | Status | Notes |
+|---|---|---|
+| **Global body size** | Mitigated | `config.max_body_bytes` (default 32 MiB). Request bodies larger than the limit → **HTTP 413** dialect-shaped error (`invalid_request_error`). Response copies use the same cap. |
+| **Multipart size** | Mitigated | Multipart is read via the same `readBody` path; no separate unbounded spool. Oversized multipart fails before upstream. |
+| **Decompression bombs** | N/A / residual | Gateway does not decompress client Content-Encoding for business logic; Go HTTP stack handles transfer encoding. Operators should still terminate TLS and strip unexpected encodings at a front proxy if required. |
+| **Multipart boundary abuse** | Mitigated (fail closed) | `mime/multipart` parse errors on model rewrite → request fails; no partial silent success that skips size limits. |
+| **Filename path traversal** | Mitigated | Filenames are **opaque strings** rewritten into `Content-Disposition` only. The gateway **never** opens `os.Open` / writes temp files for upload parts. Path segments like `../../etc/passwd` are not resolved locally. Quotes in filenames are escaped (`escapeQuotes`) on rewrite to reduce header-injection risk. |
+| **Content-Type confusion** | Documented | Part `Content-Type` is preserved when present; missing file parts default to `application/octet-stream`. Routing uses path + dialect, not client part CT. Operators should not trust part CT for access control. |
+| **SSRF (image / file URLs)** | **No gateway fetch** | OpenAI `image_url.url`, Google `file_data.file_uri`, and similar are **pass-through strings**. The gateway does **not** HTTP-GET client URLs. Upstream providers may fetch URLs; that is provider-side risk, not gateway SSRF. See below. |
+| **Temp file leaks** | Mitigated | No temp files for multipart/media; in-memory only within the request lifetime. |
+| **Body / key logging** | Mitigated | Usage hooks emit `key_hash` (12 hex of SHA-256), never raw keys. Bodies and multipart bytes are not logged. Prefer `hooks.jsonl.output: stdout` + platform log redaction. |
+| **Edge auth** | Orthogonal | Optional `edge_auth` gates routes; does not replace upstream key validity or body limits. |
+| **Files API** | Documented | `/v1/files*` proxies only; objects live on the **upstream** account. Gateway does not store file bytes after the response completes. |
+
+---
+
+## SSRF detail: URI pass-through (not fetch)
+
+Google Gemini `file_data` / OpenAI vision `image_url` often carry `https://…` URIs. Translation and passthrough paths treat these as **opaque URI strings**:
+
+- Ingress maps them into canonical blocks (`Kind: "url"` or equivalent)
+- Egress re-emits `file_data` / `image_url` for the target dialect
+- **No** `http.Client` call is made by the gateway to resolve those URIs
+
+Therefore a client cannot coerce the **gateway process** into scanning internal networks via image URLs. If a provider fetches the URL, deploy network policy on the **provider side** or avoid sending internal URLs to third-party APIs.
+
+Hermetic coverage: `ingress/google/file_data_test.go`, `egress/google/media_test.go` (file_data pass-through).
+
+---
+
+## Residual risks / operator actions
+
+1. **Raise `max_body_bytes` carefully** — larger caps increase peak memory per concurrent request (body is fully buffered for model rewrite / translation).
+2. **Front with an edge proxy** for TLS, WAF, and optional request size limits closer to clients.
+3. **Do not mount writable scratch** for the container “just in case”; the binary does not need it for media.
+4. **Provider fetch of URLs** remains outside gateway control; document for tenants that public providers may retrieve `image_url` / `file_uri` targets.
+
+---
+
+## Tests
+
+| Test | What it covers |
+|---|---|
+| `proxy.TestOversizeBodyOpenAIDialect413` | JSON body > `max_body_bytes` → OpenAI envelope 413 |
+| `proxy.TestOversizeBodyAnthropicDialect413` | Anthropic dialect 413 envelope |
+| `proxy.TestOversizeMultipartAudio413` | Multipart STT oversize → 413 |
+| `proxy.TestMultipartMaliciousFilenamePreservedNotExecuted` | Path-like filenames not opened; rewrite preserves/escapes filename |
+
+---
+
+## Related
+
+- [SECURITY.md](https://github.com/inja-online/llm-gateway/blob/master/SECURITY.md) — reporting, edge auth, ops hygiene
+- README **Limits & timeouts** — body, header wait, realtime sessions, drain
+- Issue theme: M5 security review of media/audio multipart

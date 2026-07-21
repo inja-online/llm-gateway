@@ -1,37 +1,104 @@
 ---
-import "../styles/global.css";
-import Header from "../components/Header.astro";
-import Footer from "../components/Footer.astro";
-import { withBase } from "../lib/paths";
+import NimbusHead from "nimbus-docs/components/NimbusHead.astro";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+import AgentDirective from "@/components/AgentDirective.astro";
+import { SearchDialog } from "@/components/ui/search";
+import { config } from "virtual:nimbus/config";
+import type { HeadElement } from "nimbus-docs/types";
+import "@/styles/globals.css";
+import "@/styles/prose.css";
 
 interface Props {
   title: string;
   description?: string;
+  noindex?: boolean;
+  markdownUrl?: string;
+  socialImage?: string;
+  lastUpdated?: Date;
+  head?: HeadElement[];
+  collection?: string;
+  entryId?: string;
+  current?: string;
+  /** When true, omit header/footer chrome (rare). */
+  bare?: boolean;
 }
 
-const { title, description = "Inja LLM Gateway documentation" } = Astro.props;
-const fullTitle = title === "Inja LLM Gateway" ? title : `${title} · Inja LLM Gateway`;
+const {
+  title,
+  description,
+  noindex,
+  markdownUrl,
+  socialImage,
+  lastUpdated,
+  head,
+  collection,
+  entryId,
+  current = "",
+  bare = false,
+} = Astro.props;
+
+const pageTitle =
+  title === config.title ? title : `${title} · ${config.title}`;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={config.locale ?? "en"}>
   <head>
-    <meta charset="UTF-8" />
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="generator" content={Astro.generator} />
-    <meta name="description" content={description} />
-    <link rel="icon" type="image/jpeg" href={withBase("/logo.jpg")} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
+    <script is:inline>
+      (() => {
+        const KEY = "ui-mode";
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const readPref = () => {
+          try {
+            const v = localStorage.getItem(KEY);
+            return v === "dark" || v === "light" ? v : null;
+          } catch {
+            return null;
+          }
+        };
+        const resolveMode = () => readPref() ?? (media.matches ? "dark" : "light");
+        const applyTheme = () => {
+          const root = document.documentElement;
+          const mode = resolveMode();
+          if (mode === "dark") root.setAttribute("data-mode", "dark");
+          else root.removeAttribute("data-mode");
+          root.style.colorScheme = mode;
+          document.querySelectorAll("[data-nb-theme-toggle]").forEach((b) => {
+            b.setAttribute("data-nb-state", mode);
+          });
+        };
+        applyTheme();
+        document.addEventListener("astro:after-swap", applyTheme);
+        media.addEventListener("change", () => {
+          if (!readPref()) applyTheme();
+        });
+        window.addEventListener("storage", (e) => {
+          if (e.key === KEY) applyTheme();
+        });
+        window.__nbApplyTheme = applyTheme;
+      })();
+    </script>
+    <NimbusHead
+      title={pageTitle}
+      description={description}
+      noindex={noindex}
+      markdownUrl={markdownUrl}
+      socialImage={socialImage}
+      lastUpdated={lastUpdated}
+      head={head}
+      collection={collection}
+      entryId={entryId}
     />
-    <title>{fullTitle}</title>
+    <link rel="icon" href={`${import.meta.env.BASE_URL}logo.jpg`} type="image/jpeg" />
   </head>
-  <body>
-    <Header />
+  <body class="flex min-h-screen flex-col">
+    {!bare && <Header current={current} />}
     <slot />
-    <Footer />
+    {!bare && <Footer />}
+    {config.search !== false && <SearchDialog />}
+    <AgentDirective markdownUrl={markdownUrl} />
   </body>
 </html>

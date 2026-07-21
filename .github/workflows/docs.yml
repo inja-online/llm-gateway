@@ -6,11 +6,13 @@ on:
     paths:
       - "website/**"
       - "CHANGELOG.md"
+      - "docs/**"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
       - "website/**"
       - "CHANGELOG.md"
+      - "docs/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -42,7 +44,7 @@ jobs:
           import re
 
           text = Path("CHANGELOG.md").read_text()
-          text = re.sub(r"\]\(docs/([^)]+)\)", r"](/\1/)", text)
+          text = re.sub(r"\]\(docs/([^)]+)\)", r"](/guides/\1/)", text)
           text = re.sub(
               r"\]\(LICENSE\)",
               r"](https://github.com/inja-online/llm-gateway/blob/master/LICENSE)",
@@ -53,14 +55,18 @@ jobs:
 
           frontmatter = """---
           title: Changelog
-          description: Release history
-          group: project
-          order: 31
+          description: Release history for Inja LLM Gateway
+          sidebar:
+            order: 30
+            label: Changelog
+            group:
+              label: Project
           ---
 
           """.replace("          ", "")
 
-          out = Path("website/src/content/docs/changelog.md")
+          out = Path("website/src/content/docs/project/changelog.mdx")
+          out.parent.mkdir(parents=True, exist_ok=True)
           out.write_text(frontmatter + text)
           print(f"wrote {out} ({out.stat().st_size} bytes)")
           PY
@@ -69,7 +75,7 @@ jobs:
         working-directory: website
         run: npm ci
 
-      - name: Build Astro site
+      - name: Build Nimbus docs site
         working-directory: website
         run: npm run build
 

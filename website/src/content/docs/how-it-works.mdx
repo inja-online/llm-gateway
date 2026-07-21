@@ -1,0 +1,139 @@
+---
+title: "How it works"
+description: "Request path through the Inja LLM Gateway — dialects, routing, passthrough vs translate, and usage events."
+sidebar:
+  order: 2
+  label: "How it works"
+  group:
+    label: "Start"
+---
+
+Inja LLM Gateway is a **stateless HTTP/WebSocket edge** written in Go. It does not store chats, files, or cache payloads. Upstream providers own durable state; the gateway owns **routing, fidelity, and metering**.
+
+## The big picture
+
+```
+  Client (OpenAI / Anthropic / Gemini SDK)
+            │
+            ▼
+  ┌─────────────────────┐
+  │  Edge auth (opt)    │  Authorization / x-api-key
+  │  Body size limit    │
+  └─────────┬───────────┘
+            ▼
+  ┌─────────────────────┐
+  │  Dialect handler    │  /v1/chat/completions · /v1/messages · generateContent · …
+  │  Model resolve      │  alias → provider/model · defaults.*_dialect
+  └─────────┬───────────┘
+            ▼
+       same family? ──yes──► Passthrough (byte path, model rewrite only)
+            │ no
+            ▼
+  ┌─────────────────────┐
+  │  Canonical IR       │  Parse → translate → BuildRequest
+  │  Drop / preserve    │  Policy matrices + optional observe headers
+  └─────────┬───────────┘
+            ▼
+  ┌─────────────────────┐
+  │  Upstream           │  kind: openai | openai_compat | anthropic | google
+  │  Auth inject        │  api_key_env · ADC · bearer
+  └─────────┬───────────┘
+            ▼
+  Response translate (if needed) + usage event (JSONL / webhook)
+```
+
+## Client dialects (ingress)
+
+| Dialect | Primary routes |
+|---|---|
+| **OpenAI** | `/v1/chat/completions`, `/v1/responses`, `/v1/embeddings`, media, files, batches, realtime |
+| **Anthropic** | `/v1/messages`, `/v1/messages/count_tokens`, Skills / tunnels / memory proxies |
+| **Google** | `/v1beta/models/{model}:generateContent`, stream, countTokens, Live, platform caches |
+
+Clients keep their **native wire format**. The gateway does not force a single “universal” JSON schema on the client.
+
+## Provider kinds (egress)
+
+Configured under `providers` in YAML:
+
+| Kind | Role |
+|---|---|
+| `openai` | First-party OpenAI-shaped APIs |
+| `openai_compat` | Any OpenAI-compatible host (DeepSeek, xAI, Groq, OpenRouter, Moonshot, …) |
+| `anthropic` | Anthropic Messages |
+| `google` | Native Gemini / Vertex-style generateContent |
+
+`openai_compat` defaults to **text-only** capabilities; opt in with `capabilities.image_gen`, `audio_transcribe`, `realtime`, etc.
+
+## Passthrough vs translate
+
+**Passthrough (same family)**  
+Anthropic client → Anthropic provider, OpenAI → OpenAI/`openai_compat`, Google → Google.  
+The body is not rebuilt through IR. Only the **model id** (and auth headers) change. Maximum fidelity — including vendor-only fields and `cache_control` breakpoints.
+
+**Translate (cross family)**  
+e.g. OpenAI client → Anthropic upstream.  
+Ingress parses to **canonical IR**, egress rebuilds the target dialect. Unknown or unmappable fields are **dropped** (documented) or **error** (e.g. non-function tools on translate). Optional `observe_dropped_fields: true` exposes `X-Gateway-Dropped-Fields`.
+
+See the [compatibility matrix](/reference/compatibility-matrix/) for the full dialect × modality grid.
+
+## Model resolution
+
+1. **Alias** — `aliases.fast: deepseek/deepseek-chat`
+2. **Explicit provider prefix** — `anthropic/claude-sonnet-4`, `groq/whisper-large-v3`
+3. **Bare model** — uses `defaults.openai_dialect` / `anthropic_dialect` / `google_dialect`
+
+## Prompt caching
+
+Within a family, cache directives are preserved on IR rebuild ([#108](https://github.com/inja-online/llm-gateway/issues/108)):
+
+- Anthropic `cache_control`
+- OpenAI `prompt_cache_key` / `prompt_cache_retention`
+- Google `cachedContent` (+ CRUD proxy `/v1beta/cachedContents*`)
+
+Cross-family hops **drop** foreign cache fields. Operators can enable **opt-in** Anthropic auto breakpoints for OpenAI/Google → Anthropic translate:
+
+```yaml
+caching:
+  auto_breakpoints:
+    enabled: true
+    min_chars: 2048
+    targets: [system, tools]
+```
+
+Details: [Prompt caching policy](/guides/cache-control-policy/).
+
+## Usage metering
+
+Every completed exchange emits one **UsageEvent** (hooks):
+
+- Provider, model, upstream model
+- Tokens in/out, cache read/write, reasoning tokens when present
+- Latency, HTTP status, stream flag
+- Optional `dropped_fields` names
+
+Wire to `hooks.jsonl` (stdout/file) and/or `hooks.webhook` for billing pipelines.
+
+## Ops surfaces
+
+| Route | Purpose |
+|---|---|
+| `GET /healthz` | Process liveness |
+| `GET /v1/health/providers` | Optional upstream probes (`health_checks.enabled`) |
+| `GET /metrics` | Prometheus (`client_golang`) |
+| Edge auth | Optional gateway keys distinct from upstream `api_key_env` |
+
+## What the gateway deliberately is not
+
+- Not a prompt playground UI
+- Not a local vector DB or conversation store
+- Not a guarantee of cache hits or bit-identical outputs across providers
+- Not a replacement for provider-specific admin consoles
+
+It **is** a production edge for multi-provider agents: small config, explicit fidelity, one meter.
+
+## Next steps
+
+- [Getting started](/start/getting-started/) — install and first request  
+- [Claude Code checklist](/guides/claude-code/) — point `ANTHROPIC_BASE_URL` at the gateway  
+- [Compatibility matrix](/reference/compatibility-matrix/) — what translates vs passthrough  
