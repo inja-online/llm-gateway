@@ -166,7 +166,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/conversations/{id}/{rest...}", s.handleConversationsNotImplemented)
 	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
 	mux.HandleFunc("POST /v1beta/models/{action}", s.handleGoogle)
-	// Google File Search stores (#132).
+	// Google context caching / cachedContents CRUD (#112 cache slice).
+	mux.HandleFunc("POST /v1beta/cachedContents", s.handleGoogleCachedContentsRoot)
+	mux.HandleFunc("GET /v1beta/cachedContents", s.handleGoogleCachedContentsRoot)
+	mux.HandleFunc("GET /v1beta/cachedContents/{id}", s.handleGoogleCachedContentsID)
+	mux.HandleFunc("PATCH /v1beta/cachedContents/{id}", s.handleGoogleCachedContentsID)
+	mux.HandleFunc("DELETE /v1beta/cachedContents/{id}", s.handleGoogleCachedContentsID)
+	mux.HandleFunc("POST /v1beta/cachedContents/{id}/{rest...}", s.handleGoogleCachedContentsID)
+	mux.HandleFunc("GET /v1beta/cachedContents/{id}/{rest...}", s.handleGoogleCachedContentsID)
 	// Google Tuned models (#133).
 	mux.HandleFunc("POST /v1beta/tunedModels", s.handleGoogleTunedModelsRoot)
 	mux.HandleFunc("GET /v1beta/tunedModels", s.handleGoogleTunedModelsRoot)
