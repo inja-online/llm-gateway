@@ -4,17 +4,69 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Badge } from "@/components/ui/badge";
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, "") || "";
+const github = "https://github.com/inja-online/llm-gateway";
 
-const bullets = [
-  "Route by model id, alias, or provider prefix",
-  "Same-family passthrough; cross-family translation via canonical IR",
-  "One usage event per request (JSONL / webhook)",
+const trust = [
+  "Single static binary",
+  "yaml.v3 only at runtime",
+  "No vendor SDK lock-in",
+  "AGPL-3.0",
 ];
 
-const links = [
-  { href: `${base}/start/getting-started/`, label: "Getting started" },
-  { href: `${base}/reference/compatibility-matrix/`, label: "Compatibility" },
-  { href: `${base}/guides/claude-code/`, label: "Claude Code" },
+const flow = [
+  {
+    title: "Keep your client dialect",
+    body: "OpenAI Chat Completions, Anthropic Messages, or native Gemini — same edge, same auth story.",
+  },
+  {
+    title: "Route by model id",
+    body: "Bare models hit defaults. provider/model prefixes and aliases pick the upstream — DeepSeek, xAI, Groq, OpenRouter, vLLM, …",
+  },
+  {
+    title: "Passthrough or translate",
+    body: "Same-family traffic is byte-faithful. Cross-family rebuilds through a canonical IR and fails closed on unsupported shapes.",
+  },
+  {
+    title: "Meter every request",
+    body: "One usage event per call (JSONL / webhook): model, provider, tokens, cache, latency, status.",
+  },
+];
+
+const features = [
+  {
+    title: "Claude Code ready",
+    body: "Point ANTHROPIC_BASE_URL at the gateway and route Claude Code to any upstream while keeping Anthropic-shaped fidelity.",
+    href: `${base}/guides/claude-code/`,
+  },
+  {
+    title: "Prompt cache policy",
+    body: "Preserve cache_control and prompt_cache_* within family. Opt-in auto breakpoints for OpenAI/Google → Anthropic.",
+    href: `${base}/guides/cache-control-policy/`,
+  },
+  {
+    title: "Platform proxies",
+    body: "Files, Batches, Assistants, Skills, tuned models, File Search, cachedContents — thin upstream-owned surfaces.",
+    href: `${base}/reference/compatibility-matrix/`,
+  },
+  {
+    title: "Operator hooks",
+    body: "Prometheus /metrics, optional provider health, edge auth, body limits, and observe_dropped_fields.",
+    href: `${base}/start/getting-started/`,
+  },
+];
+
+const ingress = [
+  "POST /v1/chat/completions",
+  "POST /v1/messages",
+  "…/models/*:generateContent",
+  "/v1/responses · files · batches",
+];
+
+const egress = [
+  { kind: "openai", note: "first-party" },
+  { kind: "openai_compat", note: "any host" },
+  { kind: "anthropic", note: "Messages" },
+  { kind: "google", note: "Gemini native" },
 ];
 ---
 
@@ -24,59 +76,60 @@ const links = [
   current=""
 >
   <main>
+    <!-- Hero -->
     <section class="relative overflow-hidden border-b border-border">
       <div
-        class="pointer-events-none absolute inset-0 opacity-70"
+        class="pointer-events-none absolute inset-0 opacity-80"
         aria-hidden="true"
         style="background:
-          radial-gradient(ellipse 80% 50% at 20% -10%, color-mix(in oklch, var(--nb-primary) 28%, transparent), transparent 55%),
-          radial-gradient(ellipse 60% 40% at 90% 10%, color-mix(in oklch, var(--nb-info) 18%, transparent), transparent 50%);"
+          radial-gradient(ellipse 70% 55% at 15% -5%, color-mix(in oklch, var(--nb-primary) 30%, transparent), transparent 55%),
+          radial-gradient(ellipse 50% 40% at 95% 0%, color-mix(in oklch, var(--nb-info) 16%, transparent), transparent 50%),
+          linear-gradient(180deg, transparent 60%, color-mix(in oklch, var(--nb-muted) 40%, transparent));"
       ></div>
-      <div class="relative mx-auto grid max-w-[90rem] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-24">
+      <div class="relative mx-auto grid max-w-[90rem] gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_0.95fr] lg:items-center lg:gap-14 lg:py-24">
         <div>
-          <div class="mb-4 flex flex-wrap items-center gap-2">
+          <div class="mb-5 flex flex-wrap items-center gap-2">
             <Badge>Open source · AGPL-3.0</Badge>
-            <Badge variant="info">OpenAI · Anthropic · Gemini</Badge>
+            <Badge variant="info">Go 1.25+</Badge>
           </div>
-          <h1 class="max-w-xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-[3.25rem] lg:leading-[1.08]">
-            Inja LLM Gateway
+          <h1 class="max-w-2xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-[3.4rem] lg:leading-[1.06]">
+            One gateway.<br class="hidden sm:block" />
+            Every LLM dialect.
           </h1>
           <p class="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Multi-dialect LLM API gateway — one edge for OpenAI, Anthropic, and Gemini clients.
-            Route to any provider without rewriting agents.
+            Inja sits between your agents and providers. Clients keep talking OpenAI,
+            Anthropic, or Gemini — you route, translate, and meter without rewriting
+            every integration.
           </p>
-          <ul class="mt-6 max-w-xl space-y-2.5 text-sm leading-relaxed text-foreground">
+          <div class="mt-8 flex flex-wrap gap-3">
+            <LinkButton href={`${base}/start/getting-started/`} icon>
+              Get started
+            </LinkButton>
+            <LinkButton href={`${base}/how-it-works/`} variant="outline">
+              How it works
+            </LinkButton>
+            <LinkButton
+              href={github}
+              variant="ghost"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </LinkButton>
+          </div>
+          <ul class="mt-10 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
             {
-              bullets.map((b) => (
-                <li class="flex gap-2.5">
-                  <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-                  <span>{b}</span>
+              trust.map((t) => (
+                <li class="flex items-center gap-2">
+                  <span class="h-1 w-1 rounded-full bg-primary/70" aria-hidden="true" />
+                  {t}
                 </li>
               ))
             }
           </ul>
-          <div class="mt-8 flex flex-wrap gap-3">
-            <LinkButton href={`${base}/start/getting-started/`}>Get started</LinkButton>
-            <LinkButton
-              href="https://github.com/inja-online/llm-gateway"
-              variant="outline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View on GitHub
-            </LinkButton>
-          </div>
-          <p class="mt-8 text-sm text-muted-foreground">
-            Clients: OpenAI · Anthropic · Gemini
-            <span class="mx-2 text-border">|</span>
-            Kinds: <code class="font-mono text-xs">openai</code>
-            · <code class="font-mono text-xs">openai_compat</code>
-            · <code class="font-mono text-xs">anthropic</code>
-            · <code class="font-mono text-xs">google</code>
-          </p>
         </div>
 
-        <div class="rounded-xl border border-border bg-card/80 shadow-lg ring-1 ring-border/60 backdrop-blur">
+        <div class="rounded-xl border border-border bg-card/90 shadow-xl ring-1 ring-border/50 backdrop-blur">
           <div class="flex items-center gap-2 border-b border-border px-4 py-3">
             <span class="h-2.5 w-2.5 rounded-full bg-danger/80"></span>
             <span class="h-2.5 w-2.5 rounded-full bg-warning/80"></span>
@@ -109,19 +162,203 @@ hooks:
       </div>
     </section>
 
-    <section class="mx-auto max-w-[90rem] px-4 py-12 sm:px-6">
-      <nav class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" aria-label="Docs">
+    <!-- Pipeline -->
+    <section class="border-b border-border bg-muted/25">
+      <div class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
+        <div class="max-w-2xl">
+          <p class="text-sm font-semibold tracking-wide text-primary uppercase">Request path</p>
+          <h2 class="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+            Clients stay native. Upstreams stay flexible.
+          </h2>
+          <p class="mt-3 text-muted-foreground">
+            A thin edge process — YAML config, no database, no vendor SDKs at runtime.
+            Same-family traffic never pays a translation tax.
+          </p>
+        </div>
+
+        <div class="mt-10 grid gap-3 lg:grid-cols-3">
+          <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <p class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Ingress</p>
+            <ul class="mt-4 space-y-2">
+              {
+                ingress.map((line) => (
+                  <li class="rounded-md bg-muted/70 px-3 py-2 font-mono text-xs text-foreground sm:text-[0.8rem]">
+                    {line}
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+
+          <div class="rounded-xl border border-primary/35 bg-primary/5 p-5 shadow-sm ring-1 ring-primary/20">
+            <p class="text-xs font-semibold tracking-wide text-primary uppercase">Gateway</p>
+            <ul class="mt-4 space-y-3 text-sm text-foreground">
+              <li class="flex gap-2">
+                <span class="font-mono text-xs font-semibold text-primary">01</span>
+                <span><strong class="font-semibold">Resolve</strong> alias / provider / model</span>
+              </li>
+              <li class="flex gap-2">
+                <span class="font-mono text-xs font-semibold text-primary">02</span>
+                <span><strong class="font-semibold">Auth</strong> edge keys + upstream api_key_env / ADC</span>
+              </li>
+              <li class="flex gap-2">
+                <span class="font-mono text-xs font-semibold text-primary">03</span>
+                <span><strong class="font-semibold">PT or IR</strong> passthrough vs translate</span>
+              </li>
+              <li class="flex gap-2">
+                <span class="font-mono text-xs font-semibold text-primary">04</span>
+                <span><strong class="font-semibold">Hooks</strong> usage JSONL / webhook</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <p class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Egress kinds</p>
+            <ul class="mt-4 space-y-2">
+              {
+                egress.map((e) => (
+                  <li class="flex items-baseline justify-between gap-3 rounded-md bg-muted/70 px-3 py-2 text-sm">
+                    <code class="font-mono text-xs sm:text-[0.8rem]">{e.kind}</code>
+                    <span class="text-xs text-muted-foreground">{e.note}</span>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works steps -->
+    <section class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
+      <div class="max-w-2xl">
+        <p class="text-sm font-semibold tracking-wide text-primary uppercase">How it works</p>
+        <h2 class="mt-2 text-3xl font-semibold tracking-tight">Four moves on every request</h2>
+      </div>
+      <ol class="mt-10 grid gap-4 sm:grid-cols-2">
         {
-          links.map((l) => (
-            <a
-              href={l.href}
-              class="font-medium text-primary no-underline hover:underline"
-            >
-              {l.label} →
-            </a>
+          flow.map((step, i) => (
+            <li class="relative rounded-xl border border-border bg-card p-6 shadow-sm">
+              <span class="font-mono text-xs font-semibold text-primary">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <h3 class="mt-2 text-lg font-semibold tracking-tight text-foreground">{step.title}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+            </li>
           ))
         }
-      </nav>
+      </ol>
+      <div class="mt-8">
+        <LinkButton href={`${base}/how-it-works/`} variant="outline" icon>
+          Deep dive: request path
+        </LinkButton>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="border-y border-border bg-muted/20">
+      <div class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
+        <div class="max-w-2xl">
+          <p class="text-sm font-semibold tracking-wide text-primary uppercase">Built for agents</p>
+          <h2 class="mt-2 text-3xl font-semibold tracking-tight">Production surfaces, not demos</h2>
+          <p class="mt-3 text-muted-foreground">
+            Fidelity policies, platform API proxies, and operator hooks — documented and hermetically tested.
+          </p>
+        </div>
+        <div class="mt-10 grid gap-4 sm:grid-cols-2">
+          {
+            features.map((f) => (
+              <a
+                href={f.href}
+                class="group rounded-xl border border-border bg-card p-6 shadow-sm no-underline transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+              >
+                <h3 class="text-lg font-semibold tracking-tight text-foreground group-hover:text-primary">
+                  {f.title}
+                </h3>
+                <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+                <span class="mt-4 inline-block text-sm font-medium text-primary">
+                  Read more →
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick start -->
+    <section class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
+      <div class="grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+        <div>
+          <p class="text-sm font-semibold tracking-wide text-primary uppercase">Quick start</p>
+          <h2 class="mt-2 text-3xl font-semibold tracking-tight">Ship in minutes</h2>
+          <p class="mt-3 max-w-md text-muted-foreground">
+            Grab a release binary or run Docker. Drop a YAML file. Point your SDK at the edge.
+          </p>
+          <div class="mt-6 flex flex-wrap gap-3">
+            <LinkButton href={`${base}/start/getting-started/`} icon>Install guide</LinkButton>
+            <LinkButton
+              href={`${base}/reference/compatibility-matrix/`}
+              variant="outline"
+            >
+              Compatibility matrix
+            </LinkButton>
+          </div>
+        </div>
+        <div class="rounded-xl border border-border bg-card p-1 shadow-sm">
+          <div class="flex gap-1 border-b border-border px-3 py-2">
+            <span class="rounded-md bg-muted px-2.5 py-1 font-mono text-xs font-medium text-foreground">
+              docker
+            </span>
+            <span class="px-2.5 py-1 font-mono text-xs text-muted-foreground">binary</span>
+          </div>
+          <pre class="overflow-x-auto p-4 text-[0.8rem] leading-6 text-foreground sm:text-[0.85rem]"><code><span class="text-muted-foreground"># compose up with your keys</span>
+docker compose up -d
+
+<span class="text-muted-foreground"># or grab the release binary</span>
+curl -sL https://github.com/inja-online/llm-gateway/releases/latest
+
+<span class="text-muted-foreground"># health check</span>
+curl -s localhost:8080/healthz</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="border-t border-border">
+      <div class="mx-auto max-w-[90rem] px-4 py-16 sm:px-6 lg:py-20">
+        <div class="relative overflow-hidden rounded-2xl border border-border bg-card px-6 py-10 sm:px-12 sm:py-14">
+          <div
+            class="pointer-events-none absolute inset-0 opacity-90"
+            aria-hidden="true"
+            style="background:
+              radial-gradient(ellipse 60% 80% at 0% 50%, color-mix(in oklch, var(--nb-primary) 18%, transparent), transparent 55%),
+              radial-gradient(ellipse 40% 70% at 100% 50%, color-mix(in oklch, var(--nb-info) 12%, transparent), transparent 50%);"
+          ></div>
+          <div class="relative max-w-2xl">
+            <h2 class="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Multi-provider without multi-SDK pain
+            </h2>
+            <p class="mt-3 text-muted-foreground">
+              Install once. Put OpenAI-, Anthropic-, or Gemini-shaped clients behind one edge —
+              and swap backends with config, not code.
+            </p>
+            <div class="mt-7 flex flex-wrap gap-3">
+              <LinkButton href={`${base}/start/getting-started/`} icon>
+                Read getting started
+              </LinkButton>
+              <LinkButton
+                href={github}
+                variant="outline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Star on GitHub
+              </LinkButton>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 </BaseLayout>
