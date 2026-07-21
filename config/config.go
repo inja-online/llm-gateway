@@ -105,6 +105,9 @@ type Config struct {
 	// HealthChecks configures optional upstream provider probes (#94/#153).
 	// Distinct from GET /healthz (process liveness only).
 	HealthChecks HealthChecks `yaml:"health_checks"`
+	// Caching holds optional prompt-caching helpers. Default off (never invent
+	// cache breakpoints without operator opt-in).
+	Caching Caching `yaml:"caching"`
 }
 
 // HealthChecks gates GET /v1/health/providers (default disabled).
@@ -114,6 +117,29 @@ type HealthChecks struct {
 	// Timeout per-provider probe; 0 → 2s.
 	Timeout time.Duration `yaml:"timeout"`
 }
+
+// Caching is optional prompt-caching behavior (default all-off).
+type Caching struct {
+	// AutoBreakpoints optionally inserts Anthropic cache_control on translate
+	// paths that rebuild toward Anthropic (OpenAI/Google → Anthropic). Never
+	// applies on passthrough. Default disabled.
+	AutoBreakpoints AutoBreakpoints `yaml:"auto_breakpoints"`
+}
+
+// AutoBreakpoints config for opt-in Anthropic cache_control injection.
+type AutoBreakpoints struct {
+	// Enabled must be true; default false.
+	Enabled bool `yaml:"enabled"`
+	// MinChars is the minimum total character length for a target before a
+	// breakpoint is added. 0 / unset → DefaultAutoBreakpointMinChars (2048).
+	MinChars int `yaml:"min_chars"`
+	// Targets lists surfaces to mark: "system", "tools". Empty when enabled
+	// → both. Unknown names are rejected at validate time.
+	Targets []string `yaml:"targets"`
+}
+
+// DefaultAutoBreakpointMinChars is used when auto_breakpoints.min_chars is 0.
+const DefaultAutoBreakpointMinChars = 2048
 
 // HealthTimeout returns the per-provider probe timeout (default 2s).
 func (h HealthChecks) HealthTimeout() time.Duration {
@@ -224,7 +250,54 @@ func (c *Config) validate() error {
 	if err := c.validateEdgeAuth(); err != nil {
 		return err
 	}
+	if err := c.validateCaching(); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (c *Config) validateCaching() error {
+	ab := c.Caching.AutoBreakpoints
+	if ab.MinChars < 0 {
+		return fmt.Errorf("config: caching.auto_breakpoints.min_chars must be >= 0")
+	}
+	for _, t := range ab.Targets {
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "system", "tools":
+		case "":
+			continue
+		default:
+			return fmt.Errorf("config: caching.auto_breakpoints.targets: unknown %q (want system|tools)", t)
+		}
+	}
+	return nil
+}
+
+// AutoBreakpointMinChars returns the effective min_chars (default 2048).
+func (a AutoBreakpoints) AutoBreakpointMinChars() int {
+	if a.MinChars > 0 {
+		return a.MinChars
+	}
+	return DefaultAutoBreakpointMinChars
+}
+
+// AutoBreakpointTargets returns normalized targets; empty config → system+tools
+// when enabled is considered by the caller.
+func (a AutoBreakpoints) AutoBreakpointTargets() []string {
+	if len(a.Targets) == 0 {
+		return []string{"system", "tools"}
+	}
+	seen := make(map[string]bool, len(a.Targets))
+	var out []string
+	for _, t := range a.Targets {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+	return out
 }
 
 func (c *Config) validateEdgeAuth() error {
