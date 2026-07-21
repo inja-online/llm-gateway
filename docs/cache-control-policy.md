@@ -9,7 +9,7 @@
 |---|---|---|
 | **Anthropic** | `cache_control` on system / content / tools | **Preserved** on Anthropic egress (PT + IR rebuild). **Dropped** toward OpenAI/Google. |
 | **OpenAI** | `prompt_cache_key`, `prompt_cache_retention` | **Preserved** on OpenAI egress. **Dropped** toward Anthropic/Google (no auto breakpoints). |
-| **Google** | `cachedContent` / `cached_content` resource name | **Preserved** on Google egress. **Dropped** toward others. |
+| **Google** | `cachedContent` / `cached_content` resource name | **Preserved** on Google egress. **Dropped** toward others. Create/list/update/delete via `/v1beta/cachedContents*` (kind:google). |
 
 **Usage (response):** `CacheReadTokens` / `CacheWriteTokens` continue to map from all three vendors when present.
 
@@ -30,7 +30,8 @@ Passthrough Anthropic→Anthropic still never touches IR (byte path).
 - Gateway-local prompt cache store
 - Guaranteeing cache hits
 - Auto-insert breakpoints without client intent
-- Full Google `cachedContents` CRUD (see #112)
+- Auto-create Google caches on chat (stateless edge; use `/v1beta/cachedContents` explicitly)
+- Gateway-local prompt cache store
 
 ## Tests
 
