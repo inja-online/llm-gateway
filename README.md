@@ -597,8 +597,9 @@ source examples/shell/claude-code-helpers.sh
 export KEY=local-dev && cc-gateway-up
 source examples/shell/apps-helpers.sh
 apps-setup                    # Claude Desktop, Codex, Continue, Cline, Aider, …
-# apps-write-claude-settings  # ~/.claude/settings.json
-# apps-write-codex            # ~/.codex/config.toml
+apps-use-gateway              # write gateway configs; snapshot "default" for rollback
+apps-use-default              # restore pre-gateway settings
+# apps-status · apps-list-backups · apps-switch gateway|default
 ```
 
 Templates: [`examples/apps/`](examples/apps/). Docs: [Use subscriptions in any app](https://inja-online.github.io/llm-gateway/guides/app-integrations/).

@@ -24,7 +24,16 @@ cc-gateway-up                      # HTTPS background gateway
 
 source examples/shell/apps-helpers.sh
 apps-setup                         # print every integration
+
+# Switch Claude Desktop + settings + Codex (backup + rollback):
+apps-use-gateway                   # saves "default", writes gateway configs
+apps-status
+apps-use-default                   # restore pre-gateway settings
+# apps-switch gateway|default
+# apps-list-backups
 ```
+
+Profiles are stored under `~/.local/state/inja-gateway/app-profiles/` (`default`, `gateway`, `history/…`).
 
 Dialects the gateway speaks:
 
@@ -52,7 +61,8 @@ curl -sk -H "Authorization: Bearer local-dev" \
 
 | App | Template / helper |
 |-----|-------------------|
-| Claude Desktop | `claude-desktop/` · `apps-claude-desktop` · `apps-write-claude-desktop` · `apps-write-claude-settings` |
+| **Switch all (backup/rollback)** | `apps-use-gateway` · `apps-use-default` · `apps-status` · `apps-list-backups` |
+| Claude Desktop | `claude-desktop/` · `apps-claude-desktop` · `apps-write-claude-*` |
 | Claude Code | `claude-code-*` helpers · [guide](https://inja-online.github.io/llm-gateway/guides/claude-code-subscriptions/) |
 | Cursor | `cursor-helpers.sh` · [guide](https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/) |
 | ChatGPT Desktop / Codex | `codex/config.toml` · `apps-codex` · `apps-write-codex` |

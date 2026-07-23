@@ -44,7 +44,45 @@ cc-gateway-up                      # HTTPS on 127.0.0.1:8787
 
 source examples/shell/apps-helpers.sh
 apps-setup                         # print every integration
+
+# Switch Claude Desktop + Claude settings + Codex between gateway and defaults:
+apps-use-gateway                   # snapshot current files as "default", write gateway
+apps-status
+# … later, back to vendor defaults:
+apps-use-default                   # restore profile "default"
 ```
+
+### Backup / rollback (switch profiles)
+
+Managed files:
+
+| Target | Live path |
+|--------|-----------|
+| Claude settings | `~/.claude/settings.json` |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS; see OS table below) |
+| Codex | `~/.codex/config.toml` |
+
+Snapshots live under `~/.local/state/inja-gateway/app-profiles/` (or `$XDG_STATE_HOME/inja-gateway/app-profiles`):
+
+| Slot | Meaning |
+|------|---------|
+| **`default`** | Pre-gateway / vendor settings (saved automatically on first `apps-use-gateway`) |
+| **`gateway`** | Last gateway configs (updated on enable; kept when you roll back so you can flip back) |
+| **`history/<stamp>-…`** | Timestamped copies before each switch/write |
+
+| Command | Effect |
+|---------|--------|
+| `apps-use-gateway` | One-time save of live → `default` if empty; write gateway configs; save → `gateway`; set active |
+| `apps-use-default` | Save live → `gateway`; restore `default` to live; set active |
+| `apps-switch gateway\|default` | Same as above |
+| `apps-backup default` | Force-refresh `default` from **current** live files |
+| `apps-backup gateway` | Force-save current live as `gateway` |
+| `apps-restore-slot default\|gateway` | Restore a slot without rewriting gateway templates |
+| `apps-status` / `apps-list-backups` | Show active mode and stored files |
+| `apps-enable` / `apps-disable` | Aliases for use-gateway / use-default |
+| `apps-rollback` | Alias for `apps-use-default` |
+
+**Not** session-only env: these write real config files. Fully quit Claude Desktop / Codex after switching. Continue, Cline, Aider, Windsurf, Cursor GUI are **not** auto-managed (print helpers only).
 
 TLS: prefer `mkcert -install` + `./examples/scripts/gen-localhost-tls.sh` so Electron apps trust the cert. Otherwise set `NODE_EXTRA_CA_CERTS` (and Python `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE`) to `examples/certs/localhost.pem`.
 
@@ -103,16 +141,19 @@ apps-write-claude-settings   # backs up existing file, then writes
 ```
 
 ```bash
-apps-claude-desktop          # show paths + JSON
-apps-write-claude-desktop    # write Desktop file (backs up; re-add MCP if wiped)
+apps-use-gateway             # preferred: all managed apps + default snapshot
+apps-use-default             # rollback to pre-gateway
+apps-claude-desktop          # show paths
+apps-write-claude-settings   # single-file write (still snapshots default once)
+apps-write-claude-desktop
 ```
 
 Template: [`examples/apps/claude-desktop/claude_desktop_config.json`](https://github.com/inja-online/llm-gateway/blob/master/examples/apps/claude-desktop/claude_desktop_config.json)
 
 **Notes**
 
-- Fully **quit** Claude Desktop (not just close the window) after saving.
-- Keep existing `mcpServers` when merging by hand — the write helper starts from a minimal file.
+- Fully **quit** Claude Desktop (not just close the window) after switching.
+- `apps-use-gateway` overwrites Desktop JSON with a **minimal** file (`mcpServers: {}`). Your pre-gateway file (including MCP) is kept in profile **`default`** for `apps-use-default`.
 - Enterprise/managed builds may use `inferenceGatewayBaseUrl` instead of `env`.
 - Routing non-Claude models depends on whether the UI accepts custom model strings; the **base URL** still sends Messages traffic through the gateway.
 
@@ -140,10 +181,12 @@ wire_api = "chat_completions"
 ```
 
 ```bash
-apps-codex
-apps-write-codex             # writes ~/.codex/config.toml (backs up)
-# template: examples/apps/codex/config.toml
+apps-use-gateway             # includes codex.toml
+# or: apps-write-codex
+export INJA_GATEWAY_KEY=local-dev
+export NODE_EXTRA_CA_CERTS=/absolute/path/to/examples/certs/localhost.pem
 codex
+# rollback: apps-use-default
 ```
 
 Try models: `gpt`, `sol`, `terra`, `luna`, `grok-4.5`, `sonnet`.
@@ -313,11 +356,14 @@ Always verify with `?live=1`. Maintainers: repo **`AGENTS.md`**.
 | 404 model | Use `?live=1` ids or retarget aliases |
 | App ignores base URL | That product may not support overrides (use Codex/Cursor/SDK instead) |
 | Claude Desktop no change | Fully quit app; try both `settings.json` and desktop JSON; Developer Mode |
+| Want vendor defaults back | `apps-use-default` (needs prior `apps-use-gateway` or `apps-backup default`) |
+| Accidentally overwrote default slot | Restore from `apps-list-backups` → `history/…` via `apps-restore-slot history/<stamp>` |
 
 ```bash
 cc-gateway-status
 ./llm-gateway auth status
 curl -sk https://127.0.0.1:8787/healthz
+apps-status
 ```
 
 ---
@@ -327,6 +373,7 @@ curl -sk https://127.0.0.1:8787/healthz
 | Path | Role |
 |------|------|
 | [`examples/apps/`](https://github.com/inja-online/llm-gateway/tree/master/examples/apps) | Templates per app |
-| [`examples/shell/apps-helpers.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/apps-helpers.sh) | `apps-setup`, `apps-claude-desktop`, `apps-write-codex`, … |
+| [`examples/shell/apps-helpers.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/apps-helpers.sh) | `apps-use-gateway`, `apps-use-default`, `apps-status`, … |
+| `~/.local/state/inja-gateway/app-profiles/` | Named slots `default` / `gateway` + `history/` |
 | [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml) | Subscription providers + aliases |
 | [`AGENTS.md`](https://github.com/inja-online/llm-gateway/blob/master/AGENTS.md) | Keep model ids current |
