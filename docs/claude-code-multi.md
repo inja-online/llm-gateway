@@ -142,15 +142,17 @@ Any mix of `claude`, `gpt`, `grok` with separators `+` `,` `-`:
 
 | Profile | opus | sonnet | haiku / small-fast |
 |---|---|---|---|
-| **gpt** | o3 | gpt | gpt-mini |
-| **grok** | grok-4.5 | grok-4.5 | composer-2.5 |
+| **gpt** | sol | gpt (terra) | luna |
+| **grok** | grok-4.5 | grok-4.5 | composer-2.5 → grok-build-0.1 |
 | **gpt+grok** | grok-4.5 | gpt | composer-2.5 |
-| **claude** | opus | sonnet | haiku |
-| **claude+gpt** | opus | gpt | gpt-mini |
+| **claude** | opus (4.8) | sonnet (5) | haiku (4.5) |
+| **claude+gpt** | opus | gpt | luna |
 | **claude+grok** | opus | grok-4.5 | composer-2.5 |
 | **multi** | opus | gpt | composer-2.5 |
 
-Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC_GROK_HEAVY`, `CC_GROK_FAST`.
+Upstream pins (2026-07): see `examples/configs/claude-code-subscriptions.yaml`.
+
+Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC_GROK_HEAVY`, `CC_GROK_FAST`, `CC_GPT_HEAVY=sol`.
 
 ## 5. How OAuth is applied upstream
 

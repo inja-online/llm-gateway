@@ -87,12 +87,13 @@ _inja_cc_map_slots() {
   PROFILE_LABEL="${providers// /+}"
 
   # Defaults per provider family (gateway aliases)
-  # Grok: heavy = grok-4.5, fast/coding = composer-2.5
+  # Grok: heavy = grok-4.5, fast/coding = grok-build (Composer-class)
   local g_heavy="${CC_GROK_HEAVY:-grok-4.5}"
   local g_fast="${CC_GROK_FAST:-composer-2.5}"
-  local gpt_heavy="${CC_GPT_HEAVY:-o3}"
+  # GPT-5.6: Sol (flagship) / Terra (default) / Luna (fast)
+  local gpt_heavy="${CC_GPT_HEAVY:-sol}"
   local gpt_mid="${CC_GPT_MID:-gpt}"
-  local gpt_fast="${CC_GPT_FAST:-gpt-mini}"
+  local gpt_fast="${CC_GPT_FAST:-luna}"
   local c_opus="${CC_CLAUDE_OPUS:-opus}"
   local c_sonnet="${CC_CLAUDE_SONNET:-sonnet}"
   local c_haiku="${CC_CLAUDE_HAIKU:-haiku}"
@@ -158,10 +159,10 @@ _inja_cc_apply_combo() {
     *claude*) CC_MODEL_HINTS+="sonnet opus haiku claude " ;;
   esac
   case "$providers" in
-    *gpt*) CC_MODEL_HINTS+="gpt gpt-mini o3 " ;;
+    *gpt*) CC_MODEL_HINTS+="gpt sol terra luna " ;;
   esac
   case "$providers" in
-    *grok*) CC_MODEL_HINTS+="grok-4.5 composer-2.5 grok composer " ;;
+    *grok*) CC_MODEL_HINTS+="grok-4.5 composer-2.5 grok-build grok " ;;
   esac
   export CC_MODEL_HINTS="${CC_MODEL_HINTS% }"
 }
@@ -173,7 +174,7 @@ Claude Code provider combinations (any mix)
 Named / combo profiles (separators: +  ,  -):
   claude              Claude only
   gpt                 ChatGPT / OpenAI only
-  grok                Grok only  (opus/main → grok-4.5, fast → composer-2.5)
+  grok                Grok only  (main → grok-4.5, fast → grok-build-0.1 / Composer)
   multi               claude + gpt + grok
   gpt+grok            GPT + Grok (no Claude)
   claude+gpt          Claude + GPT
@@ -181,28 +182,26 @@ Named / combo profiles (separators: +  ,  -):
   claude+gpt+grok     same as multi
   gpt,grok            same as gpt+grok
 
-Slot defaults by combo:
-  gpt only            opus=o3  sonnet=gpt  haiku=gpt-mini
+Slot defaults by combo (alias names → see examples/configs/* aliases, 2026-07):
+  gpt only            opus=sol  sonnet=gpt(terra)  haiku=luna
   grok only           opus=grok-4.5  sonnet=grok-4.5  haiku=composer-2.5
   gpt+grok            opus=grok-4.5  sonnet=gpt  haiku=composer-2.5
-  claude+gpt          opus=opus  sonnet=gpt  haiku=gpt-mini
+  claude+gpt          opus=opus  sonnet=gpt  haiku=luna
   claude+grok         opus=opus  sonnet=grok-4.5  haiku=composer-2.5
   multi               opus=opus  sonnet=gpt  haiku=composer-2.5
 
-In session (aliases from gateway.yaml):
-  /model grok-4.5 | /model composer-2.5 | /model gpt | /model sonnet
+Upstream targets (pinned in YAML):
+  sonnet → claude-sonnet-5   opus → claude-opus-4-8   haiku → claude-haiku-4-5
+  gpt/terra → gpt-5.6-terra  sol → gpt-5.6-sol  luna → gpt-5.6-luna
+  grok-4.5 → grok-4.5        composer-2.5 → grok-build-0.1
+
+In session:
+  /model grok-4.5 | /model composer-2.5 | /model sol | /model terra | /model sonnet
 
 Overrides:
   CC_OPUS_MODEL CC_SONNET_MODEL CC_HAIKU_MODEL CC_MODEL
   CC_GROK_HEAVY=grok-4.5  CC_GROK_FAST=composer-2.5
-  CC_GPT_HEAVY=o3  CC_GPT_MID=gpt  CC_GPT_FAST=gpt-mini
+  CC_GPT_HEAVY=sol  CC_GPT_MID=gpt  CC_GPT_FAST=luna
   CC_PROVIDERS=gpt,grok
-
-Examples:
-  ./examples/claude-code-multi.sh gpt
-  ./examples/claude-code-multi.sh grok
-  ./examples/claude-code-multi.sh gpt+grok
-  ./examples/claude-code-multi.sh claude+grok --print "hi"
-  CC_MODEL=composer-2.5 ./examples/claude-code-multi.sh grok
 EOF
 }

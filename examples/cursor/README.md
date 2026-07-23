@@ -30,17 +30,21 @@ cursor-setup
 
 **Must include `/v1`.** Cursor calls `{base}/chat/completions` and may call `{base}/responses` in Agent mode.
 
-### Models to add (custom)
+### Models to add (custom) — Jul 2026
 
 Use gateway **aliases** (from `claude-code-subscriptions.yaml`):
 
-| Cursor model name | Upstream |
-|-------------------|----------|
-| `gpt` / `gpt-mini` / `o3` | ChatGPT subscription |
-| `grok-4.5` / `composer-2.5` | SuperGrok |
-| `sonnet` / `opus` / `haiku` | Claude subscription |
-
-Or full ids: `chatgpt/gpt-5.1`, `xai/grok-4.5`, `anthropic/claude-sonnet-4-20250514`.
+| Cursor model name | Upstream API id |
+|-------------------|-----------------|
+| `gpt` / `terra` | `chatgpt/gpt-5.6-terra` |
+| `sol` | `chatgpt/gpt-5.6-sol` |
+| `luna` | `chatgpt/gpt-5.6-luna` |
+| `grok-4.5` / `grok` | `xai/grok-4.5` |
+| `composer-2.5` | `xai/grok-build-0.1` (Grok Build / Composer-class) |
+| `sonnet` / `claude` | `anthropic/claude-sonnet-5` |
+| `opus` | `anthropic/claude-opus-4-8` |
+| `haiku` | `anthropic/claude-haiku-4-5` |
+| `fable` | `anthropic/claude-fable-5` |
 
 1. **Add Model** for each name you want in the picker.  
 2. **Verify** if the button is available.  
@@ -50,9 +54,9 @@ Or full ids: `chatgpt/gpt-5.1`, `xai/grok-4.5`, `anthropic/claude-sonnet-4-20250
 
 Same idea as Claude Code — only enable models for the subscriptions you logged into:
 
-- **GPT only** → add `gpt`, `o3`, `gpt-mini`  
-- **Grok only** → add `grok-4.5`, `composer-2.5`  
-- **GPT + Grok** → both  
+- **GPT only** → `gpt` / `terra` / `sol` / `luna`  
+- **Grok only** → `grok-4.5` / `composer-2.5`  
+- **GPT + Grok** → both families  
 - **+ Claude** → also `sonnet` / `opus` / `haiku` after `auth login claude`
 
 You do **not** need separate Cursor “Anthropic API key” for Claude-through-gateway: use the OpenAI override and a Claude **model id** so traffic is `POST /v1/chat/completions` with `model=sonnet` (gateway routes + translates/passthroughs).

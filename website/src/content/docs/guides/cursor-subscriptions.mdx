@@ -96,13 +96,16 @@ Cursor calls `{base}/chat/completions` and, in Agent mode, often `{base}/respons
 
 **Add Model** for each name you want in the picker. Names must match the gateway config aliases:
 
-| Model name in Cursor | Goes to |
-|----------------------|---------|
-| `gpt` / `gpt-mini` / `o3` | ChatGPT subscription |
-| `grok-4.5` / `composer-2.5` | SuperGrok |
-| `sonnet` / `opus` / `haiku` | Claude subscription |
+| Model name in Cursor | Upstream (Jul 2026) |
+|----------------------|---------------------|
+| `gpt` / `terra` | ChatGPT `gpt-5.6-terra` |
+| `sol` | ChatGPT `gpt-5.6-sol` |
+| `luna` | ChatGPT `gpt-5.6-luna` |
+| `grok-4.5` | xAI `grok-4.5` |
+| `composer-2.5` | xAI `grok-build-0.1` (Composer-class / Grok Build) |
+| `sonnet` / `opus` / `haiku` | Claude Sonnet 5 / Opus 4.8 / Haiku 4.5 |
 
-Optional full ids: `chatgpt/gpt-5.1`, `xai/grok-4.5`, `xai/composer-2.5`, `anthropic/claude-sonnet-4-20250514`.
+Full ids: `chatgpt/gpt-5.6-terra`, `xai/grok-4.5`, `xai/grok-build-0.1`, `anthropic/claude-sonnet-5`, …
 
 Click **Verify** if available, then select the model in Chat or Agent.
 
@@ -112,10 +115,10 @@ Only add models for subscriptions you authenticated:
 
 | Goal | Models to enable in Cursor |
 |------|----------------------------|
-| GPT only | `gpt`, `o3`, `gpt-mini` |
-| Grok only | `grok-4.5`, `composer-2.5` |
-| GPT + Grok | all of the above |
-| + Claude | also `sonnet`, `opus`, `haiku` |
+| GPT only | `gpt` / `terra` / `sol` / `luna` |
+| Grok only | `grok-4.5` / `composer-2.5` |
+| GPT + Grok | both families |
+| + Claude | also `sonnet` / `opus` / `haiku` / `fable` |
 
 You do **not** need Cursor’s separate Anthropic API key field for Claude-through-gateway. Send Claude as a **custom OpenAI model name** (`sonnet`); the gateway routes OpenAI dialect → Anthropic (passthrough or translate as configured).
 

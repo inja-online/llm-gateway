@@ -67,29 +67,35 @@ defaults:
   anthropic_dialect: anthropic
   openai_dialect: chatgpt
 
+# Model aliases (updated 2026-07-23). Targets are vendor API ids under provider/.
+# Re-check: platform.claude.com/docs · openai.com/index/gpt-5-6 · docs.x.ai/developers/models
+# If an id 404s for your plan, change the target only — keep short alias names stable.
 aliases:
-  # --- Claude ---
-  claude: anthropic/claude-sonnet-4-20250514
-  sonnet: anthropic/claude-sonnet-4-20250514
-  opus: anthropic/claude-opus-4-20250514
-  haiku: anthropic/claude-haiku-4-20250414
+  # --- Claude (API: claude-sonnet-5 / claude-opus-4-8 / claude-haiku-4-5) ---
+  claude: anthropic/claude-sonnet-5
+  sonnet: anthropic/claude-sonnet-5
+  opus: anthropic/claude-opus-4-8
+  haiku: anthropic/claude-haiku-4-5
+  fable: anthropic/claude-fable-5
 
-  # --- ChatGPT / Codex (ids depend on plan) ---
-  gpt: chatgpt/gpt-5.1
-  gpt-mini: chatgpt/gpt-5.1
-  o3: chatgpt/o3
+  # --- ChatGPT / Codex (GPT-5.6 Sol / Terra / Luna) ---
+  gpt: chatgpt/gpt-5.6-terra          # everyday / Codex default tier
+  terra: chatgpt/gpt-5.6-terra
+  sol: chatgpt/gpt-5.6-sol            # flagship
+  gpt-heavy: chatgpt/gpt-5.6-sol
+  luna: chatgpt/gpt-5.6-luna          # fast / cheap
+  gpt-mini: chatgpt/gpt-5.6-luna
+  gpt-5.6: chatgpt/gpt-5.6-sol        # bare gpt-5.6 usually means Sol
 
-  # --- Grok (SuperGrok): heavy + fast coding ---
-  # Confirm live ids in your account if these 404.
+  # --- xAI (docs.x.ai: grok-4.5 flagship; grok-build-0.1 = Grok Build / Composer-class) ---
   grok: xai/grok-4.5
   grok-4.5: xai/grok-4.5
-  grok-4: xai/grok-4.5
-  composer: xai/composer-2.5
-  composer-2.5: xai/composer-2.5
-  grok-composer: xai/composer-2.5
-  # older / alt names some accounts still expose:
-  # grok-mini: xai/grok-3-mini
-  # grok-build: xai/grok-build-0.1
+  grok-4.3: xai/grok-4.3
+  # Grok Build coding tier (UI may say "Composer 2.5")
+  composer: xai/grok-build-0.1
+  composer-2.5: xai/grok-build-0.1
+  grok-build: xai/grok-build-0.1
+  grok-composer: xai/grok-build-0.1
 
 # Optional: require a shared edge key from Claude Code; upstream stays subscription OAuth.
 # edge_auth:

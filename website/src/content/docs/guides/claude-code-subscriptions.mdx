@@ -197,11 +197,11 @@ Separators: `+` · `,` · `-`
 
 | Profile | Providers | Default opus | Default sonnet | Default haiku / small-fast |
 |---|---|---|---|---|
-| `gpt` | ChatGPT only | `o3` | `gpt` | `gpt-mini` |
+| `gpt` | ChatGPT only | `sol` | `gpt` (terra) | `luna` |
 | `grok` | SuperGrok only | `grok-4.5` | `grok-4.5` | `composer-2.5` |
 | `gpt+grok` | GPT + Grok | `grok-4.5` | `gpt` | `composer-2.5` |
 | `claude` | Claude only | `opus` | `sonnet` | `haiku` |
-| `claude+gpt` | Claude + GPT | `opus` | `gpt` | `gpt-mini` |
+| `claude+gpt` | Claude + GPT | `opus` | `gpt` | `luna` |
 | `claude+grok` | Claude + Grok | `opus` | `grok-4.5` | `composer-2.5` |
 | `multi` | All three | `opus` | `gpt` | `composer-2.5` |
 
@@ -219,17 +219,16 @@ Separators: `+` · `,` · `-`
 
 ```bash
 source examples/shell/claude-code-helpers.sh
-export KEY=local-dev GATEWAY=http://localhost:8787
+export KEY=local-dev
 
-cc-gpt            # GPT only
-cc-grok           # Grok 4.5 + Composer 2.5
-cc-gpt-grok       # GPT + Grok
+cc-gateway-up
+cc-gpt            # GPT only (Sol/Terra/Luna)
+cc-grok           # Grok 4.5 + grok-build (Composer-class)
+cc-gpt-grok
 cc-claude
 cc-multi
-cc-run gpt+grok   # arbitrary combo
+cc-run gpt+grok
 cc-list
-cc-gateway-env grok
-cc-gateway-start  # runs gateway with subscription config
 ```
 
 ### Environment overrides
@@ -259,7 +258,7 @@ Example for **GPT + Grok** (no Claude models in the default slots):
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8787",
+    "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
     "ANTHROPIC_API_KEY": "local-dev",
     "ANTHROPIC_AUTH_TOKEN": "local-dev",
     "ANTHROPIC_MODEL": "gpt",
@@ -281,10 +280,19 @@ Behind a custom `ANTHROPIC_BASE_URL`, Claude Code **does not** validate model na
 
 From [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml):
 
-| Alias | Routes to (typical) |
+| Alias | Routes to (Jul 2026) |
 |---|---|
-| `sonnet` / `opus` / `haiku` / `claude` | `anthropic/…` Claude models |
-| `gpt` / `gpt-mini` / `o3` | `chatgpt/…` ChatGPT/Codex models |
+| `sonnet` / `claude` | `anthropic/claude-sonnet-5` |
+| `opus` | `anthropic/claude-opus-4-8` |
+| `haiku` | `anthropic/claude-haiku-4-5` |
+| `fable` | `anthropic/claude-fable-5` |
+| `gpt` / `terra` | `chatgpt/gpt-5.6-terra` |
+| `sol` | `chatgpt/gpt-5.6-sol` |
+| `luna` / `gpt-mini` | `chatgpt/gpt-5.6-luna` |
+| `grok` / `grok-4.5` | `xai/grok-4.5` |
+| `composer-2.5` / `composer` | `xai/grok-build-0.1` (Grok Build / Composer-class) |
+
+Sources: [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) · [GPT-5.6](https://openai.com/index/gpt-5-6/) · [xAI models](https://docs.x.ai/developers/models). Edit targets if your plan exposes different ids.
 | `grok` / `grok-4.5` | `xai/grok-4.5` |
 | `composer` / `composer-2.5` | `xai/composer-2.5` |
 
