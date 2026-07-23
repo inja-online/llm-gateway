@@ -113,12 +113,21 @@ func (s *Server) forwardEmbeddingsJSON(x *exchange, resp *http.Response) {
 // maps the response back to OpenAI list shape.
 func (s *Server) embeddingsOpenAIToGoogle(x *exchange, route Route, body []byte) {
 	var req struct {
-		Model      string          `json:"model"`
-		Input      json.RawMessage `json:"input"`
-		Dimensions *int            `json:"dimensions"`
+		Model          string          `json:"model"`
+		Input          json.RawMessage `json:"input"`
+		Dimensions     *int            `json:"dimensions"`
+		EncodingFormat string          `json:"encoding_format"` // float|base64 — Google returns float only
+		// TaskType maps to Gemini taskType when present (#148).
+		TaskType string `json:"task_type"`
 	}
 	if json.Unmarshal(body, &req) != nil {
 		x.fail(http.StatusBadRequest, "invalid_request_error", "request body is not valid JSON", hooks.StatusBadRequest)
+		return
+	}
+	if req.EncodingFormat != "" && req.EncodingFormat != "float" {
+		x.fail(http.StatusBadRequest, "invalid_request_error",
+			"encoding_format "+req.EncodingFormat+" is not supported on google embed translate (use float or openai-family passthrough)",
+			hooks.StatusBadRequest)
 		return
 	}
 	texts, err := parseOpenAIEmbeddingInput(req.Input)
@@ -131,16 +140,17 @@ func (s *Server) embeddingsOpenAIToGoogle(x *exchange, route Route, body []byte)
 		return
 	}
 
+	opts := googleegress.EmbedOptions{Dimensions: req.Dimensions, TaskType: req.TaskType}
 	var (
 		upstreamPath string
 		upstreamBody []byte
 	)
 	if len(texts) == 1 {
 		upstreamPath = googleegress.EmbedPath(route.UpstreamModel)
-		upstreamBody, err = googleegress.BuildEmbedContent(texts[0], route.UpstreamModel, req.Dimensions)
+		upstreamBody, err = googleegress.BuildEmbedContentOpts(texts[0], route.UpstreamModel, opts)
 	} else {
 		upstreamPath = googleegress.BatchEmbedPath(route.UpstreamModel)
-		upstreamBody, err = googleegress.BuildBatchEmbedContents(texts, route.UpstreamModel, req.Dimensions)
+		upstreamBody, err = googleegress.BuildBatchEmbedContentsOpts(texts, route.UpstreamModel, opts)
 	}
 	if err != nil {
 		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)

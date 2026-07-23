@@ -40,22 +40,42 @@ func stripModelsPrefix(model string) string {
 	return strings.TrimPrefix(model, "models/")
 }
 
+// EmbedOptions holds optional OpenAI→Google embed mapping knobs (#148).
+type EmbedOptions struct {
+	Dimensions *int
+	// TaskType is Gemini taskType (e.g. RETRIEVAL_QUERY, SEMANTIC_SIMILARITY).
+	TaskType string
+}
+
 // BuildEmbedContent builds a single-text EmbedContentRequest body.
 func BuildEmbedContent(text, model string, dimensions *int) ([]byte, error) {
+	return BuildEmbedContentOpts(text, model, EmbedOptions{Dimensions: dimensions})
+}
+
+// BuildEmbedContentOpts builds embedContent with optional taskType/dimensions.
+func BuildEmbedContentOpts(text, model string, opts EmbedOptions) ([]byte, error) {
 	req := map[string]any{
 		"model": ModelResource(model),
 		"content": map[string]any{
 			"parts": []map[string]any{{"text": text}},
 		},
 	}
-	if dimensions != nil && *dimensions > 0 {
-		req["outputDimensionality"] = *dimensions
+	if opts.Dimensions != nil && *opts.Dimensions > 0 {
+		req["outputDimensionality"] = *opts.Dimensions
+	}
+	if tt := strings.TrimSpace(opts.TaskType); tt != "" {
+		req["taskType"] = tt
 	}
 	return json.Marshal(req)
 }
 
 // BuildBatchEmbedContents builds a BatchEmbedContentsRequest body.
 func BuildBatchEmbedContents(texts []string, model string, dimensions *int) ([]byte, error) {
+	return BuildBatchEmbedContentsOpts(texts, model, EmbedOptions{Dimensions: dimensions})
+}
+
+// BuildBatchEmbedContentsOpts builds batch embed with optional taskType/dimensions.
+func BuildBatchEmbedContentsOpts(texts []string, model string, opts EmbedOptions) ([]byte, error) {
 	ref := ModelResource(model)
 	reqs := make([]map[string]any, len(texts))
 	for i, t := range texts {
@@ -65,8 +85,11 @@ func BuildBatchEmbedContents(texts []string, model string, dimensions *int) ([]b
 				"parts": []map[string]any{{"text": t}},
 			},
 		}
-		if dimensions != nil && *dimensions > 0 {
-			item["outputDimensionality"] = *dimensions
+		if opts.Dimensions != nil && *opts.Dimensions > 0 {
+			item["outputDimensionality"] = *opts.Dimensions
+		}
+		if tt := strings.TrimSpace(opts.TaskType); tt != "" {
+			item["taskType"] = tt
 		}
 		reqs[i] = item
 	}

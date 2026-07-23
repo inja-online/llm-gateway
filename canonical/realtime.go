@@ -39,6 +39,12 @@ const (
 	RealtimeEventOutputAudio RealtimeEventType = "output_audio"
 	// RealtimeEventTextDelta is a text token/delta from the model.
 	RealtimeEventTextDelta RealtimeEventType = "text.delta"
+	// RealtimeEventToolCall is a model tool/function call in a live session.
+	RealtimeEventToolCall RealtimeEventType = "tool.call"
+	// RealtimeEventToolResult is a client tool result in a live session.
+	RealtimeEventToolResult RealtimeEventType = "tool.result"
+	// RealtimeEventTranscript is a speech-to-text transcript delta.
+	RealtimeEventTranscript RealtimeEventType = "transcript.delta"
 	// RealtimeEventError is a protocol or bridge error.
 	RealtimeEventError RealtimeEventType = "error"
 	// RealtimeEventClose marks an intentional session end.
