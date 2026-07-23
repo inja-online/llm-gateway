@@ -143,6 +143,8 @@ aliases:
 #   enabled: true
 #   keys: ["local-dev"]
 
+# Usage metering: JSON lines to stdout (captured by cc-gateway-up → gateway.log).
+# Human-readable "usage …" and "http …" lines also go to the process log.
 hooks:
   jsonl:
     output: stdout

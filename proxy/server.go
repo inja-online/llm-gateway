@@ -290,7 +290,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/health/providers", s.handleProviderHealth)
 	// Prometheus text metrics (low cardinality; always on).
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
-	return s.withEdgeAuth(mux)
+	// Access log outermost after edge auth so 401s are logged too.
+	return withAccessLog(s.withEdgeAuth(mux))
 }
 
 // handleGoogleLiveRoute dispatches GET /v1beta/models/{action} for Live WS only.

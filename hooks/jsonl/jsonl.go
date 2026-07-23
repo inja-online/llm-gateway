@@ -40,7 +40,11 @@ func (s *Sink) OnUsage(_ context.Context, ev hooks.UsageEvent) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.w.Write(append(line, '\n'))
+	_, _ = s.w.Write(append(line, '\n'))
+	// File sinks: push usage lines promptly for `tail -f` / cc-gateway-logs.
+	if f, ok := s.w.(*os.File); ok && f != os.Stdout && f != os.Stderr {
+		_ = f.Sync()
+	}
 }
 
 func (s *Sink) Close() error {

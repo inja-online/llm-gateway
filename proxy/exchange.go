@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -72,7 +73,49 @@ func (x *exchange) emit() {
 	}
 	x.emitted = true
 	x.ev.LatencyMS = time.Since(x.start).Milliseconds()
-	x.s.hook.OnUsage(context.WithoutCancel(x.r.Context()), x.ev)
+	// Always print a human-readable line so operators see usage in gateway.log
+	// (jsonl hooks may also write structured lines to stdout/file).
+	log.Print(formatUsageLog(x.ev))
+	if x.s != nil && x.s.hook != nil {
+		x.s.hook.OnUsage(context.WithoutCancel(x.r.Context()), x.ev)
+	}
+}
+
+// formatUsageLog builds one operator-facing summary line (no secrets / bodies).
+func formatUsageLog(ev hooks.UsageEvent) string {
+	status := ev.Status
+	if status == "" {
+		status = "unknown"
+	}
+	mod := ev.Modality
+	if mod == "" {
+		mod = "text"
+	}
+	stream := "false"
+	if ev.Stream {
+		stream = "true"
+	}
+	est := ""
+	if ev.Estimated {
+		est = " estimated"
+	}
+	return fmt.Sprintf(
+		"usage status=%s modality=%s dialect=%s provider=%s model=%s upstream=%s tokens_in=%d tokens_out=%d cached=%d http=%d lat_ms=%d stream=%s req=%s%s",
+		status,
+		mod,
+		ev.DialectIn,
+		ev.Provider,
+		ev.Model,
+		ev.UpstreamModel,
+		ev.TokensIn,
+		ev.TokensOut,
+		ev.CachedTokens,
+		ev.HTTPStatus,
+		ev.LatencyMS,
+		stream,
+		ev.RequestID,
+		est,
+	)
 }
 
 // applyCanonUsage copies token totals and optional detail fields from

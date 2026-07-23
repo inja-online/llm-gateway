@@ -229,13 +229,15 @@ cc-gateway-status() {
 }
 
 # Show / follow background gateway stdout+stderr (written by cc-gateway-up).
+# Includes startup, "http …" access lines, "usage …" per request, and jsonl usage events.
 #   cc-gateway-logs           # last 80 lines
 #   cc-gateway-logs -f        # follow (tail -f)
 #   cc-gateway-logs -n 200    # last 200 lines
 #   cc-gateway-logs --path    # print log file path only
 #   cc-gateway-logs -f -n 50  # last 50 then follow
+#   cc-gateway-logs --usage   # only lines matching usage / http (filter)
 cc-gateway-logs() {
-  local state logfile lines=80 follow=0 path_only=0
+  local state logfile lines=80 follow=0 path_only=0 usage_only=0
   state="$(_inja_cc_state_dir)"
   logfile="${INJA_GATEWAY_LOG:-$state/gateway.log}"
 
@@ -247,7 +249,7 @@ cc-gateway-logs() {
         ;;
       -n|--lines)
         if [[ -z "${2:-}" ]] || ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
-          echo "usage: cc-gateway-logs [-f] [-n N] [--path]" >&2
+          echo "usage: cc-gateway-logs [-f] [-n N] [--path] [--usage]" >&2
           return 2
         fi
         lines="$2"
@@ -256,7 +258,7 @@ cc-gateway-logs() {
       -n*)
         lines="${1#-n}"
         if ! [[ "$lines" =~ ^[0-9]+$ ]]; then
-          echo "usage: cc-gateway-logs [-f] [-n N] [--path]" >&2
+          echo "usage: cc-gateway-logs [-f] [-n N] [--path] [--usage]" >&2
           return 2
         fi
         shift
@@ -265,17 +267,26 @@ cc-gateway-logs() {
         path_only=1
         shift
         ;;
+      --usage|-u)
+        usage_only=1
+        shift
+        ;;
       -h|--help)
         cat <<EOF
-usage: cc-gateway-logs [-f|--follow] [-n N] [--path]
+usage: cc-gateway-logs [-f|--follow] [-n N] [--path] [--usage]
 
   Show logs from the background gateway started by cc-gateway-up.
+  After rebuild, each proxied request logs:
+    http status=… method=… path=… lat_ms=…
+    usage status=ok provider=… model=… tokens_in=… tokens_out=…
+
   Default file: \$XDG_STATE_HOME/inja-gateway/gateway.log
                 (override with INJA_GATEWAY_LOG)
 
   -f, --follow   follow like tail -f
   -n, --lines N  last N lines (default 80)
   --path, -p     print log path only
+  --usage, -u    only http/usage/json lines (filter)
 EOF
         return 0
         ;;
@@ -298,8 +309,15 @@ EOF
   fi
 
   echo "── $logfile ──" >&2
+  if [[ "$usage_only" -eq 1 ]]; then
+    if [[ "$follow" -eq 1 ]]; then
+      tail -n "$lines" -f "$logfile" | command grep -E --line-buffered ' usage | http |^{' || true
+    else
+      tail -n "$lines" "$logfile" | command grep -E ' usage | http |^{' || true
+    fi
+    return 0
+  fi
   if [[ "$follow" -eq 1 ]]; then
-    # shellcheck disable=SC2086
     tail -n "$lines" -f "$logfile"
   else
     tail -n "$lines" "$logfile"
