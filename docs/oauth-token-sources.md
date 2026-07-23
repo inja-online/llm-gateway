@@ -116,9 +116,20 @@ http.ListenAndServe(cfg.Listen, srv.Handler())
 
 `gateway.New` auto-wires from YAML the same way as `proxy.NewServer`.
 
+## 401 force-refresh (one retry)
+
+When `auth` uses a TokenSource (`oauth2` / `adc` / `service_account`) and the upstream responds **401** before the gateway has written to the client:
+
+1. Invalidate the token cache (`CachingTokenSource.Invalidate`)
+2. Fetch a fresh access token
+3. Retry the upstream request **once**
+
+This covers expired access tokens on chat/media/JSON paths. **Mid-SSE 401** after response headers have already been flushed to the client is **not** retried (cannot safely restart a stream). Prefer token TTLs with skew so access tokens are refreshed before expiry.
+
+Static / non-invalidating TokenSources (e.g. test `StaticTokenSource`) do not retry.
+
 ## Non-goals (v1)
 
 - Device-code / browser PKCE login CLI (use vendor CLIs; load refresh into env)
 - Storing refresh tokens in a database
 - Gateway-hosted OpenCode `/provider/{id}/oauth/*` IdP surface (document edge + Bearer first)
-- Streaming mid-SSE 401 retry (document only; non-stream retry may land later)

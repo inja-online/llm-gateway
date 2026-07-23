@@ -799,3 +799,123 @@ func TestOAuth2UnsupportedGrantAtTokenTime(t *testing.T) {
 		t.Fatal("expected unsupported grant")
 	}
 }
+
+func TestOAuth2UnauthorizedForceRefreshRetry(t *testing.T) {
+	var tokenCalls atomic.Int32
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := tokenCalls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		// First token is "stale"; second after Invalidate is fresh.
+		fmt.Fprintf(w, `{"access_token":"tok-%d","expires_in":3600}`, n)
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	var upCalls atomic.Int32
+	var auths []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := upCalls.Add(1)
+		auth := r.Header.Get("Authorization")
+		auths = append(auths, auth)
+		if n == 1 {
+			// Simulate expired access token.
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"error":{"message":"invalid_token","type":"invalid_request_error"}}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"chatcmpl-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+	}))
+	t.Cleanup(upstream.Close)
+
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai:
+    kind: openai
+    base_url: %q
+    auth: oauth2
+    oauth:
+      token_url: %q
+      client_id: c
+      client_secret: s
+      grant: client_credentials
+defaults:
+  openai_dialect: openai
+`, upstream.URL, tokenSrv.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	gw := httptest.NewServer(NewServer(cfg, col).Handler())
+	t.Cleanup(gw.Close)
+
+	req, _ := http.NewRequest("POST", gw.URL+"/v1/chat/completions",
+		strings.NewReader(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("%d %s", resp.StatusCode, body)
+	}
+	if upCalls.Load() != 2 {
+		t.Fatalf("upstream calls=%d want 2", upCalls.Load())
+	}
+	if tokenCalls.Load() != 2 {
+		t.Fatalf("token calls=%d want 2 (initial + after invalidate)", tokenCalls.Load())
+	}
+	if len(auths) != 2 || auths[0] != "Bearer tok-1" || auths[1] != "Bearer tok-2" {
+		t.Fatalf("auths=%v", auths)
+	}
+	col.one(t)
+}
+
+func TestOAuth2UnauthorizedNoRetryWithoutInvalidator(t *testing.T) {
+	// StaticTokenSource has no Invalidate — 401 is returned as-is (one attempt).
+	var upCalls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upCalls.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":{"message":"nope"}}`)
+	}))
+	t.Cleanup(upstream.Close)
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai:
+    kind: openai
+    base_url: %q
+    auth: oauth2
+    oauth:
+      token_url: "https://example.invalid/token"
+      client_id: c
+      client_secret: s
+defaults:
+  openai_dialect: openai
+`, upstream.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	srv := NewServer(cfg, col)
+	// Override auto-wired OAuth with static (no Invalidate).
+	srv.SetTokenSource("openai", StaticTokenSource{AccessToken: "static"})
+	gw := httptest.NewServer(srv.Handler())
+	t.Cleanup(gw.Close)
+
+	req, _ := http.NewRequest("POST", gw.URL+"/v1/chat/completions",
+		strings.NewReader(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if upCalls.Load() != 1 {
+		t.Fatalf("calls=%d", upCalls.Load())
+	}
+}

@@ -21,7 +21,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
-- **Provider OAuth & non–API-key auth (#104):** `auth: oauth2` with YAML `oauth:` block (client_credentials + refresh_token TokenSources, stdlib form POST); `auth: client_bearer` to always forward client Bearer; auto Google SA JWT from `service_account_file` / `GOOGLE_APPLICATION_CREDENTIALS` for `adc` / `service_account`; token cache honors `expires_in` with single-flight refresh. See [docs/oauth-token-sources.md](docs/oauth-token-sources.md).
+- **Provider OAuth & non–API-key auth (#104):** `auth: oauth2` with YAML `oauth:` block (client_credentials + refresh_token TokenSources, stdlib form POST); `auth: client_bearer` to always forward client Bearer; auto Google SA JWT from `service_account_file` / `GOOGLE_APPLICATION_CREDENTIALS` for `adc` / `service_account`; token cache honors `expires_in` with single-flight refresh; **one-shot 401 force-refresh retry** on TokenSource modes (before client write). See [docs/oauth-token-sources.md](docs/oauth-token-sources.md).
 
 ### Changed
 
