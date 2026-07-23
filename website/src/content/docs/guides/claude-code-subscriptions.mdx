@@ -292,11 +292,9 @@ From [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja
 | `grok` / `grok-4.5` | `xai/grok-4.5` |
 | `composer-2.5` / `composer` | `xai/grok-build-0.1` (Grok Build / Composer-class) |
 
-Sources: [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) · [GPT-5.6](https://openai.com/index/gpt-5-6/) · [xAI models](https://docs.x.ai/developers/models). Edit targets if your plan exposes different ids.
-| `grok` / `grok-4.5` | `xai/grok-4.5` |
-| `composer` / `composer-2.5` | `xai/composer-2.5` |
+Sources: [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) · [GPT-5.6](https://openai.com/index/gpt-5-6/) · [xAI models](https://docs.x.ai/developers/models).
 
-Edit aliases if your account exposes different ids (some plans use alternate names). List config-derived models:
+Edit alias **targets** if your plan 404s (keep short names). List config-derived models:
 
 ```bash
 curl -s http://localhost:8787/v1/models | jq .
