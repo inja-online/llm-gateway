@@ -1,0 +1,42 @@
+# Paste these as custom models in Cursor → Settings → Models → Add Model
+# (OpenAI API Key + Override Base URL → https://127.0.0.1:8787/v1)
+#
+# Cursor's OWN models stay in the list (Claude Fable 5, Composer 2.5, Cursor Grok, …).
+# These names are routed to llm-gateway (your ChatGPT / Claude / SuperGrok subs).
+#
+# Rule of thumb:
+#   "Claude Fable 5"  = Cursor product model (Cursor billing / Cursor routing)
+#   claude/fable-5    = same family via llm-gateway + your Claude subscription
+
+# --- Claude via gateway (subscription OAuth on gateway) ---
+claude/fable-5
+claude/fable
+claude/sonnet-5
+claude/sonnet
+claude/opus
+claude/opus-4-8
+claude/haiku
+claude/haiku-4-5
+
+# --- ChatGPT via gateway ---
+chatgpt/terra
+chatgpt/sol
+chatgpt/luna
+chatgpt/gpt
+
+# --- SuperGrok via gateway (not Cursor Grok / not Cursor Composer) ---
+grok/4.5
+grok/grok-4.5
+grok/composer-2.5
+grok/build
+
+# --- Generic "this is llm-gateway" namespace (same targets) ---
+inja/fable-5
+inja/sonnet
+inja/gpt
+inja/sol
+inja/grok-4.5
+inja/composer-2.5
+
+# Optional bare aliases (avoid if they confuse you next to Cursor labels):
+# sonnet  opus  haiku  fable  gpt  terra  sol  luna  grok-4.5  composer-2.5

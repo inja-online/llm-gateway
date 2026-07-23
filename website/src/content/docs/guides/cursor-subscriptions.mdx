@@ -12,16 +12,27 @@ sidebar:
 
 Use **Cursor** with the same local gateway and **consumer subscriptions** as Claude Code: ChatGPT (Codex OAuth), Claude (setup-token), SuperGrok (Grok CLI / device OAuth).
 
+**You keep Cursor’s own models** (Claude Fable 5, Composer 2.5, Cursor Grok, …) **and** add gateway models next to them with **prefixed** names so nothing collides.
+
 ```
-  Cursor (OpenAI-compatible client)
-       │  POST /v1/chat/completions
-       │  POST /v1/responses  (Agent mode)
+  Cursor built-in (Claude Fable 5, Composer, …)  ──► Cursor cloud (unchanged)
+
+  Custom model e.g. claude/fable-5
+       │  OpenAI key + Override Base URL
        ▼
   llm-gateway (HTTPS localhost)
        ├── ChatGPT subscription
        ├── Claude subscription
        └── SuperGrok (xAI)
 ```
+
+| In the picker | Who serves it |
+|---------------|---------------|
+| **Claude Fable 5** (built-in label) | Cursor product |
+| **`claude/fable-5`** (you Add Model) | llm-gateway → your Claude sub |
+| **Composer 2.5** | Cursor |
+| **`grok/composer-2.5`** | llm-gateway → SuperGrok Build |
+| **`chatgpt/terra`** | llm-gateway → ChatGPT sub |
 
 Related: [Any app integrations](/llm-gateway/guides/app-integrations/) · [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/) · [OAuth auth](/llm-gateway/guides/oauth-auth/) · [xAI provider](/llm-gateway/providers/xai/)
 
@@ -31,11 +42,12 @@ Related: [Any app integrations](/llm-gateway/guides/app-integrations/) · [Claud
 
 Cursor’s **Settings → Models** can:
 
-1. Take an **OpenAI API Key** (any string you choose as the gateway edge key).  
-2. **Override OpenAI Base URL** to your gateway’s OpenAI dialect root (must include **`/v1`**).  
-3. List **custom model names** you add — these are sent as the `model` field and must match gateway **aliases** or `provider/model` ids.
+1. Keep **Cursor / third-party built-ins** enabled (Fable, Sonnet, Composer, …).  
+2. Take an **OpenAI API Key** (gateway edge key, e.g. `local-dev`).  
+3. **Override OpenAI Base URL** to the gateway (`…/v1`) — this applies to **OpenAI-compatible custom models**, not Cursor-native routing.  
+4. **Add Model** with **prefixed** gateway aliases (`claude/…`, `chatgpt/…`, `grok/…`, `inja/…`).
 
-Cursor does **not** use Claude Code’s `ANTHROPIC_BASE_URL` env. It only talks **OpenAI-shaped** HTTP to the override URL. The gateway still routes Claude/Grok/GPT by **model id**.
+Cursor does **not** use Claude Code’s `ANTHROPIC_BASE_URL` env for these custom models. Custom entries talk **OpenAI-shaped** HTTP to the override URL; the gateway routes by `model` id.
 
 ---
 
@@ -92,35 +104,44 @@ https://127.0.0.1:8787/v1
 
 Cursor calls `{base}/chat/completions` and, in Agent mode, often `{base}/responses`.
 
-### 3. Add models
+### 3. Add gateway models (prefixed — recommended)
 
-**Add Model** for each name you want in the picker. Names must match the gateway config aliases:
+**Leave Cursor built-ins on.** Then **Add Model** for each gateway name. Prefer **prefixes** so the picker stays unambiguous:
 
-| Model name in Cursor | Upstream (Jul 2026) |
-|----------------------|---------------------|
-| `gpt` / `terra` | ChatGPT `gpt-5.6-terra` |
-| `sol` | ChatGPT `gpt-5.6-sol` |
-| `luna` | ChatGPT `gpt-5.6-luna` |
-| `grok-4.5` | xAI `grok-4.5` |
-| `composer-2.5` | xAI `grok-build-0.1` (Composer-class / Grok Build) |
-| `sonnet` / `opus` / `haiku` | Claude Sonnet 5 / Opus 4.8 / Haiku 4.5 |
+| Custom model name (Add Model) | Upstream via gateway (Jul 2026) | vs Cursor built-in |
+|-------------------------------|----------------------------------|--------------------|
+| `claude/fable-5` / `claude/fable` | Claude Fable 5 (your Claude sub) | **Claude Fable 5** stays Cursor’s |
+| `claude/sonnet-5` / `claude/sonnet` | Claude Sonnet 5 | Cursor’s Claude Sonnet 5 stays |
+| `claude/opus` / `claude/opus-4-8` | Claude Opus 4.8 | Cursor Opus stays |
+| `claude/haiku` | Claude Haiku 4.5 | Cursor Haiku stays |
+| `chatgpt/terra` / `chatgpt/sol` / `chatgpt/luna` | GPT-5.6 via ChatGPT sub | Cursor GPT entries stay |
+| `grok/4.5` | SuperGrok Grok 4.5 | **Cursor Grok** stays |
+| `grok/composer-2.5` | SuperGrok `grok-build-0.1` | **Composer 2.5** stays Cursor’s |
+| `inja/fable-5`, `inja/gpt`, … | Same targets, explicit gateway tag | — |
 
-Full ids: `chatgpt/gpt-5.6-terra`, `xai/grok-4.5`, `xai/grok-build-0.1`, `anthropic/claude-sonnet-5`, …
+Also available: full provider ids `anthropic/claude-fable-5`, `chatgpt/gpt-5.6-terra`, `xai/grok-4.5`.
 
-Click **Verify** if available, then select the model in Chat or Agent.
+```bash
+cursor-models    # print the list
+# or open examples/cursor/models-to-add.txt
+```
+
+**Avoid** bare names like `fable` / `fable-5` next to Cursor’s **Claude Fable 5** — use `claude/fable-5` or `inja/fable-5`.
+
+Click **Verify** if available, then pick either a Cursor built-in **or** a `claude/…` / `chatgpt/…` / `grok/…` / `inja/…` model in Chat or Agent.
 
 ### Combos
 
-Only add models for subscriptions you authenticated:
+Only add prefixes for subscriptions you authenticated:
 
-| Goal | Models to enable in Cursor |
-|------|----------------------------|
-| GPT only | `gpt` / `terra` / `sol` / `luna` |
-| Grok only | `grok-4.5` / `composer-2.5` |
+| Goal | Custom models to add |
+|------|----------------------|
+| GPT only | `chatgpt/terra` `chatgpt/sol` `chatgpt/luna` |
+| Grok only | `grok/4.5` `grok/composer-2.5` |
 | GPT + Grok | both families |
-| + Claude | also `sonnet` / `opus` / `haiku` / `fable` |
+| + Claude | also `claude/fable-5` `claude/sonnet-5` `claude/opus` … |
 
-You do **not** need Cursor’s separate Anthropic API key field for Claude-through-gateway. Send Claude as a **custom OpenAI model name** (`sonnet`); the gateway routes OpenAI dialect → Anthropic (passthrough or translate as configured).
+You do **not** need Cursor’s separate Anthropic API key for Claude-through-gateway. Custom OpenAI model name → gateway → Anthropic.
 
 ---
 
@@ -148,14 +169,15 @@ source examples/shell/cursor-helpers.sh
 export KEY=local-dev
 
 cc-gateway-up       # background HTTPS gateway
-cursor-setup        # print Settings → Models values
-cursor-verify       # GET /v1/models through the gateway
+cursor-setup        # print Settings → Models (coexistence guide)
+cursor-models       # list prefixed names to Add Model
+cursor-verify       # GET /v1/models (shows claude/fable-5, inja/…)
 cursor-write-cheatsheet   # write examples/cursor/SETUP.md
 cc-gateway-status
 cc-gateway-down
 ```
 
-Repo notes: [`examples/cursor/README.md`](https://github.com/inja-online/llm-gateway/blob/master/examples/cursor/README.md).
+Repo notes: [`examples/cursor/README.md`](https://github.com/inja-online/llm-gateway/blob/master/examples/cursor/README.md) · [`models-to-add.txt`](https://github.com/inja-online/llm-gateway/blob/master/examples/cursor/models-to-add.txt).
 
 ---
 
@@ -163,13 +185,14 @@ Repo notes: [`examples/cursor/README.md`](https://github.com/inja-online/llm-gat
 
 | Surface | Expected |
 |---------|----------|
-| Cursor Chat / Plan / Ask | OpenAI Chat Completions → gateway |
-| Cursor Agent | Often **Responses API** (`POST /v1/responses`) — supported for `openai` / `openai_compat` (ChatGPT, xAI) |
-| Claude models via Cursor | OpenAI-shaped request with Claude model id → gateway routes to Anthropic |
+| Cursor **built-in** models | Stay in the picker; still served by Cursor (not the gateway) |
+| Custom **prefixed** models | OpenAI Chat Completions / Responses → gateway → your subs |
+| Cursor Agent on gateway models | Often **Responses API** (`POST /v1/responses`) — supported for `openai` / `openai_compat` (ChatGPT, xAI) |
+| Claude via gateway from Cursor | Custom name e.g. `claude/fable-5` → gateway → Anthropic |
 | Image / multimodal BYOK | Some Cursor versions ignore custom base URL for images — text/agent is the supported path |
 | Writing keys via script | **Not supported** by Cursor (secure storage / GUI only) |
 
-Same gateway process can serve **Claude Code** and **Cursor** at once (`ANTHROPIC_BASE_URL` for Claude Code, OpenAI override for Cursor).
+Same gateway process can serve **Claude Code** and **Cursor** at once.
 
 ---
 
@@ -183,11 +206,14 @@ Same gateway process can serve **Claude Code** and **Cursor** at once (`ANTHROPI
 | Verify TLS error | `mkcert -install` + regenerate certs |
 | Agent fails, Chat works | Agent may need `/v1/responses`; ensure ChatGPT/xAI providers are `openai` / `openai_compat` |
 | Wrong model family | Check alias targets in `examples/configs/claude-code-subscriptions.yaml` |
+| Confused Cursor vs gateway Fable | Use `claude/fable-5` for gateway; leave **Claude Fable 5** as Cursor’s |
+| Prefixed model 404 | Restart gateway after config pull; `cursor-verify` should list `claude/fable-5` |
 
 ```bash
 cursor-verify
+cursor-models
 ./llm-gateway auth status
-curl -sk https://127.0.0.1:8787/v1/models -H "Authorization: Bearer local-dev"
+curl -sk https://127.0.0.1:8787/v1/models -H "Authorization: Bearer local-dev" | jq -r '.data[].id' | grep claude/
 ```
 
 ---

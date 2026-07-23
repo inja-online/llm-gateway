@@ -97,6 +97,47 @@ aliases:
   grok-build: xai/grok-build-0.1
   grok-composer: xai/grok-build-0.1
 
+  # --- Cursor coexistence (prefixed names) ---
+  # Cursor keeps its own built-ins (e.g. "Claude Fable 5", Composer 2.5, Cursor Grok).
+  # Add these as custom OpenAI models so the picker shows BOTH sides without name clashes:
+  #   Claude Fable 5     → Cursor subscription / Cursor routing
+  #   claude/fable-5     → your Claude sub via llm-gateway
+  # Prefer prefixes claude/ chatgpt/ grok/ inja/ — never bare names that match Cursor UI labels.
+  claude/sonnet: anthropic/claude-sonnet-5
+  claude/sonnet-5: anthropic/claude-sonnet-5
+  claude/opus: anthropic/claude-opus-4-8
+  claude/opus-4-8: anthropic/claude-opus-4-8
+  claude/haiku: anthropic/claude-haiku-4-5
+  claude/haiku-4-5: anthropic/claude-haiku-4-5
+  claude/fable: anthropic/claude-fable-5
+  claude/fable-5: anthropic/claude-fable-5
+  chatgpt/gpt: chatgpt/gpt-5.6-terra
+  chatgpt/terra: chatgpt/gpt-5.6-terra
+  chatgpt/sol: chatgpt/gpt-5.6-sol
+  chatgpt/luna: chatgpt/gpt-5.6-luna
+  chatgpt/gpt-5.6-terra: chatgpt/gpt-5.6-terra
+  chatgpt/gpt-5.6-sol: chatgpt/gpt-5.6-sol
+  chatgpt/gpt-5.6-luna: chatgpt/gpt-5.6-luna
+  grok/4.5: xai/grok-4.5
+  grok/grok-4.5: xai/grok-4.5
+  grok/build: xai/grok-build-0.1
+  grok/composer: xai/grok-build-0.1
+  grok/composer-2.5: xai/grok-build-0.1
+  # Generic "this is llm-gateway" namespace (same targets)
+  inja/sonnet: anthropic/claude-sonnet-5
+  inja/opus: anthropic/claude-opus-4-8
+  inja/haiku: anthropic/claude-haiku-4-5
+  inja/fable: anthropic/claude-fable-5
+  inja/fable-5: anthropic/claude-fable-5
+  inja/gpt: chatgpt/gpt-5.6-terra
+  inja/terra: chatgpt/gpt-5.6-terra
+  inja/sol: chatgpt/gpt-5.6-sol
+  inja/luna: chatgpt/gpt-5.6-luna
+  inja/grok: xai/grok-4.5
+  inja/grok-4.5: xai/grok-4.5
+  inja/composer: xai/grok-build-0.1
+  inja/composer-2.5: xai/grok-build-0.1
+
 # Optional: require a shared edge key from Claude Code; upstream stays subscription OAuth.
 # edge_auth:
 #   enabled: true

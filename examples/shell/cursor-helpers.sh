@@ -1,17 +1,19 @@
 # shellcheck shell=bash
 # Cursor IDE → Inja LLM Gateway (same ChatGPT / Claude / SuperGrok subscriptions).
 #
-#   source examples/shell/claude-code-helpers.sh   # HTTPS background gateway
+#   source examples/shell/claude-code-helpers.sh
 #   source examples/shell/cursor-helpers.sh
 #   export KEY=local-dev
 #   cc-gateway-up
-#   cursor-setup          # print Settings → Models values
-#   cursor-open-docs      # open the website guide (if available)
+#   cursor-setup          # Settings → Models (keep Cursor built-ins + add gateway models)
+#   cursor-models         # list only the custom names to Add Model
+#   cursor-verify
 #
-# Cursor only accepts an OpenAI-compatible base URL in Settings (GUI).
-# These helpers print the exact fields and model names to paste.
+# Cursor built-in models (Claude Fable 5, Composer 2.5, …) stay in the picker.
+# Gateway models use PREFIXED names so they never collide:
+#   claude/fable-5  → your Claude sub via llm-gateway
+#   Claude Fable 5  → Cursor's own model
 
-# Prefer shared paths from claude-code-helpers when already sourced.
 if ! command -v _inja_gateway_root >/dev/null 2>&1; then
   if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
     _INJA_SHELL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,8 +30,6 @@ fi
 _cursor_base_url() {
   local g
   g="${GATEWAY:-$(_inja_cc_public_base 2>/dev/null || echo 'https://127.0.0.1:8787')}"
-  # Cursor appends /chat/completions (and /responses) under this base.
-  # Must include /v1 — do not add a trailing slash after v1 inconsistently.
   g="${g%/}"
   if [[ "$g" == */v1 ]]; then
     printf '%s' "$g"
@@ -42,6 +42,54 @@ _cursor_key() {
   printf '%s' "${KEY:-${GATEWAY_EDGE_KEY:-local-dev}}"
 }
 
+# Recommended custom model names (prefixed — coexist with Cursor built-ins).
+_cursor_gateway_models() {
+  cat <<'EOF'
+claude/fable-5
+claude/fable
+claude/sonnet-5
+claude/sonnet
+claude/opus
+claude/opus-4-8
+claude/haiku
+claude/haiku-4-5
+chatgpt/terra
+chatgpt/sol
+chatgpt/luna
+chatgpt/gpt
+grok/4.5
+grok/grok-4.5
+grok/composer-2.5
+grok/build
+inja/fable-5
+inja/sonnet
+inja/gpt
+inja/sol
+inja/grok-4.5
+inja/composer-2.5
+EOF
+}
+
+cursor-models() {
+  cat <<EOF
+── Cursor custom models (llm-gateway) ────────────────────────────
+Add each line in Settings → Models → Add Model.
+Leave Cursor's built-in models enabled (Claude Fable 5, Composer, …).
+
+EOF
+  _cursor_gateway_models
+  cat <<EOF
+
+Side-by-side example:
+  Claude Fable 5     → Cursor product (Cursor billing)
+  claude/fable-5     → Claude sub via llm-gateway
+  Composer 2.5       → Cursor's Composer
+  grok/composer-2.5  → SuperGrok Build via llm-gateway
+
+Full list file: examples/cursor/models-to-add.txt
+EOF
+}
+
 # Print copy-paste Cursor Settings → Models configuration.
 cursor-setup() {
   local base key cert
@@ -52,67 +100,65 @@ cursor-setup() {
   cat <<EOF
 
 ═══════════════════════════════════════════════════════════════════
-  Cursor → Inja LLM Gateway (subscription models)
+  Cursor → Inja LLM Gateway  (built-ins + gateway models together)
 ═══════════════════════════════════════════════════════════════════
 
-1) Start the gateway (if not already):
+Yes — you can keep Cursor's own models AND add gateway models.
+
+  Cursor built-in          llm-gateway custom (Add Model)
+  ─────────────────        ────────────────────────────────
+  Claude Fable 5           claude/fable-5   (your Claude sub)
+  Claude Sonnet 5          claude/sonnet-5
+  Composer 2.5             grok/composer-2.5 (SuperGrok Build)
+  Cursor Grok 4.5          grok/4.5
+  GPT-5.6 Terra (Cursor)   chatgpt/terra    (ChatGPT sub via gateway)
+
+1) Gateway up:
      source examples/shell/claude-code-helpers.sh
      export KEY=$key
      cc-gateway-up
 
 2) Cursor → Settings → Models
 
-   • Enable  OpenAI API Key
-     Paste:  $key
+   A. Leave Cursor / Anthropic / Google built-ins ON
+      (do not turn off Claude Fable 5 just because you add gateway Fable).
 
-   • Enable  Override OpenAI Base URL
-     Paste:  $base
-     (must end with /v1)
+   B. Enable OpenAI API Key
+        Paste:  $key
+      (edge key — not a Platform sk-; gateway holds subscription OAuth)
 
-   • Add models (short names = gateway aliases, Jul 2026):
+   C. Enable Override OpenAI Base URL
+        Paste:  $base
+      (must end with /v1)
+      This redirect applies to OpenAI-compatible / custom models you add.
+      Cursor-native models (Composer, Cursor Grok, Cursor-routed Claude)
+      stay on Cursor's side of the picker.
 
-       gpt terra sol luna          # ChatGPT GPT-5.6 Terra / Sol / Luna
-       grok-4.5 composer-2.5       # SuperGrok (composer → grok-build-0.1)
-       sonnet opus haiku fable     # Claude Sonnet 5 / Opus 4.8 / Haiku 4.5 / Fable 5
+   D. Add Model for each gateway name (copy list: cursor-models):
 
-     Full ids if needed:
-       chatgpt/gpt-5.6-terra  chatgpt/gpt-5.6-sol  chatgpt/gpt-5.6-luna
-       xai/grok-4.5  xai/grok-build-0.1
-       anthropic/claude-sonnet-5  anthropic/claude-opus-4-8  anthropic/claude-haiku-4-5
+$(_cursor_gateway_models | sed 's/^/        /')
 
-   • Click Verify (if shown), then select the model in the chat/agent picker.
+   E. Optional: Verify, then pick either a Cursor built-in OR a
+      claude/… chatgpt/… grok/… inja/… model in Chat / Agent.
 
-3) TLS trust (self-signed only; skip if you used mkcert -install):
-     export NODE_EXTRA_CA_CERTS=$cert
-     # Cursor is an Electron/Node app — system trust from mkcert is preferred.
-     # If Verify fails on certificate errors, re-run:
-     #   brew install mkcert && mkcert -install
-     #   ./examples/scripts/gen-localhost-tls.sh
-     #   cc-gateway-down && cc-gateway-up
+3) TLS (self-signed): prefer mkcert -install
+     cert: $cert
 
-4) What works
-   • Chat / Plan / Ask with custom OpenAI base URL
-   • Agent mode may use the OpenAI Responses API — this gateway exposes
-     POST /v1/responses for openai / openai_compat providers (ChatGPT, xAI)
-   • Claude-shaped models are reached by model id (translate or passthrough)
+4) Combos (only add prefixes for subs you logged in):
+   • ChatGPT:   chatgpt/terra chatgpt/sol chatgpt/luna
+   • SuperGrok: grok/4.5 grok/composer-2.5
+   • Claude:    claude/fable-5 claude/sonnet-5 claude/opus …
 
-5) Combos (which models you "have")
-   • GPT only:        gpt / terra / sol / luna
-   • Grok only:       grok-4.5 / composer-2.5
-   • GPT + Grok:      both families above
-   • + Claude:        sonnet / opus / haiku / fable (needs auth login claude)
-
-Health check:
+Health:
   curl -sk $(_cursor_base_url | sed 's|/v1$||')/healthz
+  cursor-verify
 
-Full guide (docs site):
-  https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/
+Docs: https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/
 
 ═══════════════════════════════════════════════════════════════════
 EOF
 }
 
-# Write a short Markdown cheatsheet next to certs (optional convenience).
 cursor-write-cheatsheet() {
   local root out base key
   root="$(_inja_gateway_root)"
@@ -123,7 +169,14 @@ cursor-write-cheatsheet() {
   cat >"$out" <<EOF
 # Cursor → Inja LLM Gateway
 
-Generated by \`cursor-write-cheatsheet\`. Do not commit secrets.
+Generated by \`cursor-write-cheatsheet\`.
+
+## Coexistence
+
+| In picker | Source |
+|-----------|--------|
+| Claude Fable 5, Composer 2.5, Cursor Grok | Cursor product |
+| \`claude/fable-5\`, \`chatgpt/sol\`, \`grok/4.5\`, \`inja/…\` | llm-gateway + your subs |
 
 ## Settings → Models
 
@@ -132,11 +185,11 @@ Generated by \`cursor-write-cheatsheet\`. Do not commit secrets.
 | OpenAI API Key | \`$key\` |
 | Override OpenAI Base URL | \`$base\` |
 
-## Models to add (Jul 2026)
+## Custom models to add
 
-- \`gpt\` / \`terra\` / \`sol\` / \`luna\` (GPT-5.6)
-- \`grok-4.5\` / \`composer-2.5\` (→ grok-build-0.1)
-- \`sonnet\` / \`opus\` / \`haiku\` / \`fable\` (Claude)
+\`\`\`
+$(_cursor_gateway_models)
+\`\`\`
 
 ## Start gateway
 
@@ -145,28 +198,26 @@ source examples/shell/claude-code-helpers.sh
 export KEY=$key
 cc-gateway-up
 \`\`\`
-
-## Notes
-
-- Cursor appends paths under the base URL; keep the \`/v1\` suffix.
-- Agent mode may call \`/v1/responses\` (supported for ChatGPT / xAI openai_compat).
-- Prefer \`mkcert -install\` for local HTTPS trust.
 EOF
   echo "wrote $out" >&2
 }
 
-# Smoke: list models from the gateway (OpenAI catalog shape).
 cursor-verify() {
   local base key
   base="$(_cursor_base_url)"
   key="$(_cursor_key)"
-  echo "GET $base/models" >&2
+  echo "GET $base/models (look for claude/fable-5, inja/…)" >&2
   curl -skS "$base/models" \
     -H "Authorization: Bearer $key" \
-    -H "Content-Type: application/json" | head -c 2000
+    -H "Content-Type: application/json" | head -c 4000
   echo
+  if command -v jq >/dev/null 2>&1; then
+    echo "── prefixed gateway ids ──" >&2
+    curl -skS "$base/models" -H "Authorization: Bearer $key" \
+      | jq -r '.data[].id' 2>/dev/null | grep -E '^(claude|chatgpt|grok|inja)/' | sort || true
+  fi
 }
 
-# Aliases
 cursor-print() { cursor-setup "$@"; }
 cursor-help()  { cursor-setup "$@"; }
+cursor-list-models() { cursor-models "$@"; }

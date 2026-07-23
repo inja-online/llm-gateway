@@ -65,6 +65,24 @@ aliases:
   composer-2.5: xai/grok-build-0.1
   grok-build: xai/grok-build-0.1
 
+  # Cursor coexistence — prefixed custom model names (see cursor-subscriptions guide)
+  claude/sonnet: anthropic/claude-sonnet-5
+  claude/sonnet-5: anthropic/claude-sonnet-5
+  claude/opus: anthropic/claude-opus-4-8
+  claude/fable: anthropic/claude-fable-5
+  claude/fable-5: anthropic/claude-fable-5
+  chatgpt/terra: openai/gpt-5.6-terra
+  chatgpt/sol: openai/gpt-5.6-sol
+  chatgpt/luna: openai/gpt-5.6-luna
+  grok/4.5: xai/grok-4.5
+  grok/composer-2.5: xai/grok-build-0.1
+  inja/fable: anthropic/claude-fable-5
+  inja/fable-5: anthropic/claude-fable-5
+  inja/sonnet: anthropic/claude-sonnet-5
+  inja/gpt: openai/gpt-5.6-terra
+  inja/grok: xai/grok-4.5
+  inja/composer: xai/grok-build-0.1
+
 hooks:
   jsonl:
     output: stdout

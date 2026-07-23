@@ -41,12 +41,23 @@ Change only the **right-hand** `provider/model` target when vendors rename.
 
 UI names (e.g. SuperGrok “Composer 2.5”) may differ from API ids (e.g. `grok-build-0.1`) — map UI→API in comments.
 
+### Cursor coexistence prefixes
+
+Cursor keeps built-ins (e.g. **Claude Fable 5**, Composer 2.5). Custom OpenAI models should use **prefixed** aliases so both appear in the picker:
+
+- `claude/fable-5`, `claude/sonnet-5` → Anthropic via gateway  
+- `chatgpt/terra`, `chatgpt/sol` → ChatGPT sub via gateway  
+- `grok/4.5`, `grok/composer-2.5` → SuperGrok via gateway  
+- `inja/…` → same targets, explicit gateway tag  
+
+Helpers: `cursor-models`, `examples/cursor/models-to-add.txt`. Short aliases stay for Claude Code; prefixes are for Cursor dual-list.
+
 ## Subscription OAuth / Claude Code / Cursor
 
 - Auth CLI: `llm-gateway auth login|import|status` (`subauth` package).  
 - HTTPS local: `examples/scripts/gen-localhost-tls.sh`, helpers `cc-gateway-up`.  
 - Claude Code combos: `examples/claude-code-multi.sh`, `examples/shell/claude-code-*.sh`.  
-- Cursor: OpenAI base URL `https://127.0.0.1:8787/v1` — see docs site guides.  
+- Cursor: OpenAI base `…/v1` + **prefixed** custom models next to Cursor built-ins — docs site guides.  
 - **ToS:** personal accounts only; no multi-tenant resale of consumer OAuth.
 
 ## Docs site
