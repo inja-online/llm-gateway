@@ -458,7 +458,7 @@ providers:
 
 Multi-tenant pattern: `edge_auth` + `auth: client_bearer` so each client’s OAuth access token is forwarded upstream.
 
-See [SECURITY.md](SECURITY.md) and [docs/oauth-token-sources.md](docs/oauth-token-sources.md).
+See [SECURITY.md](SECURITY.md), [docs/oauth-token-sources.md](docs/oauth-token-sources.md), and [docs/wif-recipes.md](docs/wif-recipes.md) (WIF / token_file).
 
 ### Optional edge auth
 

@@ -128,6 +128,8 @@ This covers expired access tokens on chat/media/JSON paths. **Mid-SSE 401** afte
 
 Static / non-invalidating TokenSources (e.g. test `StaticTokenSource`) do not retry.
 
+See also [WIF recipes](wif-recipes.md) (`token_file`, cloud OIDC patterns).
+
 ## Non-goals (v1)
 
 - Device-code / browser PKCE login CLI (use vendor CLIs; load refresh into env)

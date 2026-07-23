@@ -95,6 +95,13 @@ providers:
   #   auth: client_bearer
   #   # api_key_env is ignored in client_bearer mode
 
+  # WIF / sidecar access token file (#164) — see docs/wif-recipes.md
+  # openai_wif:
+  #   kind: openai
+  #   base_url: "https://api.openai.com/v1"
+  #   auth: adc
+  #   token_file: /var/run/secrets/openai-access-token
+
   # --- OpenAI-compatible hosts (kind: openai_compat) ---
   deepseek:
     kind: openai_compat

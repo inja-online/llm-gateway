@@ -354,6 +354,29 @@ func copyStringMap(m map[string]string) map[string]string {
 	return out
 }
 
+// FileTokenSource reads a bearer access token from a filesystem path.
+// Intended for WIF sidecars / projected volume tokens that refresh the file
+// out-of-band (#164). The file is re-read on every Token() call; wrap with
+// CachingTokenSource when a short TTL is desired.
+type FileTokenSource struct {
+	Path string
+}
+
+func (f FileTokenSource) Token(context.Context) (string, error) {
+	if strings.TrimSpace(f.Path) == "" {
+		return "", fmt.Errorf("token_file: path required")
+	}
+	raw, err := os.ReadFile(f.Path)
+	if err != nil {
+		return "", fmt.Errorf("token_file: read %s: %w", f.Path, err)
+	}
+	tok := strings.TrimSpace(string(raw))
+	if tok == "" {
+		return "", fmt.Errorf("token_file: empty token in %s", f.Path)
+	}
+	return tok, nil
+}
+
 // tokenSourceFromProvider builds a TokenSource from provider auth config, or
 // nil when the mode does not auto-wire (api_key / bearer / client_bearer, or
 // adc/service_account without a credential file).
@@ -366,19 +389,24 @@ func tokenSourceFromProvider(p config.Provider) (TokenSource, error) {
 		}
 		return &CachingTokenSource{Inner: inner}, nil
 	case config.AuthServiceAccount, config.AuthADC:
-		path := strings.TrimSpace(p.ServiceAccountFile)
-		if path == "" {
-			// Optional: standard Google ADC file env (binary convenience).
-			path = strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+		// Prefer SA JSON JWT exchange when configured.
+		saPath := strings.TrimSpace(p.ServiceAccountFile)
+		if saPath == "" {
+			saPath = strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 		}
-		if path == "" {
-			return nil, nil
+		if saPath != "" {
+			inner, err := NewServiceAccountJWTSourceFromFile(saPath, nil)
+			if err != nil {
+				return nil, err
+			}
+			return &CachingTokenSource{Inner: inner}, nil
 		}
-		inner, err := NewServiceAccountJWTSourceFromFile(path, nil)
-		if err != nil {
-			return nil, err
+		// WIF / sidecar: plain access token file (#164).
+		if tf := strings.TrimSpace(p.TokenFile); tf != "" {
+			// Short TTL: file may be rotated; re-read often.
+			return &CachingTokenSource{Inner: FileTokenSource{Path: tf}, TTL: 2 * time.Minute}, nil
 		}
-		return &CachingTokenSource{Inner: inner}, nil
+		return nil, nil
 	default:
 		return nil, nil
 	}

@@ -36,6 +36,11 @@ type Provider struct {
 	// With auth: service_account (or adc), the binary auto-builds a JWT TokenSource
 	// from this file when present (no SetTokenSource inject required).
 	ServiceAccountFile string `yaml:"service_account_file"`
+	// TokenFile is an optional path to a plain-text access token (trimmed).
+	// Used with auth: adc / service_account for WIF sidecars or projected tokens
+	// that write a short-lived bearer token to disk (#164). Re-read on each
+	// Token() (cache via CachingTokenSource TTL).
+	TokenFile string `yaml:"token_file"`
 	// OAuth holds OAuth2 client settings when auth is oauth2 (#104).
 	OAuth *OAuthConfig `yaml:"oauth"`
 	// Capabilities overrides kind defaults. Nil → DefaultCapabilities(Kind).
