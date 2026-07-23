@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -481,5 +482,19 @@ func TestOAuthResolvedSecrets(t *testing.T) {
 	}
 	if (*OAuthConfig)(nil).ResolvedClientSecret() != "" || (*OAuthConfig)(nil).ResolvedRefreshToken() != "" {
 		t.Fatal("nil secrets")
+	}
+}
+
+func TestVertexBaseURL(t *testing.T) {
+	got := VertexBaseURL("p1", "europe-west1")
+	want := "https://europe-west1-aiplatform.googleapis.com/v1/projects/p1/locations/europe-west1/publishers/google"
+	if got != want {
+		t.Fatalf("%s", got)
+	}
+	if !strings.Contains(VertexBaseURL("p", "global"), "aiplatform.googleapis.com/v1/projects/p/locations/global") {
+		t.Fatal(VertexBaseURL("p", "global"))
+	}
+	if VertexBaseURL("", "x") != "" {
+		t.Fatal("empty project")
 	}
 }

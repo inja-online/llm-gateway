@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/inja-online/llm-gateway/canonical"
 )
@@ -45,6 +46,13 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 		}
 	}
 	for _, t := range req.Tools {
+		kind := t.Kind
+		if kind == "" {
+			kind = canonical.ToolKindFunction
+		}
+		if kind != canonical.ToolKindFunction {
+			return nil, fmt.Errorf("anthropic translation does not support tool kind %q; use function tools or OpenAI-family passthrough", kind)
+		}
 		schema := t.Schema
 		if len(schema) == 0 {
 			schema = json.RawMessage(`{"type":"object"}`)

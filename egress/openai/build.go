@@ -37,7 +37,19 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 		}
 	}
 	if req.Stream {
-		out.StreamOpts = &streamOptions{IncludeUsage: true}
+		// Prefer client stream_options when present; else force include_usage for metering.
+		if len(req.StreamOptions) > 0 {
+			var so streamOptions
+			if json.Unmarshal(req.StreamOptions, &so) == nil {
+				out.StreamOpts = &so
+			}
+		}
+		if out.StreamOpts == nil {
+			out.StreamOpts = &streamOptions{IncludeUsage: true}
+		} else if !out.StreamOpts.IncludeUsage {
+			// Always meter streams through the gateway.
+			out.StreamOpts.IncludeUsage = true
+		}
 	}
 	if req.Thinking != nil && req.Thinking.Effort != "" {
 		out.ReasoningEffort = req.Thinking.Effort
@@ -50,15 +62,17 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 		out.Messages = append(out.Messages, chatMessage{Role: "system", Content: jsonString(sys)})
 	}
 	for _, t := range req.Tools {
-		params := t.Schema
-		if len(params) == 0 {
-			params = json.RawMessage(`{"type":"object"}`)
-		}
-		out.Tools = append(out.Tools, chatTool{
-			Type:     "function",
-			Function: toolFunction{Name: t.Name, Description: t.Description, Parameters: params},
-		})
+		out.Tools = append(out.Tools, buildOpenAITool(t))
 	}
+	// Fidelity fields (#163/#115) — OpenAI egress only.
+	out.SafetyIdentifier = req.SafetyIdentifier
+	out.Verbosity = req.Verbosity
+	out.Prediction = req.Prediction
+	out.PromptCacheOptions = req.PromptCacheOptions
+	out.Logprobs = req.Logprobs
+	out.TopLogprobs = req.TopLogprobs
+	out.Modalities = append([]string(nil), req.Modalities...)
+	out.User = req.User
 	if req.ToolChoice != nil {
 		out.ToolChoice = buildToolChoice(req.ToolChoice)
 	}
@@ -66,6 +80,65 @@ func BuildRequest(req *canonical.Request, model string) ([]byte, error) {
 		out.Messages = append(out.Messages, buildMessages(m)...)
 	}
 	return json.Marshal(out)
+}
+
+func buildOpenAITool(t canonical.Tool) chatTool {
+	kind := t.Kind
+	if kind == "" {
+		kind = canonical.ToolKindFunction
+	}
+	switch kind {
+	case canonical.ToolKindCustom:
+		format := t.Extra
+		if len(format) == 0 && (t.Grammar != "" || t.GrammarType != "") {
+			// Reconstruct minimal format object.
+			m := map[string]any{}
+			if t.GrammarType != "" {
+				m["type"] = t.GrammarType
+			}
+			if t.Grammar != "" {
+				m["definition"] = t.Grammar
+			}
+			format, _ = json.Marshal(m)
+		}
+		return chatTool{
+			Type: "custom",
+			Custom: &customToolWire{
+				Name:        t.Name,
+				Description: t.Description,
+				Format:      format,
+			},
+		}
+	case canonical.ToolKindComputer, canonical.ToolKindServer:
+		return chatTool{
+			Type:        firstNonEmptyStr(kind, "server"),
+			Name:        t.Name,
+			Description: t.Description,
+			Format:      t.Extra,
+		}
+	default:
+		params := t.Schema
+		if len(params) == 0 {
+			params = json.RawMessage(`{"type":"object"}`)
+		}
+		return chatTool{
+			Type: "function",
+			Function: &toolFunction{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  params,
+			},
+		}
+	}
+}
+
+func firstNonEmptyStr(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 func buildResponseFormat(rf *canonical.ResponseFormat) *responseFormatWire {

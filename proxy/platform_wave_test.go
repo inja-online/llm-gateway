@@ -188,3 +188,50 @@ func postJSON(t *testing.T, url, body string) {
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 }
+
+func TestResponsesWebSocketRequiresUpgrade(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+providers:
+  openai: { kind: openai, base_url: "https://example.invalid/v1" }
+defaults:
+  openai_dialect: openai
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw := httptest.NewServer(NewServer(cfg, &collector{}).Handler())
+	t.Cleanup(gw.Close)
+	resp, err := http.Get(gw.URL + "/v1/responses/ws?model=openai/gpt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUpgradeRequired {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+}
+
+func TestResponsesWebSocketMissingModel(t *testing.T) {
+	cfg, _ := config.Parse([]byte(`
+providers:
+  openai: { kind: openai, base_url: "http://127.0.0.1:1" }
+defaults:
+  openai_dialect: openai
+`))
+	gw := httptest.NewServer(NewServer(cfg, &collector{}).Handler())
+	t.Cleanup(gw.Close)
+	req, _ := http.NewRequest(http.MethodGet, gw.URL+"/v1/responses/ws", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("%d %s", resp.StatusCode, body)
+	}
+}

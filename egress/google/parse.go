@@ -24,7 +24,11 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 			for i, p := range ch.Content.Parts {
 				switch {
 				case p.Thought && p.Text != "":
-					resp.Content = append(resp.Content, canonical.Block{Type: canonical.BlockThinking, Text: p.Text})
+					resp.Content = append(resp.Content, canonical.Block{
+						Type:      canonical.BlockThinking,
+						Text:      p.Text,
+						Signature: p.ThoughtSignature,
+					})
 				case p.Text != "":
 					resp.Content = append(resp.Content, canonical.Block{Type: canonical.BlockText, Text: p.Text})
 				case p.FunctionCall != nil:
@@ -64,13 +68,19 @@ func finishToStop(fr string, content []canonical.Block) string {
 			return canonical.StopToolUse
 		}
 	}
+	// Universal finishReason catalog (#156) — map Google → canonical stop reasons.
 	switch fr {
-	case "STOP", "stop":
+	case "STOP", "stop", "FINISH_REASON_STOP", "STOP_SEQUENCE":
 		return canonical.StopEndTurn
-	case "MAX_TOKENS", "max_tokens":
+	case "MAX_TOKENS", "max_tokens", "FINISH_REASON_MAX_TOKENS", "LENGTH":
 		return canonical.StopMaxTokens
-	case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII":
+	case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII",
+		"FINISH_REASON_SAFETY", "FINISH_REASON_RECITATION", "CONTENT_FILTER":
 		return canonical.StopRefusal
+	case "MALFORMED_FUNCTION_CALL", "FINISH_REASON_MALFORMED_FUNCTION_CALL":
+		return canonical.StopToolUse
+	case "OTHER", "FINISH_REASON_OTHER", "FINISH_REASON_UNSPECIFIED", "":
+		return canonical.StopEndTurn
 	default:
 		return canonical.StopEndTurn
 	}

@@ -199,7 +199,11 @@ func parseContent(c content) (canonical.Message, error) {
 	for i, p := range c.Parts {
 		switch {
 		case p.Text != "" && p.Thought:
-			blocks = append(blocks, canonical.Block{Type: canonical.BlockThinking, Text: p.Text})
+			blocks = append(blocks, canonical.Block{
+				Type:      canonical.BlockThinking,
+				Text:      p.Text,
+				Signature: p.ThoughtSignature,
+			})
 		case p.Text != "":
 			blocks = append(blocks, canonical.Block{Type: canonical.BlockText, Text: p.Text})
 		case p.InlineData != nil || p.InlineDataCamel != nil:

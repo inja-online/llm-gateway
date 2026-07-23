@@ -31,6 +31,8 @@ type part struct {
 	FunctionCall     *functionCall     `json:"function_call,omitempty"`
 	FunctionResponse *functionResponse `json:"function_response,omitempty"`
 	Thought          bool              `json:"thought,omitempty"`
+	// ThoughtSignature is required by some multi-turn Gemini thinking models (#106).
+	ThoughtSignature string `json:"thoughtSignature,omitempty"`
 }
 
 type blob struct {
