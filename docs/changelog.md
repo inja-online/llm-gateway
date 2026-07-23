@@ -27,6 +27,8 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
+- **Subscription OAuth:** `llm-gateway auth login chatgpt|claude|grok`, credential store, `oauth.credentials`, [claude-code-subscriptions.yaml](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml), guide [claude-code-multi.md](claude-code-multi.md).
+- **Claude Code multi-provider helpers:** profile launcher + shell `cc-*` functions; API-key config still in `claude-code-multi.yaml`.
 - **HTTP voice (TTS/STT, M4):** OpenAI `/v1/audio/speech|transcriptions|translations` (passthrough + `kind:google` TTS translation); Anthropic-gateway same paths with `anthropic-version` (translate to OpenAI/Google); Google `POST /v1beta/models/{m}:generateSpeech` → Gemini `generateContent` AUDIO. Capability fail-closed; binary/multipart fidelity tests; usage `audio_speech` / `audio_transcribe`.
 - **`GET /v1/models` capability flags:** each catalog entry includes `capabilities` (`chat`, `image_gen`, `video_gen`, `audio_speech`, `audio_transcribe`, `realtime`) from provider kind defaults + YAML overrides (no upstream network).
 - **Configurable `max_body_bytes`** (default 32 MiB): oversize requests return HTTP **413** dialect-shaped errors; README limits table expanded (body, header wait, realtime, drain).

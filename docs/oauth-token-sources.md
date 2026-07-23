@@ -219,9 +219,34 @@ See [vertex-dual-path.md](vertex-dual-path.md) + SA block above.
 
 ### E. OpenCode / Claude Code / Codex
 
-Point the tool `baseURL` at the gateway. Prefer **edge key + server `api_key_env` or `oauth2`**. If the tool already holds a provider OAuth access token, use `client_bearer`.
+Point the tool `baseURL` at the gateway (Claude Code: `ANTHROPIC_BASE_URL`). Prefer **edge key + server credentials**.
 
-**ToS:** consumer ChatGPT/Claude subscription OAuth is often restricted for multi-user products — use operator-held credentials.
+### F. Consumer subscription OAuth (ChatGPT / Claude / SuperGrok)
+
+Interactive login (no long-lived API keys):
+
+```bash
+./llm-gateway auth login chatgpt   # Codex PKCE → ChatGPT subscription
+./llm-gateway auth login claude    # setup-token / Claude Code OAuth
+./llm-gateway auth login grok      # SuperGrok device-code OAuth
+./llm-gateway auth status
+```
+
+Wire providers with the local credential store:
+
+```yaml
+providers:
+  chatgpt:
+    kind: openai_compat
+    base_url: "https://chatgpt.com/backend-api/codex"
+    auth: oauth2
+    oauth:
+      credentials: chatgpt   # chatgpt | claude | grok
+```
+
+Full guide: [claude-code-multi.md](claude-code-multi.md) · config [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml).
+
+**ToS:** personal use of accounts you own only; do not productize multi-tenant resale of consumer OAuth. Re-read OpenAI / Anthropic / xAI terms.
 
 ---
 

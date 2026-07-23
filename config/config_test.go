@@ -350,6 +350,96 @@ providers:
 	}
 }
 
+func TestTLSConfigBothOrNeither(t *testing.T) {
+	_, err := Parse([]byte(`
+listen: ":8787"
+tls:
+  cert_file: only-cert.pem
+providers:
+  x: { kind: openai, base_url: "https://x" }
+`))
+	if err == nil {
+		t.Fatal("expected tls incomplete error")
+	}
+	cfg, err := Parse([]byte(`
+listen: ":8787"
+tls:
+  cert_file: cert.pem
+  key_file: key.pem
+providers:
+  x: { kind: openai, base_url: "https://x" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TLSEnabled() {
+		t.Fatal("expected TLS enabled")
+	}
+	t.Setenv("GATEWAY_TLS_CERT", "/env/cert.pem")
+	t.Setenv("GATEWAY_TLS_KEY", "/env/key.pem")
+	cfg2, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg2.TLSEnabled() || cfg2.TLS.CertFile != "/env/cert.pem" {
+		t.Fatalf("%#v", cfg2.TLS)
+	}
+}
+
+func TestOAuthCredentialsSubscription(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  chatgpt:
+    kind: openai_compat
+    base_url: "https://chatgpt.com/backend-api/codex"
+    auth: oauth2
+    oauth:
+      credentials: chatgpt
+  bad:
+    kind: openai
+    base_url: "https://x"
+    auth: oauth2
+    oauth:
+      credentials: nope
+`))
+	if err == nil {
+		t.Fatal("expected error for unknown credentials id")
+	}
+	cfg, err = Parse([]byte(`
+providers:
+  chatgpt:
+    kind: openai_compat
+    base_url: "https://chatgpt.com/backend-api/codex"
+    auth: oauth2
+    oauth:
+      credentials: chatgpt
+  claude:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+    auth: oauth2
+    oauth:
+      credentials: claude
+  grok:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    auth: oauth2
+    oauth:
+      credentials: grok
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers["chatgpt"].OAuth.Credentials != "chatgpt" {
+		t.Fatalf("credentials %q", cfg.Providers["chatgpt"].OAuth.Credentials)
+	}
+	if !cfg.Providers["claude"].UsesTokenSource() {
+		t.Fatal("claude should use token source")
+	}
+}
+
 func TestOAuth2RefreshGrantAuto(t *testing.T) {
 	cfg, err := Parse([]byte(`
 providers:

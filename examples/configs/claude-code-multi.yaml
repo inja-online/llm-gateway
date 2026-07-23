@@ -1,0 +1,68 @@
+# Multi-provider Claude Code config — OpenAI + Anthropic + xAI (Grok).
+#
+# Copy next to the binary or point GATEWAY_CONFIG here:
+#   cp examples/configs/claude-code-multi.yaml gateway.yaml
+#   export OPENAI_API_KEY=… ANTHROPIC_API_KEY=… XAI_API_KEY=…
+#   ./llm-gateway -config gateway.yaml
+#   ./examples/claude-code-multi.sh multi
+#
+# Claude Code speaks Anthropic Messages. Same-family → passthrough.
+# Cross-family (gpt / grok aliases) → translate; see docs caveats.
+#
+# Keys: use official API keys (platform.openai.com, console.anthropic.com,
+# console.x.ai). ChatGPT Plus / SuperGrok consumer login is not an API key —
+# see docs/claude-code-multi.md for ToS + credential notes.
+
+listen: ":8787"
+
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_API_KEY
+
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+    api_key_env: ANTHROPIC_API_KEY
+
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    api_key_env: XAI_API_KEY
+    capabilities:
+      text: true
+      # image_gen: true   # opt-in for Imagine-style /v1/images/*
+
+defaults:
+  # Bare model ids on Anthropic ingress (Claude Code) → Anthropic
+  anthropic_dialect: anthropic
+  # Bare ids on OpenAI ingress → OpenAI
+  openai_dialect: openai
+
+# Friendly ids for Claude Code: /model gpt  ·  /model grok  ·  /model sonnet
+# Pin versions your account can call; update when vendors rename models.
+aliases:
+  # --- Claude (Anthropic passthrough) ---
+  claude: anthropic/claude-sonnet-4-20250514
+  sonnet: anthropic/claude-sonnet-4-20250514
+  opus: anthropic/claude-opus-4-20250514
+  haiku: anthropic/claude-haiku-4-20250414
+
+  # --- OpenAI (translated from Anthropic Messages) ---
+  # Prefer current model ids from platform.openai.com/docs/models
+  gpt: openai/gpt-4.1
+  gpt-mini: openai/gpt-4.1-mini
+  o3: openai/o3
+  o4-mini: openai/o4-mini
+
+  # --- xAI Grok (translated) ---
+  grok: xai/grok-4.5
+  grok-4.5: xai/grok-4.5
+  composer: xai/composer-2.5
+  composer-2.5: xai/composer-2.5
+  # grok-mini: xai/grok-3-mini
+
+hooks:
+  jsonl:
+    output: stdout

@@ -553,6 +553,8 @@ Typical fields: `request_id`, `time`, `dialect_in`, `provider`, `model`, `upstre
 
 ## Claude Code
 
+Point Claude Code at the gateway (Anthropic Messages ingress). Same-family Anthropic is passthrough; OpenAI / xAI aliases are translated.
+
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:8787
 export ANTHROPIC_API_KEY=sk-…   # or edge key when edge_auth is on
@@ -560,7 +562,31 @@ export ANTHROPIC_API_KEY=sk-…   # or edge key when edge_auth is on
 claude
 ```
 
-Checklist: [docs/claude-code-checklist.md](docs/claude-code-checklist.md). Example: [`examples/claude-code.sh`](examples/claude-code.sh).
+**Multi-provider with subscription OAuth** (ChatGPT Plus/Pro, Claude Pro/Max, SuperGrok — not API keys):
+
+```bash
+# one-time browser / device logins
+./llm-gateway auth login chatgpt
+./llm-gateway auth login claude
+./llm-gateway auth login grok
+./llm-gateway auth status
+
+# terminal 1
+./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
+
+# terminal 2 — Claude Code (any combo)
+KEY=local-dev ./examples/claude-code-multi.sh multi       # Claude+GPT+Grok
+KEY=local-dev ./examples/claude-code-multi.sh gpt         # GPT only
+KEY=local-dev ./examples/claude-code-multi.sh grok        # Grok 4.5 + composer-2.5
+KEY=local-dev ./examples/claude-code-multi.sh gpt+grok    # no Claude
+# /model grok-4.5 | /model composer-2.5 | /model gpt | /model sonnet
+```
+
+API-key recipe (alternative): [`examples/configs/claude-code-multi.yaml`](examples/configs/claude-code-multi.yaml).
+
+Shell helpers: `source examples/shell/claude-code-helpers.sh` → `cc-gpt` / `cc-grok` / `cc-gpt-grok` / `cc-multi` / `cc-run gpt+grok`.
+
+Guide: [docs/claude-code-multi.md](docs/claude-code-multi.md). Checklist: [docs/claude-code-checklist.md](docs/claude-code-checklist.md).
 
 ---
 

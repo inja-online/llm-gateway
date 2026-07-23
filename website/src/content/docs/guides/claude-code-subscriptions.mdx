@@ -1,0 +1,436 @@
+---
+title: "Claude Code with ChatGPT, Claude & SuperGrok"
+description: "Use ChatGPT Plus/Pro, Claude Pro/Max, and SuperGrok subscriptions through Claude Code — OAuth login, any provider combo, and model aliases."
+sidebar:
+  order: 0
+  label: "Claude Code + subscriptions"
+  group:
+    label: "Guides"
+---
+
+**Last updated:** 2026-07-23
+
+Run **Claude Code** against the gateway and route work to **your own consumer subscriptions**:
+
+| Product | How you authenticate | Typical use |
+|---|---|---|
+| **ChatGPT** Plus / Pro / Team | Codex OAuth (`llm-gateway auth login chatgpt`) | GPT models via translation |
+| **Claude** Pro / Max | setup-token / Claude Code login | Native Anthropic passthrough |
+| **SuperGrok** / X Premium+ | Grok CLI import or xAI device OAuth | Grok 4.5, Composer 2.5 |
+
+You can use **any combination**: GPT only, Grok only, GPT+Grok, Claude+GPT, all three, and so on.
+
+```
+  Claude Code
+       │  Anthropic Messages API
+       ▼
+  llm-gateway  ──► Claude subscription   (passthrough)
+               ──► ChatGPT subscription  (translate)
+               ──► SuperGrok / xAI       (translate)
+```
+
+Related: [Cursor + same subscriptions](/llm-gateway/guides/cursor-subscriptions/) · [Claude Code checklist](/llm-gateway/guides/claude-code/) · [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) · [xAI provider notes](/llm-gateway/providers/xai/)
+
+---
+
+## Before you start
+
+### Requirements
+
+- Built gateway binary: `go build -o llm-gateway ./cmd/gateway`
+- [Claude Code](https://code.claude.com/docs) CLI (`claude` on `PATH`)
+- At least one subscription you own (ChatGPT, Claude, and/or SuperGrok)
+
+### Security & terms of service
+
+- Log in only with **accounts you own**. Tokens stay on your machine.
+- Default store: `~/.config/inja-gateway/credentials.json` (mode `0600`). On macOS this may live under `~/Library/Application Support/inja-gateway/`. Override with `INJA_GATEWAY_AUTH_FILE`.
+- **Never** commit credential files or paste tokens into tickets/chat.
+- **OpenAI Codex OAuth** is the ChatGPT subscription path used by the open-source Codex CLI and tools that integrate with it. Tokens talk to the Codex/ChatGPT backend — not a classic Platform `sk-` API key.
+- **Anthropic** restricts Free/Pro/Max OAuth for many third-party products. Prefer `claude setup-token` / official Claude Code flows and re-read [Anthropic’s terms](https://www.anthropic.com/legal) and [Claude Code authentication](https://code.claude.com/docs/en/authentication). Do **not** resell multi-tenant access to consumer OAuth.
+- **xAI** may gate which SuperGrok tiers receive OAuth API access; login success does not guarantee every model id works.
+
+This guide is for **personal / single-operator** use of subscriptions you already pay for.
+
+---
+
+## End-to-end quick start
+
+### 1. Build
+
+```bash
+git clone https://github.com/inja-online/llm-gateway.git
+cd llm-gateway
+go build -o llm-gateway ./cmd/gateway
+```
+
+### 2. Log in (once per provider you need)
+
+```bash
+./llm-gateway auth login chatgpt    # browser → auth.openai.com (Codex / ChatGPT)
+./llm-gateway auth login claude     # setup-token / paste Claude OAuth token
+./llm-gateway auth login grok       # imports ~/.grok/auth.json if present, else device code
+
+./llm-gateway auth status
+```
+
+**Import shortcuts** (if you already use official CLIs):
+
+```bash
+codex login && ./llm-gateway auth import chatgpt
+./llm-gateway auth import claude     # Linux credentials file; macOS prefer setup-token
+./llm-gateway auth import grok       # recommended: ~/.grok/auth.json from Grok CLI
+```
+
+### 3. HTTPS localhost + background gateway
+
+Claude Code needs a live API. Helpers start the gateway **in the background on HTTPS** so you do not get `ConnectionRefused`:
+
+```bash
+source examples/shell/claude-code-helpers.sh
+export KEY=local-dev
+
+cc-gateway-up          # gen certs if needed, nohup llm-gateway, wait for /healthz
+# → https://127.0.0.1:8787  (+ NODE_EXTRA_CA_CERTS / ANTHROPIC_BASE_URL)
+
+cc-gateway-status
+# cc-gateway-down
+```
+
+Manual TLS:
+
+```bash
+./examples/scripts/gen-localhost-tls.sh   # prefers mkcert
+export GATEWAY_TLS_CERT=$PWD/examples/certs/localhost.pem
+export GATEWAY_TLS_KEY=$PWD/examples/certs/localhost-key.pem
+export GATEWAY_LISTEN=127.0.0.1:8787
+./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
+```
+
+That config wires each upstream with:
+
+```yaml
+auth: oauth2
+oauth:
+  credentials: chatgpt   # or claude | grok
+```
+
+The gateway loads tokens from the auth store and **refreshes** ChatGPT / Grok access tokens before expiry.
+
+### 4. Launch Claude Code
+
+```bash
+source examples/shell/claude-code-helpers.sh
+export KEY=local-dev
+
+cc-gpt                 # auto cc-gateway-up, then Claude Code (GPT only)
+cc-grok                # Grok 4.5 + Composer 2.5
+cc-gpt-grok            # GPT + Grok
+cc-multi               # all three
+```
+
+Or:
+
+```bash
+KEY=local-dev ./examples/claude-code-multi.sh gpt
+KEY=local-dev ./examples/claude-code-multi.sh grok
+KEY=local-dev ./examples/claude-code-multi.sh gpt+grok
+KEY=local-dev ./examples/claude-code-multi.sh multi
+```
+
+`KEY` is a **client credential** presented to the gateway (any non-empty string when `edge_auth` is off; a real edge key when edge auth is on). Subscription secrets never leave the gateway process.
+
+In a session:
+
+```text
+/model grok-4.5
+/model composer-2.5
+/model gpt
+/model sonnet
+```
+
+---
+
+## Auth CLI reference
+
+| Command | What it does |
+|---|---|
+| `llm-gateway auth login chatgpt [--no-browser]` | ChatGPT subscription OAuth (PKCE; Codex client) |
+| `llm-gateway auth login claude` | Claude setup-token / paste |
+| `llm-gateway auth login grok [--device]` | Prefer Grok CLI import; `--device` forces xAI device code |
+| `llm-gateway auth import chatgpt` | From `~/.codex/auth.json` after `codex login` |
+| `llm-gateway auth import claude` | From Claude Code credentials file (when present on disk) |
+| `llm-gateway auth import grok` | From `~/.grok/auth.json` (Grok CLI), Hermes, or OpenClaw paths |
+| `llm-gateway auth status` | Which providers are logged in (no secrets printed) |
+| `llm-gateway auth logout [provider\|all]` | Remove stored credentials |
+| `llm-gateway auth env [provider]` | Print export lines (sensitive — local debug only) |
+
+```bash
+./llm-gateway auth help
+export INJA_GATEWAY_AUTH_FILE=$HOME/.config/inja-gateway/credentials.json
+```
+
+### Grok “Invalid action” in the browser
+
+xAI’s prefilled page `https://accounts.x.ai/oauth2/device?user_code=…` often shows **Invalid action** when the browser session is wrong.
+
+**Prefer:**
+
+```bash
+# Log into Grok CLI first (if you use it), then:
+./llm-gateway auth import grok
+# or:
+./llm-gateway auth login grok   # auto-imports ~/.grok/auth.json when present
+```
+
+Device login opens the **base** URL and prints the code separately. Force device flow with `auth login grok --device`.
+
+---
+
+## Provider combinations
+
+Claude Code always exposes three “slots” that map to Anthropic-style aliases: **opus**, **sonnet**, and **haiku** (plus small-fast). The launcher fills those slots from the providers you enable.
+
+### Named profiles and combos
+
+Separators: `+` · `,` · `-`
+
+| Profile | Providers | Default opus | Default sonnet | Default haiku / small-fast |
+|---|---|---|---|---|
+| `gpt` | ChatGPT only | `o3` | `gpt` | `gpt-mini` |
+| `grok` | SuperGrok only | `grok-4.5` | `grok-4.5` | `composer-2.5` |
+| `gpt+grok` | GPT + Grok | `grok-4.5` | `gpt` | `composer-2.5` |
+| `claude` | Claude only | `opus` | `sonnet` | `haiku` |
+| `claude+gpt` | Claude + GPT | `opus` | `gpt` | `gpt-mini` |
+| `claude+grok` | Claude + Grok | `opus` | `grok-4.5` | `composer-2.5` |
+| `multi` | All three | `opus` | `gpt` | `composer-2.5` |
+
+```bash
+./examples/claude-code-multi.sh list
+./examples/claude-code-multi.sh gpt
+./examples/claude-code-multi.sh grok
+./examples/claude-code-multi.sh gpt+grok
+./examples/claude-code-multi.sh claude+gpt
+./examples/claude-code-multi.sh claude+grok
+./examples/claude-code-multi.sh multi
+```
+
+### Shell helpers
+
+```bash
+source examples/shell/claude-code-helpers.sh
+export KEY=local-dev GATEWAY=http://localhost:8787
+
+cc-gpt            # GPT only
+cc-grok           # Grok 4.5 + Composer 2.5
+cc-gpt-grok       # GPT + Grok
+cc-claude
+cc-multi
+cc-run gpt+grok   # arbitrary combo
+cc-list
+cc-gateway-env grok
+cc-gateway-start  # runs gateway with subscription config
+```
+
+### Environment overrides
+
+| Variable | Effect |
+|---|---|
+| `GATEWAY` | Gateway base URL (default `http://localhost:8787`) |
+| `KEY` / `GATEWAY_EDGE_KEY` | Client credential to the gateway |
+| `CC_MODEL` | Main model for the session |
+| `CC_OPUS_MODEL` / `CC_SONNET_MODEL` / `CC_HAIKU_MODEL` | Slot pins |
+| `CC_GROK_HEAVY` | Default `grok-4.5` |
+| `CC_GROK_FAST` | Default `composer-2.5` |
+| `CC_GPT_HEAVY` / `CC_GPT_MID` / `CC_GPT_FAST` | Default `o3` / `gpt` / `gpt-mini` |
+| `CC_PROVIDERS` | Same as profile string (`gpt,grok`) |
+
+```bash
+CC_MODEL=composer-2.5 KEY=local-dev ./examples/claude-code-multi.sh grok
+CC_GROK_HEAVY=grok-4.5 CC_GROK_FAST=composer-2.5 ./examples/claude-code-multi.sh gpt+grok
+```
+
+### Permanent Claude Code settings
+
+Merge env into `~/.claude/settings.json` (or project `.claude/settings.json`). Prefer the launcher when you switch combos often.
+
+Example for **GPT + Grok** (no Claude models in the default slots):
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8787",
+    "ANTHROPIC_API_KEY": "local-dev",
+    "ANTHROPIC_AUTH_TOKEN": "local-dev",
+    "ANTHROPIC_MODEL": "gpt",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "composer-2.5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "composer-2.5"
+  }
+}
+```
+
+Template with more variants: [`examples/claude-code-settings.json.example`](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code-settings.json.example).
+
+Behind a custom `ANTHROPIC_BASE_URL`, Claude Code **does not** validate model names against Anthropic’s catalog — gateway aliases and `provider/model` ids pass through.
+
+---
+
+## Model aliases (gateway config)
+
+From [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml):
+
+| Alias | Routes to (typical) |
+|---|---|
+| `sonnet` / `opus` / `haiku` / `claude` | `anthropic/…` Claude models |
+| `gpt` / `gpt-mini` / `o3` | `chatgpt/…` ChatGPT/Codex models |
+| `grok` / `grok-4.5` | `xai/grok-4.5` |
+| `composer` / `composer-2.5` | `xai/composer-2.5` |
+
+Edit aliases if your account exposes different ids (some plans use alternate names). List config-derived models:
+
+```bash
+curl -s http://localhost:8787/v1/models | jq .
+```
+
+### What “translate” means
+
+| Path | Behavior |
+|---|---|
+| Claude Code → Claude | **Passthrough** — highest fidelity (tools, betas, streaming) |
+| Claude Code → ChatGPT / Grok | **Translate** Anthropic Messages ↔ OpenAI-compatible chat |
+| Stream usage on translate | `input_tokens` may be 0 until the final event |
+| Vendor-only fields | May drop on translate — see [Deprecation policy](/llm-gateway/reference/deprecation-policy/) |
+
+---
+
+## How subscription OAuth is applied
+
+| Store id (`oauth.credentials`) | Upstream credential | Typical `base_url` |
+|---|---|---|
+| `chatgpt` | Bearer access token (auto-refresh) | `https://chatgpt.com/backend-api/codex` |
+| `claude` | Bearer setup/OAuth token | `https://api.anthropic.com/v1` |
+| `grok` | Bearer access token (auto-refresh) | `https://api.x.ai/v1` |
+
+```yaml
+providers:
+  chatgpt:
+    kind: openai_compat
+    base_url: "https://chatgpt.com/backend-api/codex"
+    auth: oauth2
+    oauth:
+      credentials: chatgpt
+
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+    auth: oauth2
+    oauth:
+      credentials: claude
+
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    auth: oauth2
+    oauth:
+      credentials: grok
+```
+
+`auth: oauth2` with a TokenSource always sends **`Authorization: Bearer`**, which is what subscription OAuth tokens expect (Claude OAuth is **not** `x-api-key`).
+
+Optional edge auth so only your machine can call the gateway:
+
+```yaml
+edge_auth:
+  enabled: true
+  keys: ["local-dev"]
+```
+
+```bash
+export KEY=local-dev
+./examples/claude-code-multi.sh gpt+grok
+```
+
+---
+
+## API keys instead of subscriptions
+
+If you prefer Platform API keys (not consumer OAuth):
+
+```bash
+export OPENAI_API_KEY ANTHROPIC_API_KEY XAI_API_KEY
+./llm-gateway -config examples/configs/claude-code-multi.yaml
+KEY=local-dev ./examples/claude-code-multi.sh multi
+```
+
+Same combo launcher and shell helpers work. See [Getting started](/llm-gateway/start/getting-started/) for generic key setup.
+
+---
+
+## Troubleshooting
+
+| Symptom | What to try |
+|---|---|
+| `ConnectionRefused` / Unable to connect to API | Gateway not running → `cc-gateway-up` or `./examples/claude-code-multi.sh gpt` (auto-starts HTTPS) |
+| TLS / certificate errors | `./examples/scripts/gen-localhost-tls.sh`; prefer `mkcert -install`; helpers set `NODE_EXTRA_CA_CERTS` |
+| `cc-list: command not found: _inja_cc_list_profiles` | Re-`source examples/shell/claude-code-helpers.sh` (fixed for zsh) |
+| `no credentials for chatgpt` (or claude/grok) | `llm-gateway auth login <provider>` or `auth import …` |
+| `auth status` shows expired | Re-login; for Grok/ChatGPT refresh should renew access automatically if refresh token is present |
+| Grok browser **Invalid action** | `auth import grok` from Grok CLI; avoid prefilled device URLs |
+| Grok login works, inference **403** | xAI tier / entitlement — check SuperGrok plan or API key path |
+| Claude 401 after import on macOS | Keychain isn’t read by import — use `auth login claude` / setup-token |
+| ChatGPT 401 via gateway | Re-login Codex OAuth; confirm `auth status` has refresh; check `base_url` |
+| Gateway healthz fails | Start `./llm-gateway -config examples/configs/claude-code-subscriptions.yaml` |
+| Model not found / 404 upstream | Fix alias target in YAML to an id your account can call |
+| Translate stream looks empty early | Expected: usage often arrives on the final event only |
+
+```bash
+./llm-gateway auth status
+./llm-gateway auth logout grok && ./llm-gateway auth import grok
+curl -s http://localhost:8787/healthz
+```
+
+---
+
+## Architecture recap
+
+1. **Claude Code** always uses the Anthropic Messages wire format (`POST /v1/messages`).
+2. **Gateway** resolves `model` via aliases → `provider/model`.
+3. Same family as Anthropic → **passthrough**. Otherwise → **canonical IR translate**.
+4. **Upstream auth** comes from the subscription store (`oauth.credentials`), not from Claude Code’s env (except the edge/client key).
+5. **Usage** can be metered with `hooks.jsonl` (default `stdout` in the example config).
+
+```
+  claude CLI  ──ANTHROPIC_BASE_URL──►  :8787
+       KEY (edge)                         │
+                                          ├─ anthropic + Bearer (claude creds)
+                                          ├─ chatgpt + Bearer (chatgpt creds)
+                                          └─ xai + Bearer (grok creds)
+```
+
+---
+
+## File map
+
+| Path | Role |
+|---|---|
+| [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml) | Subscription OAuth providers + aliases |
+| [`examples/configs/claude-code-multi.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-multi.yaml) | API-key multi-provider recipe |
+| [`examples/claude-code-multi.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code-multi.sh) | Combo launcher for Claude Code |
+| [`examples/shell/claude-code-helpers.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/claude-code-helpers.sh) | `cc-gpt` / `cc-grok` / `cc-run` … |
+| [`examples/shell/claude-code-profiles.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/claude-code-profiles.sh) | Profile/combo resolver |
+| [`examples/claude-code-settings.json.example`](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code-settings.json.example) | settings.json snippets |
+| [`subauth/`](https://github.com/inja-online/llm-gateway/tree/master/subauth) | OAuth login + credential store |
+| [`cmd/gateway/auth_cmd.go`](https://github.com/inja-online/llm-gateway/blob/master/cmd/gateway/auth_cmd.go) | `llm-gateway auth` CLI |
+
+---
+
+## Related docs
+
+- [Claude Code checklist](/llm-gateway/guides/claude-code/) — release regression for Anthropic ingress  
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) — all auth modes  
+- [xAI (Grok)](/llm-gateway/providers/xai/) — openai_compat notes  
+- [Getting started](/llm-gateway/start/getting-started/)  
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)  
+- External: [Claude Code auth](https://code.claude.com/docs/en/authentication) · [Codex / ChatGPT auth](https://learn.chatgpt.com/docs/auth) · [Claude Code LLM gateways](https://code.claude.com/docs/en/llm-gateway)

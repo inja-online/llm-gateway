@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/subauth"
 )
 
 // DefaultOAuthSkew is subtracted from expires_in when caching so tokens are
@@ -383,6 +384,22 @@ func (f FileTokenSource) Token(context.Context) (string, error) {
 func tokenSourceFromProvider(p config.Provider) (TokenSource, error) {
 	switch p.AuthMode() {
 	case config.AuthOAuth2:
+		// Subscription OAuth: tokens from `llm-gateway auth login` store.
+		if p.OAuth != nil {
+			if cred := strings.TrimSpace(p.OAuth.Credentials); cred != "" {
+				path, err := subauth.DefaultPath()
+				if err != nil {
+					return nil, err
+				}
+				if custom := strings.TrimSpace(os.Getenv("INJA_GATEWAY_AUTH_FILE")); custom != "" {
+					path = custom
+				}
+				return &CachingTokenSource{Inner: &subauth.StoreTokenSource{
+					Path:     path,
+					Provider: strings.ToLower(cred),
+				}}, nil
+			}
+		}
 		inner, err := NewOAuth2TokenSource(p.OAuth)
 		if err != nil {
 			return nil, err

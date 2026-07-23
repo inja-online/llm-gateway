@@ -44,8 +44,32 @@ defaults:
   openai_dialect: openai     # or xai if bare model ids should hit xAI
 
 aliases:
-  grok: xai/grok-3           # example — pick a model id your key can call
+  grok: xai/grok-4.5
+  grok-4.5: xai/grok-4.5
+  composer: xai/composer-2.5
+  composer-2.5: xai/composer-2.5
 ```
+
+### SuperGrok / subscription OAuth
+
+Prefer Grok CLI credentials or device OAuth instead of `XAI_API_KEY`:
+
+```bash
+./llm-gateway auth import grok   # from ~/.grok/auth.json
+# or: ./llm-gateway auth login grok
+```
+
+```yaml
+providers:
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    auth: oauth2
+    oauth:
+      credentials: grok
+```
+
+Use with Claude Code: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/) (`./examples/claude-code-multi.sh grok` → Grok 4.5 + Composer 2.5).
 
 ### Required capabilities
 

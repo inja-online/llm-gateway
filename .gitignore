@@ -11,3 +11,7 @@ site/
 website/node_modules/
 website/dist/
 website/.astro/
+
+# Local TLS for Claude Code
+examples/certs/
+

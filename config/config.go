@@ -54,6 +54,10 @@ type Provider struct {
 // Grant selection (when grant is empty):
 //   - refresh_token if refresh_token / refresh_token_env is set
 //   - else client_credentials
+//
+// Subscription OAuth (ChatGPT / Claude / SuperGrok): set credentials to a
+// subauth provider id (chatgpt|claude|grok). Tokens come from
+// `llm-gateway auth login` store; token_url/client secrets are optional.
 type OAuthConfig struct {
 	TokenURL        string            `yaml:"token_url"`
 	ClientID        string            `yaml:"client_id"`         // prefer client_id_env
@@ -67,6 +71,10 @@ type OAuthConfig struct {
 	Extra           map[string]string `yaml:"extra"`    // extra form fields (no secrets in logs)
 	// Grant overrides auto detection: "client_credentials" | "refresh_token".
 	Grant string `yaml:"grant"`
+	// Credentials is a subauth store provider id: chatgpt | claude | grok.
+	// When set, the gateway loads/refreshes tokens from the local auth store
+	// (see `llm-gateway auth login`). token_url is not required in this mode.
+	Credentials string `yaml:"credentials"`
 }
 
 // OAuth grant type constants.
@@ -134,6 +142,9 @@ type Config struct {
 	Hooks        Hooks               `yaml:"hooks"`
 	Realtime     Realtime            `yaml:"realtime"`
 	EdgeAuth     EdgeAuth            `yaml:"edge_auth"`
+	// TLS enables HTTPS (ListenAndServeTLS) when both cert and key paths are set.
+	// For local Claude Code, generate certs with examples/scripts/gen-localhost-tls.sh.
+	TLS *TLSConfig `yaml:"tls"`
 	// MaxBodyBytes caps request and response bodies (bytes). 0 / unset → DefaultMaxBodyBytes (32 MiB).
 	MaxBodyBytes int64 `yaml:"max_body_bytes"`
 	// ObserveDroppedFields, when true, sets response header x-gateway-dropped-fields
@@ -146,6 +157,20 @@ type Config struct {
 	// Caching holds optional prompt-caching helpers. Default off (never invent
 	// cache breakpoints without operator opt-in).
 	Caching Caching `yaml:"caching"`
+}
+
+// TLSConfig is optional server-side TLS for the gateway process.
+type TLSConfig struct {
+	CertFile string `yaml:"cert_file"`
+	KeyFile  string `yaml:"key_file"`
+}
+
+// TLSEnabled reports whether both cert and key are configured.
+func (c *Config) TLSEnabled() bool {
+	if c == nil || c.TLS == nil {
+		return false
+	}
+	return strings.TrimSpace(c.TLS.CertFile) != "" && strings.TrimSpace(c.TLS.KeyFile) != ""
 }
 
 // HealthChecks gates GET /v1/health/providers (default disabled).
@@ -211,16 +236,40 @@ func Parse(raw []byte) (*Config, error) {
 
 // applyEnv overlays 12-factor env vars. Kept minimal on purpose.
 //
-//	GATEWAY_LISTEN  — bind address (e.g. ":8787" or "0.0.0.0:8787")
+//	GATEWAY_LISTEN     — bind address (e.g. ":8787" or "0.0.0.0:8787")
+//	GATEWAY_TLS_CERT   — PEM certificate path (enables HTTPS with GATEWAY_TLS_KEY)
+//	GATEWAY_TLS_KEY    — PEM private key path
 func (c *Config) applyEnv() {
 	if v := os.Getenv("GATEWAY_LISTEN"); v != "" {
 		c.Listen = v
+	}
+	cert := strings.TrimSpace(os.Getenv("GATEWAY_TLS_CERT"))
+	key := strings.TrimSpace(os.Getenv("GATEWAY_TLS_KEY"))
+	if cert != "" || key != "" {
+		if c.TLS == nil {
+			c.TLS = &TLSConfig{}
+		}
+		if cert != "" {
+			c.TLS.CertFile = cert
+		}
+		if key != "" {
+			c.TLS.KeyFile = key
+		}
 	}
 }
 
 func (c *Config) validate() error {
 	if c.Listen == "" {
 		c.Listen = ":8787"
+	}
+	if c.TLS != nil {
+		cf := strings.TrimSpace(c.TLS.CertFile)
+		kf := strings.TrimSpace(c.TLS.KeyFile)
+		if (cf == "") != (kf == "") {
+			return fmt.Errorf("config: tls requires both cert_file and key_file")
+		}
+		c.TLS.CertFile = cf
+		c.TLS.KeyFile = kf
 	}
 	if c.MaxBodyBytes <= 0 {
 		c.MaxBodyBytes = DefaultMaxBodyBytes
@@ -432,8 +481,17 @@ func (o *OAuthConfig) validate(providerName string) error {
 	if o == nil {
 		return fmt.Errorf("config: provider %q: oauth block required", providerName)
 	}
+	// Subscription credential store (chatgpt|claude|grok) — no token_url required.
+	if cred := strings.ToLower(strings.TrimSpace(o.Credentials)); cred != "" {
+		switch cred {
+		case "chatgpt", "claude", "grok":
+			return nil
+		default:
+			return fmt.Errorf("config: provider %q: oauth.credentials %q unknown (want chatgpt|claude|grok)", providerName, o.Credentials)
+		}
+	}
 	if strings.TrimSpace(o.TokenURL) == "" {
-		return fmt.Errorf("config: provider %q: oauth.token_url required", providerName)
+		return fmt.Errorf("config: provider %q: oauth.token_url required (or set oauth.credentials)", providerName)
 	}
 	grant, err := o.EffectiveGrant()
 	if err != nil {

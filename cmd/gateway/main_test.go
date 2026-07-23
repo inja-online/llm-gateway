@@ -18,9 +18,9 @@ providers:
 listen: ":0"
 `)
 	oldServe := serve
-	serve = func(addr string, h http.Handler) error {
-		if addr != ":0" {
-			t.Errorf("addr = %q", addr)
+	serve = func(cfg *config.Config, h http.Handler) error {
+		if cfg == nil || cfg.Listen != ":0" {
+			t.Errorf("cfg listen = %#v", cfg)
 		}
 		if h == nil {
 			t.Error("nil handler")
@@ -59,7 +59,7 @@ providers:
   up: { kind: openai, base_url: "https://example.com/v1" }
 `)
 	oldServe := serve
-	serve = func(string, http.Handler) error { return errors.New("bind failed") }
+	serve = func(*config.Config, http.Handler) error { return errors.New("bind failed") }
 	t.Cleanup(func() { serve = oldServe })
 
 	if err := run([]string{"-config", path}); err == nil || err.Error() != "bind failed" {
@@ -84,7 +84,7 @@ func TestLoadConfigOverride(t *testing.T) {
 
 	path := writeCfg(t, `providers: { up: { kind: openai, base_url: "https://x" } }`)
 	oldServe := serve
-	serve = func(string, http.Handler) error { return nil }
+	serve = func(*config.Config, http.Handler) error { return nil }
 	t.Cleanup(func() { serve = oldServe })
 
 	if err := run([]string{"-config", path}); err != nil {
@@ -110,7 +110,7 @@ func TestMainEntrySuccess(t *testing.T) {
 	oldArgs := os.Args
 	os.Args = []string{"gateway", "-config", path}
 	oldServe := serve
-	serve = func(string, http.Handler) error { return nil }
+	serve = func(*config.Config, http.Handler) error { return nil }
 	oldFatal := fatal
 	fatal = func(v ...any) { t.Fatalf("fatal called: %v", v) }
 	t.Cleanup(func() {
@@ -151,7 +151,7 @@ func TestServeGracefulShutdown(t *testing.T) {
 		w.WriteHeader(200)
 	})
 	// Bind an ephemeral port.
-	err := serve("127.0.0.1:0", h)
+	err := serve(&config.Config{Listen: "127.0.0.1:0"}, h)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,12 +165,33 @@ func TestServeListenError(t *testing.T) {
 	}
 	t.Cleanup(func() { notifySignals = oldNotify })
 
-	err := serve("not a valid address!!!", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	err := serve(&config.Config{Listen: "not a valid address!!!"}, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	if err == nil {
 		t.Fatal("expected listen error")
 	}
 	// Give the goroutine a moment if any.
 	time.Sleep(10 * time.Millisecond)
+}
+
+func TestServeTLSRequiresFiles(t *testing.T) {
+	// Missing cert files → ListenAndServeTLS fails quickly.
+	oldNotify := notifySignals
+	notifySignals = func() (<-chan os.Signal, func()) {
+		return make(chan os.Signal), func() {}
+	}
+	t.Cleanup(func() { notifySignals = oldNotify })
+
+	cfg := &config.Config{
+		Listen: "127.0.0.1:0",
+		TLS: &config.TLSConfig{
+			CertFile: "/no/such/cert.pem",
+			KeyFile:  "/no/such/key.pem",
+		},
+	}
+	err := serve(cfg, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	if err == nil {
+		t.Fatal("expected TLS listen error")
+	}
 }
 
 func writeCfg(t *testing.T, body string) string {

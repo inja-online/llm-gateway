@@ -1,0 +1,101 @@
+# Claude Code + consumer subscription OAuth (ChatGPT, Claude, SuperGrok).
+#
+# 1) Log in once per provider (browser / device code / setup-token):
+#      go build -o llm-gateway ./cmd/gateway
+#      ./llm-gateway auth login chatgpt    # ChatGPT Plus/Pro via Codex OAuth
+#      ./llm-gateway auth login claude     # Claude Pro/Max setup-token
+#      ./llm-gateway auth login grok       # SuperGrok / X Premium+ device code
+#      ./llm-gateway auth status
+#
+# 2) Start gateway:
+#      ./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
+#
+# 3) Point Claude Code at the gateway — any provider combo:
+#      KEY=local-dev ./examples/claude-code-multi.sh multi       # Claude+GPT+Grok
+#      KEY=local-dev ./examples/claude-code-multi.sh gpt         # GPT only
+#      KEY=local-dev ./examples/claude-code-multi.sh grok        # Grok 4.5 + composer-2.5
+#      KEY=local-dev ./examples/claude-code-multi.sh gpt+grok    # no Claude
+#
+# Tokens: ~/.config/inja-gateway/credentials.json (0600)
+# Override path: INJA_GATEWAY_AUTH_FILE
+#
+# ToS: use only accounts you own. ChatGPT Codex OAuth is documented for tools
+# that integrate with it; Claude Free/Pro/Max OAuth is restricted by Anthropic
+# for many third-party products — prefer setup-token / official Claude Code
+# flows and re-read Anthropic's terms. xAI may gate OAuth API by subscription tier.
+
+# Bind loopback; helpers enable HTTPS via GATEWAY_TLS_CERT/KEY or tls: below.
+# Generate certs:  ./examples/scripts/gen-localhost-tls.sh
+listen: "127.0.0.1:8787"
+
+# Uncomment after gen-localhost-tls.sh (or rely on env from cc-gateway-up):
+# tls:
+#   cert_file: examples/certs/localhost.pem
+#   key_file: examples/certs/localhost-key.pem
+
+providers:
+  # ChatGPT subscription → Codex OAuth bearer (refresh via auth store).
+  # Prefer Responses models; chat translate from Claude Code uses openai_compat paths.
+  chatgpt:
+    kind: openai_compat
+    base_url: "https://chatgpt.com/backend-api/codex"
+    auth: oauth2
+    oauth:
+      credentials: chatgpt
+    capabilities:
+      text: true
+
+  # Claude subscription / setup-token → Bearer upstream (not x-api-key).
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+    auth: oauth2
+    oauth:
+      credentials: claude
+
+  # SuperGrok / X Premium+ OAuth → api.x.ai
+  xai:
+    kind: openai_compat
+    base_url: "https://api.x.ai/v1"
+    auth: oauth2
+    oauth:
+      credentials: grok
+    capabilities:
+      text: true
+
+defaults:
+  anthropic_dialect: anthropic
+  openai_dialect: chatgpt
+
+aliases:
+  # --- Claude ---
+  claude: anthropic/claude-sonnet-4-20250514
+  sonnet: anthropic/claude-sonnet-4-20250514
+  opus: anthropic/claude-opus-4-20250514
+  haiku: anthropic/claude-haiku-4-20250414
+
+  # --- ChatGPT / Codex (ids depend on plan) ---
+  gpt: chatgpt/gpt-5.1
+  gpt-mini: chatgpt/gpt-5.1
+  o3: chatgpt/o3
+
+  # --- Grok (SuperGrok): heavy + fast coding ---
+  # Confirm live ids in your account if these 404.
+  grok: xai/grok-4.5
+  grok-4.5: xai/grok-4.5
+  grok-4: xai/grok-4.5
+  composer: xai/composer-2.5
+  composer-2.5: xai/composer-2.5
+  grok-composer: xai/composer-2.5
+  # older / alt names some accounts still expose:
+  # grok-mini: xai/grok-3-mini
+  # grok-build: xai/grok-build-0.1
+
+# Optional: require a shared edge key from Claude Code; upstream stays subscription OAuth.
+# edge_auth:
+#   enabled: true
+#   keys: ["local-dev"]
+
+hooks:
+  jsonl:
+    output: stdout

@@ -172,11 +172,27 @@ srv.SetTokenSource("vertex", mySource) // overrides YAML auto-wire
 
 ## OpenCode / Claude Code / Codex
 
-1. Point the tool `baseURL` at the gateway (e.g. `http://gateway:8787/v1`).  
+1. Point the tool `baseURL` at the gateway (Claude Code: `ANTHROPIC_BASE_URL=http://gateway:8787`).  
 2. Prefer **edge key + server `api_key_env` or `oauth2`**.  
 3. If the tool already holds a provider access token, use `auth: client_bearer`.  
 
-**ToS warning:** consumer ChatGPT / Claude.ai subscription OAuth is often restricted for multi-user products. Use operator-held credentials.
+**Subscription OAuth** (ChatGPT Codex, Claude setup-token, SuperGrok / Grok CLI):
+
+```bash
+./llm-gateway auth login chatgpt
+./llm-gateway auth login claude
+./llm-gateway auth login grok      # or: auth import grok
+```
+
+```yaml
+auth: oauth2
+oauth:
+  credentials: chatgpt   # or claude | grok — tokens from local auth store
+```
+
+**Full walkthrough:** [Claude Code with ChatGPT, Claude & SuperGrok](/llm-gateway/guides/claude-code-subscriptions/) — combos (`gpt`, `grok`, `gpt+grok`, `multi`), aliases (Grok 4.5 / Composer 2.5), troubleshooting.
+
+**ToS warning:** personal use of accounts you own only; do not resell multi-tenant consumer OAuth. Re-read OpenAI / Anthropic / xAI terms.
 
 ---
 

@@ -12,6 +12,8 @@ Get a working edge in a few minutes: binary or Docker, one YAML file, one reques
 
 After the basics, continue with:
 
+- [Claude Code + ChatGPT / SuperGrok subscriptions](/llm-gateway/guides/claude-code-subscriptions/) — OAuth login, any provider combo  
+- [Cursor + same subscriptions](/llm-gateway/guides/cursor-subscriptions/) — point Cursor OpenAI base URL at the gateway  
 - [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) — keys, OAuth2, multi-tenant Bearer  
 - [Realtime WebSocket](/llm-gateway/guides/realtime-websocket/) — production `wss`  
 - [Platform APIs](/llm-gateway/guides/platform-apis/) — files, evals, agents, batches  
@@ -65,6 +67,18 @@ curl -s http://localhost:8787/healthz
 ```
 
 `GET /healthz` is **process liveness** only (no upstream probes). It stays open even when `edge_auth` is enabled.
+
+## Claude Code with your subscriptions
+
+Use ChatGPT Plus/Pro, Claude Pro/Max, and/or SuperGrok through Claude Code (any combo: GPT-only, Grok-only, GPT+Grok, all three):
+
+**[Full guide → Claude Code with ChatGPT, Claude & SuperGrok](/llm-gateway/guides/claude-code-subscriptions/)**
+
+```bash
+./llm-gateway auth login chatgpt   # and/or claude, grok
+./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
+KEY=local-dev ./examples/claude-code-multi.sh gpt+grok
+```
 
 ## First chat (OpenAI dialect)
 

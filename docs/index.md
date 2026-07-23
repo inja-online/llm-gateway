@@ -53,7 +53,9 @@
 | Section | Contents |
 |---|---|
 | [Getting started](getting-started.md) | Install, config sketch, health check |
-| [Claude Code](claude-code-checklist.md) | Anthropic base URL + checklist |
+| [Claude Code + subscriptions](claude-code-multi.md) | ChatGPT / Claude / SuperGrok OAuth, any combo (`gpt`, `grok`, `gpt+grok`, …) |
+| [Cursor + subscriptions](https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/) | Same gateway in Cursor (OpenAI base URL override) |
+| [Claude Code checklist](claude-code-checklist.md) | Anthropic base URL + release regression |
 | [Compatibility](compatibility-matrix.md) | P / T / U matrix |
 | [SDK hermetic matrix](sdk-compatibility-matrix.md) | CI anchors |
 | [Deprecation policy](deprecation-policy.md) | Translation field drops |

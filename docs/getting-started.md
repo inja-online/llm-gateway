@@ -68,6 +68,7 @@ Model routing: `aliases` → `provider/model` → dialect default. Details in th
 - [Realtime & Live WebSocket](realtime-websocket.md) — production TLS/`wss`  
 - [Platform API proxies](platform-apis.md) — files, evals, agents, batches  
 - [Embeddings](embeddings.md) — dimensions / task_type  
-- [Claude Code setup](claude-code-checklist.md)  
+- [Claude Code + GPT/Grok multi-provider helpers](claude-code-multi.md)  
+- [Claude Code release checklist](claude-code-checklist.md)  
 - [Compatibility matrix](compatibility-matrix.md)  
 - [Full HTTP API](https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api)

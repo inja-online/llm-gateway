@@ -1,0 +1,33 @@
+{
+  "$schema_note": "Merge one env block into ~/.claude/settings.json. Prefer the launcher for switching combos: ./examples/claude-code-multi.sh gpt|grok|gpt+grok|multi",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8787",
+    "ANTHROPIC_API_KEY": "REPLACE_WITH_EDGE_OR_ANY_KEY",
+    "ANTHROPIC_AUTH_TOKEN": "REPLACE_WITH_EDGE_OR_ANY_KEY",
+    "ANTHROPIC_MODEL": "gpt",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "composer-2.5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "composer-2.5"
+  },
+  "_examples": {
+    "gpt_only": {
+      "ANTHROPIC_MODEL": "gpt",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "o3",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL": "gpt-mini"
+    },
+    "grok_only": {
+      "ANTHROPIC_MODEL": "grok-4.5",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.5",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "grok-4.5",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL": "composer-2.5"
+    },
+    "gpt_plus_grok": {
+      "ANTHROPIC_MODEL": "gpt",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.5",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL": "composer-2.5"
+    }
+  }
+}

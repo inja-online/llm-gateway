@@ -99,6 +99,9 @@ With **edge_auth** enabled, set `ANTHROPIC_API_KEY` to a configured edge key and
 
 ## Related
 
+- [claude-code-multi.md](claude-code-multi.md) — GPT + Grok + Claude helpers
+- [examples/claude-code-multi.sh](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code-multi.sh)
+- [examples/configs/claude-code-multi.yaml](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-multi.yaml)
 - [examples/claude-code.sh](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code.sh)
 - [README § Claude Code](https://github.com/inja-online/llm-gateway/blob/master/README.md#claude-code)
 - [compatibility-matrix.md](compatibility-matrix.md)

@@ -1,45 +1,42 @@
 ---
 title: "Claude Code"
-description: "Point Claude Code at the gateway, route Anthropic-shaped traffic, and run the release checklist."
+description: "Point Claude Code at the gateway, multi-provider routing, and Anthropic release checklist."
 sidebar:
   order: 1
-  label: "Claude Code"
+  label: "Claude Code checklist"
   group:
     label: "Guides"
 ---
 
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-23
 
-Use this guide to run **Claude Code** through the gateway, and as a release checklist when Anthropic ingress/egress, streaming, headers, or routing change. Prefer hermetic Go tests over live Claude Code in CI; run the manual block when validating a release candidate.
+Claude Code talks **Anthropic Messages** (`POST /v1/messages`, SSE, tools, betas, `count_tokens`). Through the gateway you can:
 
-## Why this exists
+1. **Passthrough** to Anthropic (API key or subscription OAuth), or  
+2. **Translate** to ChatGPT / SuperGrok / other OpenAI-compatible hosts while still using the Claude Code UI.
 
-Claude Code talks **Anthropic Messages** (`POST /v1/messages`, SSE streams, tools, betas, `count_tokens`). That path is a flagship passthrough when the upstream is `kind: anthropic`. New gateway surfaces (Responses, media, realtime, edge auth) must not break headers, SSE framing, or tool round-trips.
+### Start here for day-to-day use
 
-## Automated coverage (link tests by name)
+**[Claude Code with ChatGPT, Claude & SuperGrok](/llm-gateway/guides/claude-code-subscriptions/)** — full operator guide:
 
-Run:
+- Subscription OAuth login (`llm-gateway auth login …`)
+- Any provider combo (`gpt`, `grok`, `gpt+grok`, `multi`, …)
+- Grok 4.5 + Composer 2.5 aliases
+- Shell helpers, settings.json, troubleshooting
+
+This page is the **Anthropic path checklist** (release sign-off + minimal wiring). Prefer hermetic Go tests in CI; run the manual block for release candidates.
+
+---
+
+## Minimal wiring (API key)
 
 ```bash
-go test ./proxy/ -count=1
-go test ./ingress/anthropic/ ./egress/anthropic/ -count=1
+export ANTHROPIC_BASE_URL=http://localhost:8787
+export ANTHROPIC_API_KEY=sk-ant-…   # or edge key when edge_auth is on
+# optional: export ANTHROPIC_MODEL=claude-sonnet-4-20250514
+claude
+# or: ./examples/claude-code.sh
 ```
-
-Critical hermetic tests (names may grow; search `Anthropic` / `passthrough`):
-
-| Area | Tests (representative) |
-|---|---|
-| Messages passthrough | `TestAnthropicStreamPassthrough`, non-stream Anthropic server tests in `proxy/*` |
-| Upstream errors | `TestAnthropicUpstreamError`, `TestAnthropicToOpenAIUpstreamErrorTranslated` |
-| Translate path | `TestOpenAIToAnthropic*`, `TestAnthropicToOpenAI*` |
-| count_tokens | `TestCountTokens*`, `proxy/count_tokens_test.go` |
-| Edge auth open healthz | `TestEdgeAuthHealthzOpen` (edge must not break probes) |
-
-Ingress/egress package unit tests cover parse/serialize/stream wire shapes.
-
-## Manual release sign-off
-
-### 1. Config
 
 ```yaml
 providers:
@@ -47,7 +44,41 @@ providers:
     kind: anthropic
     base_url: "https://api.anthropic.com/v1"
     api_key_env: ANTHROPIC_API_KEY
-  # optional second provider for translate checks
+defaults:
+  anthropic_dialect: anthropic
+```
+
+With **edge_auth** enabled, set `ANTHROPIC_API_KEY` / `KEY` to an edge key and keep the upstream secret in `api_key_env` (or subscription `oauth.credentials`).
+
+---
+
+## Automated coverage
+
+```bash
+go test ./proxy/ -count=1
+go test ./ingress/anthropic/ ./egress/anthropic/ -count=1
+```
+
+| Area | Tests (representative) |
+|---|---|
+| Messages passthrough | `TestAnthropicStreamPassthrough`, non-stream Anthropic server tests in `proxy/*` |
+| Upstream errors | `TestAnthropicUpstreamError`, `TestAnthropicToOpenAIUpstreamErrorTranslated` |
+| Translate path | `TestOpenAIToAnthropic*`, `TestAnthropicToOpenAI*` |
+| count_tokens | `TestCountTokens*`, `proxy/count_tokens_test.go` |
+| Edge auth open healthz | `TestEdgeAuthHealthzOpen` |
+
+---
+
+## Manual release sign-off
+
+### Config sketch
+
+```yaml
+providers:
+  anthropic:
+    kind: anthropic
+    base_url: "https://api.anthropic.com/v1"
+    api_key_env: ANTHROPIC_API_KEY
   deepseek:
     kind: openai_compat
     base_url: "https://api.deepseek.com"
@@ -55,58 +86,49 @@ providers:
 defaults:
   anthropic_dialect: anthropic
 aliases:
-  # optional
   # cheap: deepseek/deepseek-chat
 ```
 
-### 2. Env + Claude Code
+### Functional checks
 
-```bash
-export ANTHROPIC_BASE_URL=http://localhost:8787
-export ANTHROPIC_API_KEY=...   # real Anthropic key, or edge key if edge_auth + api_key_env
-# optional: export ANTHROPIC_MODEL=claude-sonnet-4-20250514
-./llm-gateway -config gateway.yaml
-# other terminal:
-claude
-# or: ./examples/claude-code.sh
-```
+- [ ] Non-stream short completion  
+- [ ] Stream completion (tokens appear incrementally; no truncated SSE)  
+- [ ] Tool use / function calling round-trip  
+- [ ] Multimodal image input (if used in your workflows)  
+- [ ] `count_tokens` still returns a number  
+- [ ] Prompt-caching / beta headers: client `anthropic-beta` values reach upstream on passthrough  
+- [ ] Model routing: bare id → anthropic default; `provider/model` and aliases  
+- [ ] Translated path (optional): `ANTHROPIC_MODEL=deepseek/deepseek-chat` — full translation; stream `input_tokens` may be 0 until final event  
 
-With **edge_auth** enabled, set `ANTHROPIC_API_KEY` to a configured edge key and keep upstream in `api_key_env`.
+### Negative checks
 
-### 3. Functional checks
+- [ ] Bad key → Anthropic-shaped error envelope  
+- [ ] Unknown model provider → 404 dialect error  
+- [ ] Gateway `/healthz` still 200 without credentials  
 
-- [ ] Non-stream short completion
-- [ ] Stream completion (tokens appear incrementally; no truncated SSE)
-- [ ] Tool use / function calling round-trip
-- [ ] Multimodal image input (if used in your workflows)
-- [ ] `count_tokens` still returns a number (proxy or estimate)
-- [ ] Prompt-caching / beta headers: client `anthropic-beta` values reach upstream on passthrough (see header forward list)
-- [ ] Model routing: bare id → anthropic default; `provider/model` and aliases
-- [ ] Translated path (optional): `ANTHROPIC_MODEL=deepseek/deepseek-chat` — expect full translation; stream `input_tokens` may be 0 until final event (documented caveat)
+### Sign-off
 
-### 4. Negative checks
+- [ ] `go test ./... -race` green  
+- [ ] CHANGELOG entry if Anthropic surface or caveats changed  
+- [ ] No secrets committed  
 
-- [ ] Bad key → Anthropic-shaped error envelope
-- [ ] Unknown model provider → 404 dialect error
-- [ ] Gateway `/healthz` still 200 without credentials
-
-### 5. Sign-off
-
-- [ ] `go test ./... -race` green
-- [ ] CHANGELOG entry if Anthropic surface or caveats changed
-- [ ] No secrets committed
+---
 
 ## Known limitations (translated path)
 
 | Topic | Behavior |
 |---|---|
 | Anthropic → openai_compat stream | `message_start.input_tokens` may be 0 until final usage |
-| OpenAI-only fields | Dropped on translate (see [Deprecation policy](/llm-gateway/reference/deprecation-policy/)) |
-| Files / Batch APIs | Not required for Claude Code chat; track separate issues when proxied |
+| OpenAI-only fields | Dropped on translate — [Deprecation policy](/llm-gateway/reference/deprecation-policy/) |
+| Files / Batch APIs | Not required for Claude Code chat |
 | Media Contract Anthropic images | Planned; not required for text Claude Code |
+
+---
 
 ## Related
 
-- [examples/claude-code.sh](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code.sh)
-- [README § Claude Code](https://github.com/inja-online/llm-gateway/blob/master/README.md#claude-code)
-- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)
+- **[Claude Code + subscriptions (full guide)](/llm-gateway/guides/claude-code-subscriptions/)**  
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)  
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)  
+- [examples/claude-code.sh](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code.sh)  
+- [examples/claude-code-multi.sh](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code-multi.sh)  
