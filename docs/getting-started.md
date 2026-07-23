@@ -63,6 +63,11 @@ Model routing: `aliases` → `provider/model` → dialect default. Details in th
 
 ## Next
 
-- [Claude Code setup](claude-code-checklist.md)
-- [Compatibility matrix](compatibility-matrix.md)
+- [OAuth & token sources](oauth-token-sources.md) — keys, OAuth2, multi-tenant Bearer, SA  
+- [WIF recipes](wif-recipes.md) — short-lived tokens / cloud OIDC  
+- [Realtime & Live WebSocket](realtime-websocket.md) — production TLS/`wss`  
+- [Platform API proxies](platform-apis.md) — files, evals, agents, batches  
+- [Embeddings](embeddings.md) — dimensions / task_type  
+- [Claude Code setup](claude-code-checklist.md)  
+- [Compatibility matrix](compatibility-matrix.md)  
 - [Full HTTP API](https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api)

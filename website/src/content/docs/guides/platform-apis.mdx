@@ -1,0 +1,116 @@
+---
+title: "Platform API proxies"
+description: "Upstream-owned resource routes: Google files/batches/interactions, Anthropic agents, OpenAI evals, admin, video extras, and more."
+sidebar:
+  order: 13
+  label: "Platform APIs"
+  group:
+    label: "Guides"
+---
+
+Thin **passthrough** proxies for vendor platform APIs. The gateway does **not** store agents, evals, files, or batches — upstream owns durability; the gateway owns routing, auth, and metering.
+
+## What it is
+
+| Family | How provider is chosen | Path prefix |
+|--------|------------------------|-------------|
+| OpenAI / openai_compat | `?provider=` · `X-Provider` · `defaults.openai_dialect` | `/v1/…` |
+| Anthropic | `defaults.anthropic_dialect` / headers | `/v1/…` |
+| Google | `?provider=` · `defaults.google_dialect` | `/v1beta/…` |
+
+Each request: edge auth → resolve provider → forward method/path/body + auth → relay response → **one** usage event.
+
+## How to call
+
+```bash
+export GW=http://localhost:8787
+
+# Default OpenAI dialect provider
+curl -sS -X POST "$GW/v1/evals" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"smoke"}'
+
+# Explicit provider when you run multiple openai_compat hosts
+curl -sS "$GW/v1/evals?provider=openai"
+```
+
+```bash
+# Google platform
+curl -sS "$GW/v1beta/files?provider=google" \
+  -H "x-goog-api-key: $GEMINI_API_KEY"
+```
+
+## Route map
+
+### Google
+
+| Routes | Purpose |
+|--------|---------|
+| `/v1beta/files*` | Files API |
+| `/v1beta/interactions*` | Interactions |
+| `/v1beta/batches*` | Batch jobs |
+| `/v1beta/cachedContents*` | Context caches |
+| `/v1beta/tunedModels*` | Tuned models |
+| `/v1beta/fileSearchStores*` | File Search |
+| `POST …/models/{m}:batchGenerateContent` | Batch generate |
+| `POST …/models/{m}:asyncBatchEmbedContent(s)` | Async embed jobs |
+
+### Anthropic
+
+| Routes | Purpose |
+|--------|---------|
+| `/v1/skills*`, `/v1/tunnels*`, `/v1/memory_stores*` | Skills / MCP tunnels / memory |
+| `/v1/agents*`, `/v1/sessions*`, `/v1/environments*` | Managed Agents |
+| `/v1/messages/batches*` | Message Batches |
+
+### OpenAI family
+
+| Routes | Purpose |
+|--------|---------|
+| `/v1/realtime/client_secrets`, `/calls`, `/translations` | Realtime HTTP extras |
+| `/v1/evals*` | Evals |
+| `/v1/organization/*`, `/organizations/*` | Admin APIs |
+| `/v1/responses/compact`, `…/input_items*` | Responses depth |
+| `DELETE /v1/models/{id}` | Delete fine-tuned model |
+| `/v1/videos` list · delete · remix | Video extras |
+| `/v1/chat/deferred-completion/{id}` | xAI deferred |
+| `/v1/rerank`, `/v1/ocr` | Rerank / OCR compat |
+| `/v1/vector_stores*`, `/uploads*`, `/containers*` | Storage |
+| `/v1/fine_tuning/jobs*`, `/v1/batches*` | Fine-tuning / Batches |
+
+## Config tips
+
+```yaml
+defaults:
+  openai_dialect: openai
+  anthropic_dialect: anthropic
+  google_dialect: google
+
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_API_KEY
+
+  # Optional dedicated admin key host
+  openai_admin:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_ADMIN_KEY
+```
+
+```bash
+curl -sS "$GW/v1/organization/users?provider=openai_admin" \
+  -H "Authorization: Bearer $EDGE"
+```
+
+## What stays 501
+
+**Conversations** (`/v1/conversations*`) intentionally return **501** — the gateway is stateless and will not invent a conversation store. See [Conversations](/llm-gateway/guides/conversations/).
+
+## Related
+
+- [Realtime WebSocket](/llm-gateway/guides/realtime-websocket/)  
+- [Embeddings](/llm-gateway/guides/embeddings/)  
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)  

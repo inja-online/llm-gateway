@@ -28,40 +28,43 @@
 ## Start here
 
 1. **[Install & quickstart](getting-started.md)** — binary, Docker, first `healthz`
-2. **[Compatibility matrix](compatibility-matrix.md)** — dialect × modality × provider kind
-3. **Full API & config** — see the [GitHub README](https://github.com/inja-online/llm-gateway/blob/master/README.md) (HTTP tables, YAML reference, auth, hooks)
+2. **[OAuth & token sources](oauth-token-sources.md)** — keys, OAuth2, multi-tenant Bearer, SA
+3. **[Compatibility matrix](compatibility-matrix.md)** — dialect × modality × provider kind
+4. **Full API & config** — [GitHub README](https://github.com/inja-online/llm-gateway/blob/master/README.md)
 
-## What it does
+## Feature guides
 
-Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway:
+| Guide | What you’ll learn |
+|---|---|
+| [OAuth & token sources](oauth-token-sources.md) | Upstream auth modes, YAML, curl, OpenCode/Claude Code |
+| [WIF recipes](wif-recipes.md) | `token_file`, OpenAI WIF, GCP, AWS/Azure, GHA OIDC |
+| [Vertex dual-path](vertex-dual-path.md) | AI Studio vs Vertex base URLs + IAM |
+| [Realtime & Live WebSocket](realtime-websocket.md) | TLS/`wss`, session limits, Live route |
+| [Platform API proxies](platform-apis.md) | Files, evals, agents, batches, admin, video extras |
+| [Embeddings](embeddings.md) | dimensions, encoding_format, task_type |
+| [Tools policy](tools-policy.md) | Function + custom/server tool union |
+| [Chat field parity](chat-field-parity.md) | Which fields PT / IR / drop |
+| [Error & stop reasons](error-finish-reason-catalog.md) | finish_reason / stop_reason catalog |
+| [SSE protocol catalog](sse-protocol-catalog.md) | Chat / Responses / Anthropic / Gemini streams |
+| [M6 surface notes](m6-remaining-surface.md) | Regional, media, bridge policy |
 
-- **Passthroughs** same-family traffic (near-verbatim fidelity)
-- **Translates** cross-dialect chat when client and upstream disagree
-- Emits **exactly one usage event** per proxied request (JSONL / webhook / Go hook)
-
-## Docs in this site
+## Ops & providers
 
 | Section | Contents |
 |---|---|
 | [Getting started](getting-started.md) | Install, config sketch, health check |
-| [Claude Code](claude-code-checklist.md) | Anthropic base URL + regression checklist |
-| [Compatibility](compatibility-matrix.md) | Implemented P / T / U matrix |
-| [SDK hermetic matrix](sdk-compatibility-matrix.md) | CI test anchors, no live vendors |
+| [Claude Code](claude-code-checklist.md) | Anthropic base URL + checklist |
+| [Compatibility](compatibility-matrix.md) | P / T / U matrix |
+| [SDK hermetic matrix](sdk-compatibility-matrix.md) | CI anchors |
 | [Deprecation policy](deprecation-policy.md) | Translation field drops |
-| [Z.AI / Zhipu regions](providers/zai.md) | Intl vs CN `openai_compat` bases |
-| [Qwen / DashScope regions](providers/qwen.md) | CN vs intl + `compatible-mode` + aliases |
-| [xAI Grok / Imagine](providers/xai.md) | Chat, Responses, image capabilities, samples |
-| [Groq STT-first](providers/groq-stt.md) | Split chat + STT providers, curl samples |
-| [Conversations decision](conversations-decision.md) | Option A permanent 501 (no gateway store) |
-| [service_tier / fingerprint](service-tier-fingerprint.md) | OpenAI optional metadata fidelity (#51) |
-| [Tools policy](tools-policy.md) | Non-function tools: error on translate (#49) |
-| [cache_control policy](cache-control-policy.md) | Anthropic caching PT-only Option B (#41) |
-| [DeepSeek FIM](providers/deepseek-fim.md) | Experimental Completions / beta FIM (#90) |
-| [Header matrix](header-matrix.md) | Rate-limit / request-id allowlist (#151) |
-| [Security (multipart)](security-multipart-review.md) | Size limits, SSRF posture, logging |
-| [Contributing](contributing.md) | Modality checklist |
+| [Z.AI](providers/zai.md) · [Qwen](providers/qwen.md) · [xAI](providers/xai.md) · [Groq STT](providers/groq-stt.md) · [DeepSeek FIM](providers/deepseek-fim.md) | Regional providers |
+| [service_tier / fingerprint](service-tier-fingerprint.md) | OpenAI optional metadata |
+| [cache_control policy](cache-control-policy.md) | Anthropic caching |
+| [Header matrix](header-matrix.md) | Rate-limit / request-id |
+| [Security (multipart)](security-multipart-review.md) | Size limits, SSRF posture |
+| [Contributing](contributing.md) | Dev checklist |
 | [Changelog](changelog.md) | Release history |
-| [License](license.md) | AGPL-3.0 summary |
+| [License](license.md) | AGPL-3.0 |
 
 !!! tip "Source of truth"
-    Deep route tables and YAML field lists live in the repository [README](https://github.com/inja-online/llm-gateway/blob/master/README.md). This site organizes operator-facing guides and matrices for browsing and search.
+    Route tables and YAML field lists also live in the repository [README](https://github.com/inja-online/llm-gateway/blob/master/README.md). The docs site organizes operator-facing guides for browsing and search.

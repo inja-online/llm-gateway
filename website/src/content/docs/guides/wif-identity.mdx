@@ -1,0 +1,166 @@
+---
+title: "WIF & workload identity"
+description: "Short-lived upstream tokens via token_file sidecars, OpenAI WIF, GCP, AWS/Azure brokers, and GitHub Actions OIDC."
+sidebar:
+  order: 11
+  label: "WIF & workload identity"
+  group:
+    label: "Guides"
+---
+
+Run the gateway **without long-lived `sk-…` keys in the process environment** by feeding short-lived access tokens from outside the hot path.
+
+## What it is
+
+The gateway is **stateless** and does **not** implement cloud STS / IMDS. Something else (sidecar, init container, CI step, Vault agent) obtains a token; the gateway only **consumes** it.
+
+| Mechanism | Config |
+|-----------|--------|
+| OAuth2 client / refresh | `auth: oauth2` — see [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) |
+| Google SA JSON JWT | `auth: service_account` + `service_account_file` |
+| Plain access token file | `auth: adc` + `token_file` |
+| In-process inject | `proxy.Server.SetTokenSource` |
+
+---
+
+## Pattern A — `token_file` (universal)
+
+A sidecar refreshes a file the gateway can read:
+
+```yaml
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    auth: adc
+    token_file: /var/run/secrets/openai-access-token
+```
+
+**File format**
+
+- Raw access token only (no `Bearer ` prefix)  
+- Whitespace trimmed  
+- Cached ~**2 minutes**, then re-read (rotation-friendly)  
+- Mount **read-only**, mode `0600`  
+- Never log file contents  
+
+Works for OpenAI WIF, cloud OIDC exchanges, Vault agents — anything that can write a token file.
+
+### Kubernetes sketch
+
+```yaml
+volumeMounts:
+  - name: provider-token
+    mountPath: /var/run/secrets
+    readOnly: true
+# sidecar writes openai-access-token into the shared volume
+```
+
+---
+
+## Pattern B — OpenAI workload identity federation
+
+1. Configure OpenAI project **workload identity** (OIDC → OpenAI access token).  
+2. Exchange the cloud OIDC JWT for an OpenAI access token (sidecar or CI).  
+3. Write the access token to `token_file`, **or** use `auth: oauth2` against your broker’s token URL.
+
+```yaml
+auth: oauth2
+oauth:
+  token_url: "https://your-broker.example/token"
+  client_id_env: BROKER_CLIENT_ID
+  client_secret_env: BROKER_CLIENT_SECRET
+```
+
+**GitHub Actions sketch**
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+steps:
+  - name: Exchange OIDC → provider access token
+    run: |
+      # use your broker / OpenAI WIF exchange here
+      echo "$OPENAI_ACCESS_TOKEN" > /tmp/oai.token
+      chmod 600 /tmp/oai.token
+  - name: Run gateway with token_file
+    run: ./llm-gateway -config gateway.yaml
+```
+
+Do not commit tokens or upload them as artifacts.
+
+---
+
+## Pattern C — Google Cloud (Vertex)
+
+### Service account JSON (simple)
+
+```yaml
+providers:
+  vertex:
+    kind: google
+    base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
+    auth: service_account
+    service_account_file: /secrets/vertex-sa.json
+```
+
+Build the base URL with `config.VertexBaseURL(project, location)` in Go, or copy from [Vertex AI dual-path](/llm-gateway/guides/vertex-ai/).
+
+### GKE Workload Identity (no JSON key)
+
+1. Bind Kubernetes SA → Google SA (`roles/aiplatform.user` or tighter).  
+2. Sidecar / metadata helper writes access token to `token_file`.  
+3. Config:
+
+```yaml
+auth: adc
+token_file: /var/run/secrets/gcp-access-token
+```
+
+`GOOGLE_APPLICATION_CREDENTIALS` pointing at SA JSON also auto-wires for `auth: adc`.
+
+---
+
+## Pattern D — AWS / Azure → provider token
+
+The gateway does not call STS/IMDS.
+
+1. Use IRSA / Managed Identity to get a cloud credential.  
+2. Exchange via your broker for the **LLM provider** access token.  
+3. Feed the gateway via `token_file` or `auth: oauth2`.
+
+Keep exchange **out of** the per-request path (sidecar refresh loop).
+
+---
+
+## Pattern E — GitHub Actions OIDC
+
+```
+GHA OIDC JWT → broker / vendor token URL → access token → token_file or env
+```
+
+- Restrict `aud` / `sub` on the trust policy.  
+- Short TTL; never upload tokens as workflow artifacts.  
+
+---
+
+## Multi-tenant vs operator-held
+
+| Mode | Use when |
+|------|----------|
+| `oauth2` / SA / `token_file` | **Operator** holds the credential; clients use edge auth only |
+| `client_bearer` | Each client presents their own upstream OAuth token |
+| `api_key_env` | Classic static keys |
+
+## Threat model
+
+- Process with SA keys or refresh tokens is **high privilege**.  
+- Mis-mounted `token_file` can be world-readable — use secret volumes.  
+- Prefer short-lived access tokens and rotate aggressively.  
+
+## Related
+
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)  
+- [Vertex AI dual-path](/llm-gateway/guides/vertex-ai/)  
+- [Security](/llm-gateway/ops/security/)  

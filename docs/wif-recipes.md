@@ -1,8 +1,12 @@
 # Workload identity federation recipes
 
-Short-lived upstream tokens for **inja-online/llm-gateway** without long-lived `sk-…` keys in the process environment. Extends [OAuth & token sources](oauth-token-sources.md) and [#104](https://github.com/inja-online/llm-gateway/issues/104) / [#164](https://github.com/inja-online/llm-gateway/issues/164).
+**What:** short-lived upstream tokens for **inja-online/llm-gateway** without long-lived `sk-…` keys in the process environment.
 
-The gateway stays **stateless**: it does not run a cloud STS. Exchange happens **outside** (sidecar, init container, CI step, or library `SetTokenSource`), then the gateway consumes either:
+**How:** the gateway stays **stateless** and does **not** run a cloud STS. Exchange happens **outside** (sidecar, init container, CI step, or library `SetTokenSource`); the gateway only **consumes** the result.
+
+Extends [OAuth & token sources](oauth-token-sources.md).
+
+The gateway consumes either:
 
 | Mechanism | Config |
 |-----------|--------|

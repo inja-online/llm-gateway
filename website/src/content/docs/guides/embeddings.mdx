@@ -1,0 +1,82 @@
+---
+title: "Embeddings"
+description: "POST /v1/embeddings passthrough and Google translate — dimensions, encoding_format, and task_type."
+sidebar:
+  order: 15
+  label: "Embeddings"
+  group:
+    label: "Guides"
+---
+
+OpenAI-dialect embeddings with passthrough or Gemini translate.
+
+## What it is
+
+| Upstream `kind` | Behavior |
+|-----------------|----------|
+| `openai` / `openai_compat` | Passthrough `{base}/embeddings` (model rewrite only; **unknown keys kept**) |
+| `google` | Translate to `:embedContent` / `:batchEmbedContents` |
+| `anthropic` | Not supported |
+
+## How it works
+
+**Passthrough:** parse JSON map → set `model` to upstream id → POST.  
+**Google translate:**
+
+1. `input` must be a string or array of strings (token-id arrays rejected).  
+2. One string → `:embedContent`; many → `:batchEmbedContents`.  
+3. Map vectors back to OpenAI `object: list` / `data[].embedding`.  
+4. Meter prompt tokens when Gemini reports usage.
+
+## Field matrix
+
+| Field | Passthrough | → Google |
+|-------|-------------|---------|
+| `model` | rewritten | path model |
+| `input` | yes | text parts |
+| `dimensions` | yes | `outputDimensionality` |
+| `encoding_format` | yes | **`float` only** (else 400 on translate) |
+| `task_type` | preserved | Gemini `taskType` |
+| other | preserved | dropped |
+
+## Examples
+
+```bash
+# OpenAI-family
+curl -sS "$GW/v1/embeddings" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai/text-embedding-3-small",
+    "input": "hello",
+    "dimensions": 512,
+    "encoding_format": "float"
+  }'
+```
+
+```bash
+# Google translate
+curl -sS "$GW/v1/embeddings" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "google/text-embedding-004",
+    "input": ["a", "b"],
+    "dimensions": 256,
+    "task_type": "RETRIEVAL_DOCUMENT"
+  }'
+```
+
+## Async / batch jobs (Google)
+
+Long-running jobs use platform routes, not `/v1/embeddings`:
+
+- `POST /v1beta/models/{model}:asyncBatchEmbedContent`  
+- `/v1beta/batches*`  
+
+See [Platform API proxies](/llm-gateway/guides/platform-apis/).
+
+## Related
+
+- [Chat field parity](/llm-gateway/reference/chat-field-parity/)  
+- [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)  
