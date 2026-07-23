@@ -70,8 +70,31 @@ source examples/shell/claude-code-helpers.sh
 source examples/shell/cursor-helpers.sh
 export KEY=local-dev
 cc-gateway-up
-cursor-setup          # prints exact values to paste into Cursor
+cursor-setup          # overview
 ```
+
+### Automated model install (recommended)
+
+Cursor stores custom models in its `state.vscdb` (`userAddedModels` + `openAIBaseUrl`). Helpers can merge gateway models for you:
+
+```bash
+# 1) Fully quit Cursor (Cmd+Q) — required so the DB is not overwritten on exit
+cursor-apply          # sets openAIBaseUrl + merges claude/fable-5, chatgpt/…, …
+cursor-status         # confirm
+# 2) Reopen Cursor
+# 3) Settings → Models → OpenAI API Key = local-dev  (once; OS-encrypted, not written by script)
+```
+
+| Command | Effect |
+|---------|--------|
+| `cursor-apply` | Backup DB + `applicationUser` JSON; set `useOpenAIKey` + `openAIBaseUrl`; merge gateway model names into `userAddedModels` and `modelOverrideEnabled` |
+| `cursor-status` | Show current base URL and custom models |
+| `cursor-rollback` | Restore last `applicationUser` / DB backup |
+| `cursor-models` | Print names only (manual Add Model) |
+
+**Limits:** the OpenAI API key lives in Electron **safeStorage** (`secret://cursorAuth/openAIKey`) and cannot be written safely from the shell — paste it once in the GUI. Built-in Cursor models are never removed.
+
+Backups: `~/.local/state/inja-gateway/cursor-backups/`.
 
 ---
 
@@ -170,6 +193,9 @@ export KEY=local-dev
 
 cc-gateway-up       # background HTTPS gateway
 cursor-setup        # print Settings → Models (coexistence guide)
+cursor-apply        # automate base URL + custom models (quit Cursor first)
+cursor-status       # show what Cursor has stored
+cursor-rollback     # restore previous Cursor applicationUser
 cursor-models       # list prefixed names to Add Model
 cursor-verify       # GET /v1/models (shows claude/fable-5, inja/…)
 cursor-write-cheatsheet   # write examples/cursor/SETUP.md

@@ -20,7 +20,7 @@ Claude Fable 5     ← Cursor (keep it)
 claude/fable-5     ← gateway (add it)
 ```
 
-## Quick path
+## Quick path (automated)
 
 ```bash
 ./llm-gateway auth login chatgpt   # and/or claude, grok
@@ -31,11 +31,24 @@ source examples/shell/cursor-helpers.sh
 export KEY=local-dev
 cc-gateway-up
 
-cursor-setup          # full instructions
-cursor-models         # list of names to Add Model
+# Fully quit Cursor first (Cmd+Q)
+cursor-apply          # writes openAIBaseUrl + merges custom models into state.vscdb
+cursor-status
+
+# Reopen Cursor → Settings → Models → paste OpenAI API Key once: local-dev
 ```
 
+Manual alternative: `cursor-models` then **Add Model** for each line.  
 Copy-paste list: [`models-to-add.txt`](models-to-add.txt).
+
+| Command | What it does |
+|---------|----------------|
+| `cursor-apply` | Backup + set base URL + merge `claude/…` `chatgpt/…` `grok/…` `inja/…` into Cursor |
+| `cursor-status` | Show stored base URL and `userAddedModels` |
+| `cursor-rollback` | Restore last backup |
+| `cursor-verify` | Probe gateway catalog |
+
+**Cannot automate:** OpenAI API key (Electron encrypted storage) — paste once in the UI.
 
 ## Cursor Settings → Models
 
