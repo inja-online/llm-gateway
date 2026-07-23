@@ -28,6 +28,8 @@ const (
 	BlockThinking   BlockType = "thinking"
 	// BlockDocument is a non-image document (primarily PDF).
 	BlockDocument BlockType = "document"
+	// BlockCitation is a citation/annotation/grounding reference (#160).
+	BlockCitation BlockType = "citation"
 	// BlockAudio is declared in audio.go (chat input-audio block type).
 )
 
@@ -110,6 +112,16 @@ type Block struct {
 	// CacheControl is an optional Anthropic-style breakpoint on this block
 	// (system text, message content). Rebuilt on Anthropic egress only (#108).
 	CacheControl *CacheControl
+
+	// Citation fields (#160): URL/title/text spans from annotations or grounding.
+	// Used when Type is BlockCitation (and optionally alongside text).
+	CitationURL   string
+	CitationTitle string
+	// CitationStart/End are optional character offsets in the cited text.
+	CitationStart *int
+	CitationEnd   *int
+	// GroundingMetadata is raw vendor grounding JSON when no lossy map exists.
+	GroundingMetadata json.RawMessage
 }
 
 // Message is one turn.
@@ -118,14 +130,32 @@ type Message struct {
 	Content []Block
 }
 
-// Tool is a function definition offered to the model.
+// Tool kinds for the canonical tool union (#107, #161).
+const (
+	ToolKindFunction = "function" // default
+	ToolKindCustom   = "custom"   // OpenAI custom tools (grammar)
+	ToolKindComputer = "computer" // computer-use style
+	ToolKindServer   = "server"   // server/built-in tools (file_search, …)
+)
+
+// Tool is a function (or extended) definition offered to the model.
 type Tool struct {
+	// Kind is function|custom|computer|server (empty → function).
+	Kind        string
 	Name        string
 	Description string
-	Schema      json.RawMessage // JSON Schema for the arguments
+	Schema      json.RawMessage // JSON Schema for function arguments
+	// Grammar is optional custom-tool grammar (OpenAI custom tools / lark|regex).
+	Grammar string
+	// GrammarType is "lark" | "regex" | vendor string when Grammar is set.
+	GrammarType string
+	// Namespace groups tools when vendors support tool namespaces (#161).
+	Namespace string
 	// CacheControl is an optional Anthropic-style breakpoint on the tool def.
 	// Rebuilt on Anthropic egress only (#108).
 	CacheControl *CacheControl
+	// Extra preserves vendor-only tool fields for OpenAI egress rebuild.
+	Extra json.RawMessage
 }
 
 // ToolChoiceMode controls tool selection.
@@ -237,6 +267,20 @@ type Request struct {
 	// Google ingress. Re-emitted only on Google egress; other dialects drop it.
 	// Passthrough Google→Google does not use this field (byte path).
 	SafetySettings json.RawMessage
+
+	// OpenAI-only request fidelity fields (#163). Rebuilt on OpenAI egress only.
+	SafetyIdentifier   string
+	Verbosity          string          // e.g. "low"|"medium"|"high"
+	Prediction         json.RawMessage // raw prediction object when present
+	PromptCacheOptions json.RawMessage // raw prompt_cache_options when present
+	// Logprobs / TopLogprobs / StreamOptions / Modalities are OpenAI-only;
+	// stored for OpenAI egress rebuild on translate-from-OpenAI paths.
+	Logprobs       *bool
+	TopLogprobs    *int
+	StreamOptions  json.RawMessage
+	Modalities     []string
+	// User is the optional OpenAI user end-user id.
+	User string
 
 	// N is the requested multi-choice count (OpenAI n / Google candidateCount).
 	// Translation supports only n=1; see policy in ingress parsers.

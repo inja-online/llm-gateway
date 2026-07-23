@@ -1,6 +1,10 @@
 package proxy
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/inja-online/llm-gateway/hooks"
+)
 
 // Platform API wave: thin family proxies for remaining M6 endpoints.
 // Upstream-owned resources; gateway does not store state (#121–#198 slice).
@@ -259,6 +263,48 @@ func (s *Server) handleDeferredCompletion(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.openAIFamilyProxy(w, r, http.MethodGet, "/chat/deferred-completion/"+id, false)
+}
+
+// handleResponsesWebSocket proxies OpenAI Responses duplex WebSocket (#158).
+// Requires WebSocket upgrade; openai/openai_compat provider only.
+func (s *Server) handleResponsesWebSocket(w http.ResponseWriter, r *http.Request) {
+	x := s.newExchange(w, r, DialectOpenAI, writeOpenAIError)
+	defer x.emit()
+	x.ev.Modality = "text"
+	x.ev.Transport = hooks.TransportWebSocket
+	x.ev.Stream = true
+	x.ev.Estimated = true
+	if !isWebSocketUpgrade(r) {
+		x.fail(http.StatusUpgradeRequired, "invalid_request_error",
+			"Responses WebSocket requires Upgrade: websocket", hooks.StatusBadRequest)
+		return
+	}
+	model := r.URL.Query().Get("model")
+	if model == "" {
+		x.fail(http.StatusBadRequest, "invalid_request_error", "missing model query parameter", hooks.StatusBadRequest)
+		return
+	}
+	x.ev.Model = model
+	route, err := Resolve(s.cfg, DialectOpenAI, model)
+	if err != nil {
+		x.fail(http.StatusNotFound, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
+		return
+	}
+	if !ensureOpenAIFamily(x, route, "Responses WebSocket") {
+		return
+	}
+	x.ev.Provider = route.ProviderName
+	x.ev.UpstreamModel = route.UpstreamModel
+	if err := s.proxyWebSocket(x, route, r, wsUpstreamURL(route.Provider.BaseURL, "/responses", r.URL.Query())); err != nil {
+		if x.ev.Status == "" {
+			x.ev.Status = hooks.StatusUpstreamError
+		}
+		return
+	}
+	if x.ev.Status == "" {
+		x.ev.Status = hooks.StatusOK
+		x.ev.HTTPStatus = http.StatusSwitchingProtocols
+	}
 }
 
 // --- Cohere-style rerank via openai_compat hosts (#143) ---

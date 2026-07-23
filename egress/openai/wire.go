@@ -28,6 +28,14 @@ type chatRequest struct {
 	ServiceTier          string `json:"service_tier,omitempty"`
 	PromptCacheKey       string `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention string `json:"prompt_cache_retention,omitempty"`
+	SafetyIdentifier     string          `json:"safety_identifier,omitempty"`
+	Verbosity            string          `json:"verbosity,omitempty"`
+	Prediction           json.RawMessage `json:"prediction,omitempty"`
+	PromptCacheOptions   json.RawMessage `json:"prompt_cache_options,omitempty"`
+	Logprobs             *bool           `json:"logprobs,omitempty"`
+	TopLogprobs          *int            `json:"top_logprobs,omitempty"`
+	Modalities           []string        `json:"modalities,omitempty"`
+	User                 string          `json:"user,omitempty"`
 }
 
 // responseFormatWire is the OpenAI chat-completions response_format object.
@@ -65,8 +73,18 @@ type functionCall struct {
 }
 
 type chatTool struct {
-	Type     string       `json:"type"`
-	Function toolFunction `json:"function"`
+	Type        string          `json:"type"`
+	Function    *toolFunction   `json:"function,omitempty"`
+	Custom      *customToolWire `json:"custom,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Format      json.RawMessage `json:"format,omitempty"`
+}
+
+type customToolWire struct {
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Format      json.RawMessage `json:"format,omitempty"`
 }
 
 type toolFunction struct {

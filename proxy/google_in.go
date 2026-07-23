@@ -425,7 +425,7 @@ func (s *Server) googleToOpenAI(x *exchange, route Route, body []byte, pathModel
 	req.Stream = stream
 	upstreamBody, err := openaiegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
-		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)
+		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
 	resp, ok := x.sendUpstream(route, "/chat/completions", upstreamBody)
@@ -470,7 +470,7 @@ func (s *Server) googleToAnthropic(x *exchange, route Route, body []byte, pathMo
 	x.setCacheAutoHeader(applyAutoBreakpoints(s.cfg, req))
 	upstreamBody, err := anthropicegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
-		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)
+		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
 	resp, ok := x.sendUpstream(route, "/messages", upstreamBody)
@@ -603,7 +603,7 @@ func (s *Server) openAIToGoogle(x *exchange, route Route, body []byte) {
 	x.noteDroppedFields(openaiTranslateDrops(body))
 	upstreamBody, err := googleegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
-		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)
+		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
 	resp, ok := x.sendUpstream(route, googleegress.Path(route.UpstreamModel, req.Stream), upstreamBody)
@@ -649,7 +649,7 @@ func (s *Server) anthropicToGoogle(x *exchange, route Route, body []byte) {
 	x.noteDroppedFields(anthropicTranslateDrops(body))
 	upstreamBody, err := googleegress.BuildRequest(req, route.UpstreamModel)
 	if err != nil {
-		x.fail(http.StatusBadRequest, "invalid_request_error", "failed to build upstream request", hooks.StatusBadRequest)
+		x.fail(http.StatusBadRequest, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
 		return
 	}
 	resp, ok := x.sendUpstream(route, googleegress.Path(route.UpstreamModel, req.Stream), upstreamBody)

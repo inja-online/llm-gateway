@@ -43,6 +43,7 @@ type part struct {
 	FunctionCall     *functionCall     `json:"function_call,omitempty"`
 	FunctionResponse *functionResponse `json:"function_response,omitempty"`
 	Thought          bool              `json:"thought,omitempty"`
+	ThoughtSignature string            `json:"thoughtSignature,omitempty"`
 }
 
 type blob struct {

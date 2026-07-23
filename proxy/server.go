@@ -110,6 +110,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{id...}", s.handleModelsGet)
 	mux.HandleFunc("POST /v1/embeddings", s.handleEmbeddings)
 	mux.HandleFunc("POST /v1/responses", s.handleResponses)
+	// Experimental duplex Responses over WebSocket (#158) — same-family upgrade proxy.
+	mux.HandleFunc("GET /v1/responses/ws", s.handleResponsesWebSocket)
 	mux.HandleFunc("POST /v1/responses/compact", s.handleResponsesCompact)
 	mux.HandleFunc("GET /v1/responses/{id}", s.handleResponsesGet)
 	mux.HandleFunc("DELETE /v1/responses/{id}", s.handleResponsesDelete)

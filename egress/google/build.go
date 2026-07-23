@@ -2,6 +2,7 @@ package google
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"strings"
 
@@ -35,6 +36,13 @@ func BuildRequest(req *canonical.Request, _ string) ([]byte, error) {
 	if len(req.Tools) > 0 {
 		var decls []functionDeclaration
 		for _, t := range req.Tools {
+			kind := t.Kind
+			if kind == "" {
+				kind = canonical.ToolKindFunction
+			}
+			if kind != canonical.ToolKindFunction {
+				return nil, fmt.Errorf("google translation does not support tool kind %q; use function tools or OpenAI-family passthrough", kind)
+			}
 			params := t.Schema
 			if len(params) == 0 {
 				params = json.RawMessage(`{"type":"object"}`)
@@ -179,7 +187,7 @@ func buildContent(m canonical.Message, toolNames map[string]string) content {
 		case canonical.BlockText:
 			c.Parts = append(c.Parts, part{Text: b.Text})
 		case canonical.BlockThinking:
-			c.Parts = append(c.Parts, part{Text: b.Text, Thought: true})
+			c.Parts = append(c.Parts, part{Text: b.Text, Thought: true, ThoughtSignature: b.Signature})
 		case canonical.BlockImage:
 			if p, ok := buildImagePart(b.Image); ok {
 				c.Parts = append(c.Parts, p)

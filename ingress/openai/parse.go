@@ -32,6 +32,15 @@ func ParseRequest(body []byte) (*canonical.Request, error) {
 		FrequencyPenalty:     in.FrequencyPenalty,
 		PresencePenalty:      in.PresencePenalty,
 		Seed:                 in.Seed,
+		SafetyIdentifier:     in.SafetyIdentifier,
+		Verbosity:            in.Verbosity,
+		Prediction:           in.Prediction,
+		PromptCacheOptions:   in.PromptCacheOptions,
+		Logprobs:             in.Logprobs,
+		TopLogprobs:          in.TopLogprobs,
+		StreamOptions:        in.StreamOptions,
+		Modalities:           append([]string(nil), in.Modalities...),
+		User:                 in.User,
 	}
 	// Multi-choice policy: translation only supports a single choice (n=1).
 	// n omitted or n=1 is accepted; n>1 is rejected so clients never silently
@@ -122,24 +131,114 @@ func parseStop(raw json.RawMessage) ([]string, error) {
 	return nil, &ValidationError{Msg: "stop must be a string or array of strings"}
 }
 
-// parseTools accepts function tools (type empty or "function"). Non-function
-// tool types (e.g. custom, built-in) are rejected with bad_request so clients
-// do not believe unsupported tools were registered. Policy: error, not skip.
+// parseTools accepts function tools and the expanded tool union (#107/#161).
+// Custom tools are stored in IR for OpenAI egress. Anthropic/Google egress
+// still rejects non-function tools at build time (fail closed, not silent skip).
 func parseTools(tools []chatTool, req *canonical.Request) error {
 	for _, t := range tools {
-		if t.Type != "" && t.Type != "function" {
-			return &ValidationError{Msg: fmt.Sprintf("unsupported tool type %q; only type \"function\" is supported on the translation path", t.Type)}
+		kind := t.Type
+		if kind == "" {
+			kind = canonical.ToolKindFunction
 		}
-		if t.Function.Name == "" {
-			return &ValidationError{Msg: "tool function name is required"}
+		switch kind {
+		case canonical.ToolKindFunction:
+			if t.Function.Name == "" {
+				return &ValidationError{Msg: "tool function name is required"}
+			}
+			req.Tools = append(req.Tools, canonical.Tool{
+				Kind:        canonical.ToolKindFunction,
+				Name:        t.Function.Name,
+				Description: t.Function.Description,
+				Schema:      t.Function.Parameters,
+			})
+		case canonical.ToolKindCustom:
+			name := t.Name
+			desc := t.Description
+			format := t.Format
+			if t.Custom != nil {
+				if t.Custom.Name != "" {
+					name = t.Custom.Name
+				}
+				if t.Custom.Description != "" {
+					desc = t.Custom.Description
+				}
+				if len(t.Custom.Format) > 0 {
+					format = t.Custom.Format
+				}
+			}
+			if name == "" {
+				return &ValidationError{Msg: "custom tool name is required"}
+			}
+			gramType, grammar := parseCustomFormat(format)
+			req.Tools = append(req.Tools, canonical.Tool{
+				Kind:        canonical.ToolKindCustom,
+				Name:        name,
+				Description: desc,
+				Grammar:     grammar,
+				GrammarType: gramType,
+				Extra:       format,
+			})
+		case "computer_use_preview", canonical.ToolKindComputer:
+			name := t.Name
+			if name == "" {
+				name = "computer"
+			}
+			req.Tools = append(req.Tools, canonical.Tool{
+				Kind:        canonical.ToolKindComputer,
+				Name:        name,
+				Description: t.Description,
+			})
+		default:
+			// Server / built-in tools (file_search, web_search, …): keep name for IR.
+			name := t.Name
+			if name == "" && t.Function.Name != "" {
+				name = t.Function.Name
+			}
+			if name == "" {
+				name = kind
+			}
+			req.Tools = append(req.Tools, canonical.Tool{
+				Kind:        canonical.ToolKindServer,
+				Name:        name,
+				Description: t.Description,
+				Schema:      t.Function.Parameters,
+			})
 		}
-		req.Tools = append(req.Tools, canonical.Tool{
-			Name:        t.Function.Name,
-			Description: t.Function.Description,
-			Schema:      t.Function.Parameters,
-		})
 	}
 	return nil
+}
+
+func parseCustomFormat(raw json.RawMessage) (gramType, grammar string) {
+	if len(raw) == 0 {
+		return "", ""
+	}
+	var f struct {
+		Type  string `json:"type"`
+		Syntax string `json:"syntax"` // some shapes
+		// nested grammar
+		Grammar *struct {
+			Definition string `json:"definition"`
+			Syntax     string `json:"syntax"`
+		} `json:"grammar"`
+		// or direct
+		Definition string `json:"definition"`
+	}
+	if json.Unmarshal(raw, &f) != nil {
+		return "", string(raw)
+	}
+	if f.Grammar != nil {
+		return firstNonEmpty(f.Type, f.Grammar.Syntax, f.Syntax), f.Grammar.Definition
+	}
+	return firstNonEmpty(f.Type, f.Syntax), f.Definition
+}
+
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 func parseToolChoice(raw json.RawMessage) (*canonical.ToolChoice, error) {

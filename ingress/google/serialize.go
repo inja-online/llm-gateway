@@ -36,7 +36,7 @@ func blocksToContent(blocks []canonical.Block) *content {
 		case canonical.BlockText:
 			c.Parts = append(c.Parts, part{Text: b.Text})
 		case canonical.BlockThinking:
-			c.Parts = append(c.Parts, part{Text: b.Text, Thought: true})
+			c.Parts = append(c.Parts, part{Text: b.Text, Thought: true, ThoughtSignature: b.Signature})
 		case canonical.BlockToolUse:
 			args := b.Input
 			if len(args) == 0 {

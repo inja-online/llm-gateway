@@ -21,6 +21,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ### Added
 
+- **Fidelity wave:** canonical tool union (`function`/`custom`/`computer`/`server`) with OpenAI rebuild + Anthropic/Google fail-closed (#107/#161); Google `thoughtSignature` multi-turn (#106); expanded finishReason catalog (#156); OpenAI field parity IR (`safety_identifier`, `verbosity`, `prediction`, logprobs, modalities, …) (#115/#163); `config.VertexBaseURL` (#136); Responses WS `/v1/responses/ws` (#158); docs for errors/SSE/fields/Vertex/tools.
 - **M6 platform proxy wave:** Google `/v1beta/files`, `/interactions`, `/batches`, `:batchGenerateContent`, `:asyncBatchEmbedContent`; Anthropic `/v1/agents|sessions|environments`; OpenAI Realtime `client_secrets`/`calls`/`translations`, Evals, Admin organization routes, Responses `compact`/`input_items`, `DELETE /v1/models`, video list/delete/remix, xAI deferred completion, `/v1/rerank`, `/v1/ocr` (#110/#121/#123/#124/#128/#134/#135/#138/#142/#143/#147/#150/#197/#198).
 - **WIF recipes + `token_file` (#164):** plain access-token file TokenSource for sidecars/projected volumes; [docs/wif-recipes.md](docs/wif-recipes.md) (OpenAI WIF, GCP, AWS/Azure, GHA OIDC patterns).
 - **Realtime / Live TLS `wss` dial (#105):** production `https`/`wss` upstream WebSocket dial with system root CAs (TLS 1.2+), TCP keepalive, TokenSource-aware auth on upgrade; application ping/pong passed through raw. Hermetic tests via `httptest.NewTLSServer`.
