@@ -69,16 +69,21 @@ curl -s http://localhost:8787/healthz
 
 `GET /healthz` is **process liveness** only (no upstream probes). It stays open even when `edge_auth` is enabled.
 
-## Claude Code with your subscriptions
+## Claude Code / any app with your subscriptions
 
-Use ChatGPT Plus/Pro, Claude Pro/Max, and/or SuperGrok through Claude Code (any combo: GPT-only, Grok-only, GPT+Grok, all three):
+Use ChatGPT Plus/Pro, Claude Pro/Max, and/or SuperGrok through Claude Code, Cursor, Desktop apps, and more.
 
-**[Full guide → Claude Code with ChatGPT, Claude & SuperGrok](/llm-gateway/guides/claude-code-subscriptions/)**
+**[Full guide → Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/)** · **[Any app](/llm-gateway/guides/app-integrations/)**
 
 ```bash
-./llm-gateway auth login chatgpt   # and/or claude, grok
-./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
-KEY=local-dev ./examples/claude-code-multi.sh gpt+grok
+# From a release binary:
+llm-gateway helpers install          # extract shell helpers + default config
+eval "$(llm-gateway helpers source)"
+llm-gateway auth login chatgpt       # and/or claude, grok
+export KEY=local-dev
+cc-gateway-up
+cc-gpt                               # or cc-grok / cc-multi / cursor-apply / apps-use-gateway
+cc-gateway-logs -f                   # usage + HTTP access lines
 ```
 
 ## First chat (OpenAI dialect)

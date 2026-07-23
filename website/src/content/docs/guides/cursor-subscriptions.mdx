@@ -53,24 +53,35 @@ Cursor does **not** use Claude Code’s `ANTHROPIC_BASE_URL` env for these custo
 
 ## Prerequisites
 
-1. Built binary: `go build -o llm-gateway ./cmd/gateway`  
-2. At least one subscription logged in:
+1. Gateway binary ([release](https://github.com/inja-online/llm-gateway/releases) or build from source).  
+2. Shell helpers installed and sourced:
 
 ```bash
-./llm-gateway auth login chatgpt
-./llm-gateway auth login claude     # optional
-./llm-gateway auth import grok      # or auth login grok
-./llm-gateway auth status
+# From a release binary:
+llm-gateway helpers install      # or: llm-gateway load-helpers
+eval "$(llm-gateway helpers source)"
+
+# From a git checkout (same scripts):
+# source examples/shell/claude-code-helpers.sh
+# source examples/shell/cursor-helpers.sh
 ```
 
-3. HTTPS gateway running (same as Claude Code):
+3. At least one subscription logged in:
 
 ```bash
-source examples/shell/claude-code-helpers.sh
-source examples/shell/cursor-helpers.sh
+llm-gateway auth login chatgpt
+llm-gateway auth login claude     # optional
+llm-gateway auth import grok      # or auth login grok
+llm-gateway auth status
+```
+
+4. HTTPS gateway running (same as Claude Code):
+
+```bash
 export KEY=local-dev
 cc-gateway-up
 cursor-setup          # overview
+cc-gateway-logs -f    # see http + usage lines when Cursor hits the gateway
 ```
 
 ### Automated model install (recommended)
@@ -187,19 +198,19 @@ If **Verify** fails with a certificate error, fix local trust (mkcert) rather th
 ## Helper commands
 
 ```bash
-source examples/shell/claude-code-helpers.sh
-source examples/shell/cursor-helpers.sh
-export KEY=local-dev
+llm-gateway helpers install && eval "$(llm-gateway helpers source)"
+# or: source examples/shell/{claude-code,cursor}-helpers.sh
 
+export KEY=local-dev
 cc-gateway-up       # background HTTPS gateway
-cc-gateway-logs     # tail gateway.log  (−f follow, −n N)
+cc-gateway-logs -f  # http + usage lines
 cursor-setup        # print Settings → Models (coexistence guide)
 cursor-apply        # automate base URL + custom models (quit Cursor first)
 cursor-status       # show what Cursor has stored
 cursor-rollback     # restore previous Cursor applicationUser
 cursor-models       # list prefixed names to Add Model
 cursor-verify       # GET /v1/models (shows claude/fable-5, inja/…)
-cursor-write-cheatsheet   # write examples/cursor/SETUP.md
+cursor-write-cheatsheet
 cc-gateway-status
 cc-gateway-down
 ```

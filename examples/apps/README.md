@@ -13,6 +13,22 @@ One local **Inja LLM Gateway** + your **ChatGPT / Claude / SuperGrok** logins ca
 
 ## 0. Shared setup (once)
 
+### Release binary
+
+```bash
+llm-gateway helpers install          # or: llm-gateway load-helpers
+eval "$(llm-gateway helpers source)" # shell/*.sh under ~/.config/inja-gateway/
+
+llm-gateway auth login chatgpt       # and/or claude, grok
+export KEY=local-dev
+cc-gateway-up
+apps-setup
+apps-use-gateway                     # Claude Desktop + Codex + settings
+cc-gateway-logs -f
+```
+
+### Git checkout
+
 ```bash
 go build -o llm-gateway ./cmd/gateway
 ./llm-gateway auth login chatgpt   # and/or claude, grok
@@ -25,15 +41,13 @@ cc-gateway-up                      # HTTPS background gateway
 source examples/shell/apps-helpers.sh
 apps-setup                         # print every integration
 
-# Switch Claude Desktop + settings + Codex (backup + rollback):
 apps-use-gateway                   # saves "default", writes gateway configs
 apps-status
 apps-use-default                   # restore pre-gateway settings
-# apps-switch gateway|default
-# apps-list-backups
 ```
 
-Profiles are stored under `~/.local/state/inja-gateway/app-profiles/` (`default`, `gateway`, `history/…`).
+Profiles: `~/.local/state/inja-gateway/app-profiles/` (`default`, `gateway`, `history/…`).  
+Process log: `cc-gateway-logs` → `~/.local/state/inja-gateway/gateway.log`.
 
 Dialects the gateway speaks:
 
@@ -81,9 +95,9 @@ Full guide: [App integrations (docs site)](https://inja-online.github.io/llm-gat
 |-----|------|----------------|
 | Claude Desktop | Anthropic | `claude_desktop_config.json` and/or `~/.claude/settings.json` `env` |
 | Claude Code | Anthropic | `ANTHROPIC_BASE_URL` (+ combo scripts) |
-| Cursor | OpenAI | Settings → Models override base URL |
+| Cursor | OpenAI | Settings → Models override base URL + `claude/fable-5` custom models |
 | Codex / GPT coding | OpenAI | `~/.codex/config.toml` provider |
 | Continue / Cline / Aider / Windsurf | OpenAI | each app’s OpenAI-compatible settings |
 | SDKs | either | `OPENAI_*` or `ANTHROPIC_*` |
 
-“Works perfectly” requires: gateway up, TLS trust, correct dialect URL, edge key, and a model id the gateway can route. Apps that **hardcode** first-party hosts with no override cannot be forced through the gateway.
+“Works perfectly” requires: gateway up, TLS trust, correct dialect URL, edge key, and a model id the gateway can route. Apps that **hardcode** first-party hosts cannot be forced through the gateway.

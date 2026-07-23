@@ -37,7 +37,7 @@ Related: [Any app integrations](/llm-gateway/guides/app-integrations/) · [Curso
 
 ### Requirements
 
-- Built gateway binary: `go build -o llm-gateway ./cmd/gateway`
+- Gateway binary: [release](https://github.com/inja-online/llm-gateway/releases) **or** `go build -o llm-gateway ./cmd/gateway`
 - [Claude Code](https://code.claude.com/docs) CLI (`claude` on `PATH`)
 - At least one subscription you own (ChatGPT, Claude, and/or SuperGrok)
 
@@ -56,30 +56,50 @@ This guide is for **personal / single-operator** use of subscriptions you alread
 
 ## End-to-end quick start
 
-### 1. Build
+### 1. Install binary + helpers
+
+**Release binary** (no git checkout needed):
+
+```bash
+# install llm-gateway from GitHub Releases onto PATH, then:
+llm-gateway helpers install    # alias: llm-gateway load-helpers
+# writes ~/.config/inja-gateway/shell/*.sh + claude-code-subscriptions.yaml
+
+eval "$(llm-gateway helpers source)"   # or paste the source lines into ~/.zshrc
+```
+
+**From source:**
 
 ```bash
 git clone https://github.com/inja-online/llm-gateway.git
 cd llm-gateway
 go build -o llm-gateway ./cmd/gateway
+source examples/shell/claude-code-helpers.sh   # same scripts as embedded in the binary
 ```
+
+| Command | Purpose |
+|---------|---------|
+| `llm-gateway helpers install` | Extract shell helpers + subscription YAML from the binary |
+| `llm-gateway load-helpers` | Same as `helpers install` |
+| `llm-gateway helpers source` | Print `source …` lines for your shell rc |
+| `llm-gateway helpers list` | List embedded files |
 
 ### 2. Log in (once per provider you need)
 
 ```bash
-./llm-gateway auth login chatgpt    # browser → auth.openai.com (Codex / ChatGPT)
-./llm-gateway auth login claude     # setup-token / paste Claude OAuth token
-./llm-gateway auth login grok       # imports ~/.grok/auth.json if present, else device code
+llm-gateway auth login chatgpt    # browser → auth.openai.com (Codex / ChatGPT)
+llm-gateway auth login claude     # setup-token / paste Claude OAuth token
+llm-gateway auth login grok       # imports ~/.grok/auth.json if present, else device code
 
-./llm-gateway auth status
+llm-gateway auth status
 ```
 
 **Import shortcuts** (if you already use official CLIs):
 
 ```bash
-codex login && ./llm-gateway auth import chatgpt
-./llm-gateway auth import claude     # Linux credentials file; macOS prefer setup-token
-./llm-gateway auth import grok       # recommended: ~/.grok/auth.json from Grok CLI
+codex login && llm-gateway auth import chatgpt
+llm-gateway auth import claude     # Linux credentials file; macOS prefer setup-token
+llm-gateway auth import grok       # recommended: ~/.grok/auth.json from Grok CLI
 ```
 
 ### 3. HTTPS localhost + background gateway
@@ -87,18 +107,26 @@ codex login && ./llm-gateway auth import chatgpt
 Claude Code needs a live API. Helpers start the gateway **in the background on HTTPS** so you do not get `ConnectionRefused`:
 
 ```bash
-source examples/shell/claude-code-helpers.sh
+# helpers already sourced (from step 1)
 export KEY=local-dev
 
 cc-gateway-up          # gen certs if needed, nohup llm-gateway, wait for /healthz
 # → https://127.0.0.1:8787  (+ NODE_EXTRA_CA_CERTS / ANTHROPIC_BASE_URL)
 
 cc-gateway-status
-cc-gateway-logs        # last lines of gateway.log (−f follow, −n N)
+cc-gateway-logs -f     # http + usage lines (model, tokens, latency)
+# cc-gateway-logs --usage
 # cc-gateway-down
 ```
 
-Manual TLS:
+Log file: `~/.local/state/inja-gateway/gateway.log`. After a real request you should see:
+
+```text
+http status=200 method=POST path=/v1/messages lat_ms=…
+usage status=ok provider=… model=… tokens_in=… tokens_out=…
+```
+
+Manual TLS (git checkout):
 
 ```bash
 ./examples/scripts/gen-localhost-tls.sh   # prefers mkcert
@@ -106,6 +134,7 @@ export GATEWAY_TLS_CERT=$PWD/examples/certs/localhost.pem
 export GATEWAY_TLS_KEY=$PWD/examples/certs/localhost-key.pem
 export GATEWAY_LISTEN=127.0.0.1:8787
 ./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
+# installed layout uses ~/.config/inja-gateway/claude-code-subscriptions.yaml by default
 ```
 
 That config wires each upstream with:
@@ -121,7 +150,6 @@ The gateway loads tokens from the auth store and **refreshes** ChatGPT / Grok ac
 ### 4. Launch Claude Code
 
 ```bash
-source examples/shell/claude-code-helpers.sh
 export KEY=local-dev
 
 cc-gpt                 # auto cc-gateway-up, then Claude Code (GPT only)
@@ -389,7 +417,8 @@ Same combo launcher and shell helpers work. See [Getting started](/llm-gateway/s
 |---|---|
 | `ConnectionRefused` / Unable to connect to API | Gateway not running → `cc-gateway-up` or `./examples/claude-code-multi.sh gpt` (auto-starts HTTPS) |
 | TLS / certificate errors | `./examples/scripts/gen-localhost-tls.sh`; prefer `mkcert -install`; helpers set `NODE_EXTRA_CA_CERTS` |
-| `cc-list: command not found: _inja_cc_list_profiles` | Re-`source examples/shell/claude-code-helpers.sh` (fixed for zsh) |
+| `cc-list: command not found: _inja_cc_list_profiles` | Re-`source` helpers (`eval "$(llm-gateway helpers source)"` or `examples/shell/…`) |
+| Empty `cc-gateway-logs` | Rebuild/restart gateway after upgrade; only **gateway-routed** traffic logs (not Cursor built-in models) |
 | `no credentials for chatgpt` (or claude/grok) | `llm-gateway auth login <provider>` or `auth import …` |
 | `auth status` shows expired | Re-login; for Grok/ChatGPT refresh should renew access automatically if refresh token is present |
 | Grok browser **Invalid action** | `auth import grok` from Grok CLI; avoid prefilled device URLs |

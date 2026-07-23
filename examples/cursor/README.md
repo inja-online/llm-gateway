@@ -22,6 +22,25 @@ claude/fable-5     ← gateway (add it)
 
 ## Quick path (automated)
 
+### Release binary
+
+```bash
+llm-gateway helpers install
+eval "$(llm-gateway helpers source)"
+llm-gateway auth login chatgpt   # and/or claude, grok
+export KEY=local-dev
+cc-gateway-up
+
+# Fully quit Cursor first (Cmd+Q)
+cursor-apply          # writes openAIBaseUrl + merges custom models into state.vscdb
+cursor-status
+
+# Reopen Cursor → Settings → Models → paste OpenAI API Key once: local-dev
+cc-gateway-logs -f    # confirm traffic when you pick claude/fable-5 etc.
+```
+
+### Git checkout
+
 ```bash
 ./llm-gateway auth login chatgpt   # and/or claude, grok
 ./llm-gateway auth import grok
@@ -31,11 +50,9 @@ source examples/shell/cursor-helpers.sh
 export KEY=local-dev
 cc-gateway-up
 
-# Fully quit Cursor first (Cmd+Q)
-cursor-apply          # writes openAIBaseUrl + merges custom models into state.vscdb
+cursor-setup
+cursor-apply          # quit Cursor first
 cursor-status
-
-# Reopen Cursor → Settings → Models → paste OpenAI API Key once: local-dev
 ```
 
 Manual alternative: `cursor-models` then **Add Model** for each line.  
@@ -47,6 +64,7 @@ Copy-paste list: [`models-to-add.txt`](models-to-add.txt).
 | `cursor-status` | Show stored base URL and `userAddedModels` |
 | `cursor-rollback` | Restore last backup |
 | `cursor-verify` | Probe gateway catalog |
+| `cc-gateway-logs -f` | HTTP + usage lines for gateway-routed traffic |
 
 **Cannot automate:** OpenAI API key (Electron encrypted storage) — paste once in the UI.
 
@@ -78,7 +96,7 @@ Prefer **prefixed** ids (gateway aliases):
 | `grok/composer-2.5` | SuperGrok Build (`grok-build-0.1`) |
 | `inja/…` | Same targets, explicit “gateway” namespace |
 
-Full aliases live in [`examples/configs/claude-code-subscriptions.yaml`](../configs/claude-code-subscriptions.yaml).
+Full aliases: [`examples/configs/claude-code-subscriptions.yaml`](../configs/claude-code-subscriptions.yaml) (also installed as `~/.config/inja-gateway/claude-code-subscriptions.yaml`).
 
 ### Avoid
 
@@ -96,8 +114,6 @@ Do **not** add bare names like `fable` or `fable-5` if they make the picker ambi
   llm-gateway  ──► Claude / ChatGPT / SuperGrok subscriptions
 ```
 
-Override Base URL does **not** replace Cursor-native routing for first-party models; it applies to the OpenAI-compatible path used by custom models you add.
-
 ## TLS
 
 Prefer `mkcert -install` + `./examples/scripts/gen-localhost-tls.sh` so Electron/Cursor trusts local HTTPS.
@@ -105,8 +121,9 @@ Prefer `mkcert -install` + `./examples/scripts/gen-localhost-tls.sh` so Electron
 ## Verify
 
 ```bash
-cursor-verify    # should list claude/fable-5, inja/…, etc.
+cursor-verify
 curl -sk https://127.0.0.1:8787/healthz
+cc-gateway-logs --usage
 ```
 
 ## Related

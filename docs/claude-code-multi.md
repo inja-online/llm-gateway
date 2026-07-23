@@ -66,15 +66,22 @@ Store path override:
 export INJA_GATEWAY_AUTH_FILE=$HOME/.config/inja-gateway/credentials.json
 ```
 
-## 2. Run the gateway (HTTPS background — recommended)
+## 2. Install helpers + run the gateway (HTTPS background — recommended)
+
+Shell helpers (`cc-gateway-up`, `cc-gpt`, `cursor-apply`, `apps-use-gateway`, …) ship **inside the binary**:
+
+```bash
+llm-gateway helpers install          # or: llm-gateway load-helpers
+eval "$(llm-gateway helpers source)" # → ~/.config/inja-gateway/shell/
+# git checkout alternative: source examples/shell/claude-code-helpers.sh
+```
 
 Claude Code needs a live API. Helpers start **HTTPS on 127.0.0.1:8787** in the background:
 
 ```bash
-source examples/shell/claude-code-helpers.sh
 export KEY=local-dev
 cc-gateway-up          # certs + nohup + healthz
-cc-gateway-logs        # tail gateway.log (−f / −n N)
+cc-gateway-logs -f     # http + usage (model, tokens, latency)
 # ANTHROPIC_BASE_URL=https://127.0.0.1:8787
 cc-gpt                 # or cc-grok / cc-gpt-grok / cc-multi
 ```
@@ -86,6 +93,7 @@ Manual:
 export GATEWAY_TLS_CERT=$PWD/examples/certs/localhost.pem
 export GATEWAY_TLS_KEY=$PWD/examples/certs/localhost-key.pem
 ./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
+# installed config path: ~/.config/inja-gateway/claude-code-subscriptions.yaml
 ```
 
 That config sets each provider to:
@@ -110,11 +118,10 @@ KEY=local-dev ./examples/claude-code-multi.sh claude+gpt
 KEY=local-dev ./examples/claude-code-multi.sh list
 ```
 
-Or shell helpers:
+Or shell helpers (after `helpers install` or `source examples/shell/…`):
 
 ```bash
-source examples/shell/claude-code-helpers.sh
-export KEY=local-dev GATEWAY=http://localhost:8787
+export KEY=local-dev
 
 cc-gpt              # GPT only
 cc-grok             # Grok 4.5 + composer-2.5
@@ -182,11 +189,11 @@ Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC
 Cursor uses OpenAI-compatible **Settings → Models** (not `ANTHROPIC_BASE_URL`):
 
 ```bash
-source examples/shell/claude-code-helpers.sh
-source examples/shell/cursor-helpers.sh
+# helpers already installed: eval "$(llm-gateway helpers source)"
 export KEY=local-dev
 cc-gateway-up
 cursor-setup    # OpenAI key + https://127.0.0.1:8787/v1 + model list
+cursor-apply    # automate custom models (quit Cursor first)
 ```
 
 | Cursor field | Value |

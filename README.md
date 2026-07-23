@@ -565,26 +565,20 @@ claude
 **Multi-provider with subscription OAuth** (ChatGPT Plus/Pro, Claude Pro/Max, SuperGrok — not API keys):
 
 ```bash
-# one-time browser / device logins
-./llm-gateway auth login chatgpt
-./llm-gateway auth login claude
-./llm-gateway auth login grok
-./llm-gateway auth status
+# one-time: install helpers from the binary (or source examples/shell/… from a checkout)
+llm-gateway helpers install && eval "$(llm-gateway helpers source)"
 
-# terminal 1
-./llm-gateway -config examples/configs/claude-code-subscriptions.yaml
-
-# terminal 2 — Claude Code (any combo)
-KEY=local-dev ./examples/claude-code-multi.sh multi       # Claude+GPT+Grok
-KEY=local-dev ./examples/claude-code-multi.sh gpt         # GPT only
-KEY=local-dev ./examples/claude-code-multi.sh grok        # Grok 4.5 + composer-2.5
-KEY=local-dev ./examples/claude-code-multi.sh gpt+grok    # no Claude
+llm-gateway auth login chatgpt   # and/or claude, grok
+export KEY=local-dev
+cc-gateway-up
+cc-gpt                           # or cc-grok / cc-gpt-grok / cc-multi
 # /model grok-4.5 | /model composer-2.5 | /model gpt | /model sonnet
+cc-gateway-logs -f               # usage + HTTP access
 ```
 
-API-key recipe (alternative): [`examples/configs/claude-code-multi.yaml`](examples/configs/claude-code-multi.yaml).
+From a git checkout you can still use `KEY=local-dev ./examples/claude-code-multi.sh gpt+grok` or `source examples/shell/claude-code-helpers.sh`.
 
-Shell helpers: `source examples/shell/claude-code-helpers.sh` → `cc-gpt` / `cc-grok` / `cc-gpt-grok` / `cc-multi` / `cc-run gpt+grok`.
+API-key recipe (alternative): [`examples/configs/claude-code-multi.yaml`](examples/configs/claude-code-multi.yaml).
 
 Guide: [docs/claude-code-multi.md](docs/claude-code-multi.md). Checklist: [docs/claude-code-checklist.md](docs/claude-code-checklist.md).
 

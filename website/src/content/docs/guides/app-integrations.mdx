@@ -31,25 +31,38 @@ Related: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscript
 
 ## Shared setup (do this once)
 
+### A. Release binary (recommended)
+
 ```bash
-go build -o llm-gateway ./cmd/gateway
+# 1) Install llm-gateway from GitHub Releases onto PATH
+llm-gateway helpers install        # or: llm-gateway load-helpers
+eval "$(llm-gateway helpers source)"
+# → ~/.config/inja-gateway/shell/*.sh + claude-code-subscriptions.yaml
 
-./llm-gateway auth login chatgpt   # ChatGPT Plus/Pro via Codex OAuth
-./llm-gateway auth login claude    # Claude Pro/Max setup-token
-./llm-gateway auth import grok     # SuperGrok (Grok CLI recommended)
+llm-gateway auth login chatgpt     # ChatGPT Plus/Pro via Codex OAuth
+llm-gateway auth login claude      # Claude Pro/Max setup-token
+llm-gateway auth import grok       # SuperGrok (Grok CLI recommended)
 
-source examples/shell/claude-code-helpers.sh
 export KEY=local-dev
 cc-gateway-up                      # HTTPS on 127.0.0.1:8787
-
-source examples/shell/apps-helpers.sh
 apps-setup                         # print every integration
+apps-use-gateway                   # Claude Desktop + settings + Codex → gateway
+# apps-use-default                 # rollback vendor settings later
+cc-gateway-logs -f                 # http + usage
+```
 
-# Switch Claude Desktop + Claude settings + Codex between gateway and defaults:
-apps-use-gateway                   # snapshot current files as "default", write gateway
-apps-status
-# … later, back to vendor defaults:
-apps-use-default                   # restore profile "default"
+### B. Git checkout
+
+```bash
+go build -o llm-gateway ./cmd/gateway
+./llm-gateway auth login chatgpt   # and/or claude, grok
+
+source examples/shell/claude-code-helpers.sh
+source examples/shell/apps-helpers.sh
+export KEY=local-dev
+cc-gateway-up
+apps-setup
+apps-use-gateway
 ```
 
 ### Backup / rollback (switch profiles)
@@ -373,7 +386,9 @@ apps-status
 | Path | Role |
 |------|------|
 | [`examples/apps/`](https://github.com/inja-online/llm-gateway/tree/master/examples/apps) | Templates per app |
-| [`examples/shell/apps-helpers.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/apps-helpers.sh) | `apps-use-gateway`, `apps-use-default`, `apps-status`, … |
+| [`examples/shell/apps-helpers.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/apps-helpers.sh) | Same scripts **embedded** in the binary (`llm-gateway helpers install`) |
+| `~/.config/inja-gateway/shell/` | Install target for helpers from the release binary |
 | `~/.local/state/inja-gateway/app-profiles/` | Named slots `default` / `gateway` + `history/` |
+| `~/.local/state/inja-gateway/gateway.log` | `cc-gateway-up` process log (`cc-gateway-logs`) |
 | [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml) | Subscription providers + aliases |
 | [`AGENTS.md`](https://github.com/inja-online/llm-gateway/blob/master/AGENTS.md) | Keep model ids current |
