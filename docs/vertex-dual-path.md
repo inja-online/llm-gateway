@@ -1,4 +1,8 @@
-# Vertex AI dual-path (#136)
+# Vertex AI dual-path
+
+**What:** run native Gemini (`kind: google`) against **Vertex AI** or **Google AI Studio** by choosing `base_url` + auth.
+
+**How:** client paths stay `/v1beta/models/{model}:generateContent` (and Live, platform proxies). Egress appends `/models/…` to `base_url`, so Vertex `base_url` must already include the project/location **publisher** prefix.
 
 ## AI Studio vs Vertex
 

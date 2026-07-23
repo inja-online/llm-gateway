@@ -10,6 +10,13 @@ sidebar:
 
 Get a working edge in a few minutes: binary or Docker, one YAML file, one request.
 
+After the basics, continue with:
+
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) — keys, OAuth2, multi-tenant Bearer  
+- [Realtime WebSocket](/llm-gateway/guides/realtime-websocket/) — production `wss`  
+- [Platform APIs](/llm-gateway/guides/platform-apis/) — files, evals, agents, batches  
+- [WIF & workload identity](/llm-gateway/guides/wif-identity/) — short-lived tokens  
+
 ## Requirements
 
 - Go **1.25+** (to build from source), or a [release binary](https://github.com/inja-online/llm-gateway/releases) / Docker
@@ -82,6 +89,12 @@ Full routing details: [README · Model routing](https://github.com/inja-online/l
 ## Next
 
 - [How it works](/llm-gateway/how-it-works/) — request path, passthrough vs translate  
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) — keys, OAuth2, `client_bearer`, SA  
+- [WIF & workload identity](/llm-gateway/guides/wif-identity/) — `token_file`, cloud OIDC  
+- [Realtime WebSocket](/llm-gateway/guides/realtime-websocket/) — OpenAI Realtime / Google Live TLS  
+- [Platform APIs](/llm-gateway/guides/platform-apis/) — files, evals, agents, batches  
+- [Embeddings](/llm-gateway/guides/embeddings/) — dimensions / task_type  
 - [Claude Code](/llm-gateway/guides/claude-code/) — point `ANTHROPIC_BASE_URL` at the gateway  
 - [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) — dialect × modality × provider kind  
 - [HTTP API](https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api) — full route list in the README  
+

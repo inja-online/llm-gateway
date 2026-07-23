@@ -1,0 +1,117 @@
+---
+title: "Realtime & Live WebSocket"
+description: "Production TLS/wss proxy for OpenAI Realtime and Google Gemini Live — config, limits, auth, and troubleshooting."
+sidebar:
+  order: 12
+  label: "Realtime WebSocket"
+  group:
+    label: "Guides"
+---
+
+Same-protocol WebSocket proxy for **OpenAI Realtime** and **Google Gemini Live**, including production **TLS / `wss`** dials.
+
+## What it is
+
+| Route | Family | Upstream |
+|-------|--------|----------|
+| `GET /v1/realtime?model=…` | OpenAI Realtime | `{base}/realtime` |
+| `GET /v1beta/models/{model}:bidiGenerateContent` | Google Live | `{base}/models/{model}:bidiGenerateContent` |
+| `GET /v1/responses/ws?model=…` | Experimental Responses duplex | `{base}/responses` |
+
+Cross-protocol Realtime ↔ Live **bridge is not implemented**. Attempts fail with code **`unsupported_realtime_bridge`**.
+
+## How it works
+
+```
+Client ── WS Upgrade ──► Gateway ── TCP or TLS + Upgrade ──► Upstream
+         ◄── frames ───►          ◄── raw frame copy ────►
+```
+
+1. Validate WebSocket upgrade headers.  
+2. Resolve model → provider; check `capabilities.realtime`.  
+3. Acquire a session slot (`realtime.max_sessions`).  
+4. Dial upstream: `http`/`ws` plain, `https`/`wss` with system roots (TLS 1.2+).  
+5. Apply upstream auth on the upgrade request.  
+6. Copy frames both ways (application ping/pong pass through).  
+7. On close: one usage event (`modality=realtime`, session minutes).  
+
+TCP keepalive (30s) is enabled on the upstream socket.
+
+## Configuration
+
+```yaml
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"  # production TLS
+    api_key_env: OPENAI_API_KEY
+
+  google:
+    kind: google
+    base_url: "https://generativelanguage.googleapis.com/v1beta"
+    api_key_env: GEMINI_API_KEY
+
+  # openai_compat must opt in to realtime:
+  # xai:
+  #   kind: openai_compat
+  #   base_url: "https://api.x.ai/v1"
+  #   api_key_env: XAI_API_KEY
+  #   capabilities: { text: true, realtime: true }
+
+realtime:
+  max_sessions: 1024
+  max_session_minutes: 60
+
+defaults:
+  openai_dialect: openai
+  google_dialect: google
+```
+
+## How to use
+
+### OpenAI Realtime
+
+Point your Realtime SDK or client at the gateway:
+
+```text
+base URL: http://localhost:8787/v1
+model:    openai/gpt-4o-realtime-preview   # or bare id + defaults.openai_dialect
+```
+
+With edge auth + `api_key_env`, the client only needs the edge secret. With `auth: client_bearer`, send the upstream OAuth access token as `Authorization: Bearer`.
+
+### Google Live
+
+```http
+GET /v1beta/models/gemini-2.0-flash-live:bidiGenerateContent HTTP/1.1
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: …
+Sec-WebSocket-Version: 13
+```
+
+### Session limits
+
+| Limit | Default | On exceed |
+|-------|---------|-----------|
+| `max_sessions` | 1024 | **429** before upgrade |
+| `max_session_minutes` | 60 | Gateway closes sockets |
+
+## Auth on WebSocket
+
+Same modes as HTTP: `api_key` / `api_key_env`, `oauth2`, SA / `token_file`, `client_bearer`. Credentials are resolved **before** the upstream upgrade is written.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Capability 501 | Set `capabilities.realtime: true` on `openai_compat` |
+| `unsupported_realtime_bridge` | Keep Realtime models on openai family; Live on `kind: google` |
+| Missing model | Pass `?model=` on `/v1/realtime` |
+| Upstream 401 | Check keys / OAuth / SA; ensure env is set in the gateway process |
+
+## Related
+
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)  
+- [Platform API proxies](/llm-gateway/guides/platform-apis/)  
+- [How it works](/llm-gateway/how-it-works/)  

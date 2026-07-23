@@ -1,0 +1,59 @@
+---
+title: "M6 surface notes"
+description: "Operator notes for regional providers, media passthrough, completions policy, and the Realtime↔Live bridge decision."
+sidebar:
+  order: 23
+  label: "M6 surface notes"
+  group:
+    label: "Reference"
+---
+
+Companion to the shipped OAuth, Realtime, platform, and fidelity guides. Documents **passthrough-complete** or **policy-complete** behavior.
+
+## Regional openai_compat
+
+| Provider | Notes |
+|----------|-------|
+| xAI | Chat/Responses; deferred completion route; Imagine needs `image_gen` — [xAI](/llm-gateway/providers/xai/) |
+| Moonshot/Kimi | Helpers: estimate-token-count, balance; regional `base_url` |
+| Z.AI/GLM | Regional bases — [Z.AI](/llm-gateway/providers/zai/) |
+| DeepSeek | Completions/FIM — [DeepSeek FIM](/llm-gateway/providers/deepseek-fim/) |
+| Groq | STT-first — [Groq STT](/llm-gateway/providers/groq-stt/) |
+
+**Rule:** passthrough never strips unknown keys. Regional quirks are `base_url` + capability flags.
+
+## Completions multi-dialect
+
+| Ingress | Behavior |
+|---------|----------|
+| OpenAI `/v1/completions` | openai / openai_compat passthrough (DeepSeek FIM on `/beta`) |
+| Translate to Anthropic/Google | **Not supported** (fail closed) |
+
+## Anthropic beta & content blocks
+
+- `anthropic-beta` is **forwarded** (not allowlisted) on passthrough.  
+- Skills, tunnels, memory, agents/sessions/environments are **proxied**.  
+- Unknown content blocks: forwarded on PT; only IR types on translate.  
+
+## Media / files
+
+| Surface | Behavior |
+|---------|----------|
+| Image streaming | Passthrough when upstream streams |
+| STT diarization / formats | Multipart fields forwarded on openai family |
+| Moderations multimodal | `/v1/moderations` body passthrough |
+| Large uploads | `max_body_bytes` (default 32MiB; set `536870912` for 512MiB) + Uploads API |
+
+```yaml
+max_body_bytes: 536870912  # 512 MiB
+```
+
+## Realtime ↔ Live bridge
+
+**Shipped decision:** fail-closed with `unsupported_realtime_bridge`. Same-protocol TLS WebSocket is production-ready. Full event mappers are a future milestone — IR placeholders live in `canonical/realtime.go`.
+
+## Related
+
+- [Platform API proxies](/llm-gateway/guides/platform-apis/)  
+- [Realtime WebSocket](/llm-gateway/guides/realtime-websocket/)  
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)  

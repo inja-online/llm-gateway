@@ -1,6 +1,6 @@
 ---
 title: "Tools policy"
-description: "Function tools translate across dialects; non-function tool types fail closed on the translation path."
+description: "Function tools and the tool union (custom, computer, server) on passthrough vs translation — when the gateway errors vs rebuilds."
 sidebar:
   order: 3
   label: "Tools policy"
@@ -8,36 +8,82 @@ sidebar:
     label: "Guides"
 ---
 
-**Decision:** **error** on the **translation** path (not silent skip)
+How **tools** are handled so agents never believe a tool was registered when it was dropped.
 
-Agents often register tools that are only meaningful on one vendor. The gateway treats that carefully so clients never believe a tool was registered when it was dropped.
+## Summary
 
-## Policy
+| Path | Behavior |
+|------|----------|
+| **Passthrough** (OpenAI → openai / openai_compat) | Forward **as-is** (model rewrite only) |
+| **Translate → OpenAI** | Rebuild full tool union: `function`, `custom`, `computer`, `server` |
+| **Translate → Anthropic / Google** | **`function` only** — other kinds → **HTTP 400** with a clear error |
 
-| Path | Non-function `tools[].type` (e.g. `custom`, `file_search`, server tools) |
-|---|---|
-| **Passthrough** (OpenAI → `openai` / `openai_compat`) | **Forward as-is** (JSON map; model rewrite only). Upstream may accept or reject. |
-| **Translation** (OpenAI → Anthropic/Google via canonical IR) | **HTTP 400** `invalid_request_error` — only `type: "function"` (or empty type, treated as function) is supported. |
+Silent skip is intentionally rejected.
 
-**Rationale:** silent skip made agents believe tools were registered when they were not. Fail closed on translate so clients fix the tool set or use passthrough to a host that supports custom tools.
+## Tool kinds
 
-## Function tools
+| Kind | Wire example | OpenAI egress | Anthropic / Google |
+|------|--------------|---------------|--------------------|
+| `function` | `type: "function"` + parameters schema | yes | yes |
+| `custom` | grammar / lark / regex tools | yes | **error** |
+| `computer` | computer-use styles | yes | **error** |
+| `server` | `file_search`, `web_search`, … | yes | **error** |
 
-Supported on both passthrough and translate:
+Empty `type` is treated as **function**. Name is required for function and custom tools.
 
-- **Name** is required  
-- **Parameters** JSON Schema is carried on the canonical IR  
-- Each dialect egress rebuilds the vendor-shaped tool definition  
+## Function tools (all families)
 
-Tool results and tool-use round-trips follow the same family rules as chat (passthrough vs IR).
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "lookup",
+    "description": "Look up a record",
+    "parameters": {
+      "type": "object",
+      "properties": { "id": { "type": "string" } },
+      "required": ["id"]
+    }
+  }
+}
+```
+
+Works on passthrough and on translate to Anthropic or Google.
+
+## Custom / grammar tools (OpenAI family)
+
+```json
+{
+  "type": "custom",
+  "custom": {
+    "name": "date_tool",
+    "format": {
+      "type": "regex",
+      "definition": "[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    }
+  }
+}
+```
+
+- **Passthrough** to OpenAI / openai_compat: forwarded.  
+- **Translate to Claude/Gemini:** fails closed — use function tools or stay on OpenAI family.
+
+## How it works internally
+
+1. OpenAI ingress parses tools into the canonical IR.  
+2. Router selects upstream kind.  
+3. Egress rebuilds vendor JSON, or returns `invalid_request_error` with the unsupported kind name.
+
+Multi-turn tool loops still rely on thinking/signature fidelity (`reasoning_content`, Anthropic thinking blocks, Google `thoughtSignature`) — see [Chat field parity](/llm-gateway/reference/chat-field-parity/).
 
 ## Practical guidance
 
-1. Prefer **passthrough** when you need vendor-specific tool types.  
-2. On **cross-family** routes, send only function tools (or drop tools client-side).  
-3. Watch for future expansions: [#107](https://github.com/inja-online/llm-gateway/issues/107) (tool union), [#161](https://github.com/inja-online/llm-gateway/issues/161) (custom grammar tools).
+1. Vendor-specific tools → **passthrough** to that vendor.  
+2. OpenAI client → Claude/Gemini → **function tools only**.  
+3. Prefer fail-closed errors over silent drops when debugging agents.  
 
 ## Related
 
+- [Chat field parity](/llm-gateway/reference/chat-field-parity/)  
 - [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/)  
 - [Deprecation policy](/llm-gateway/reference/deprecation-policy/)  

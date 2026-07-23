@@ -1,20 +1,77 @@
 # OAuth & token sources
 
-Provider-side non–API-key authentication for **inja-online/llm-gateway** ([#104](https://github.com/inja-online/llm-gateway/issues/104)).
+**What:** how the gateway authenticates **to upstream providers** without (or in addition to) long-lived API keys.
 
-Edge auth (`edge_auth`) is **independent**: it authenticates callers of the gateway. This document covers how the gateway authenticates **to upstream providers**.
+**Not this page:** optional **edge auth** (`edge_auth`) that authenticates *clients of the gateway* — that is independent and covered in the README / Security docs.
 
-## Auth modes
+## Mental model
 
-| `auth` | Upstream credential |
-|--------|---------------------|
-| `api_key` (default) | Client key, or `api_key_env` when set |
-| `bearer` | Same as api_key but always `Authorization: Bearer` |
-| `client_bearer` | **Client** Bearer only — never `api_key_env` |
-| `oauth2` | Built-in OAuth2 token endpoint (`oauth:` block) |
-| `adc` / `service_account` | Bearer TokenSource (inject or auto SA file) |
+```
+  Client ──(edge key?)──► Gateway ──(upstream credential)──► OpenAI / Anthropic / Google / …
+```
 
-## `auth: oauth2`
+| Layer | Config | Header / secret |
+|-------|--------|-----------------|
+| **Edge** (optional) | `edge_auth` | Client `Authorization` or `x-api-key` must match gateway keys |
+| **Upstream** | `providers.*.auth` | What the gateway sends **to the provider** |
+
+Never put provider refresh tokens in `edge_auth.keys`.
+
+---
+
+## Auth modes (upstream)
+
+| `auth` | What it does | When to use |
+|--------|--------------|-------------|
+| `api_key` (default) | Client key **or** `api_key_env` replacement | Classic API keys |
+| `bearer` | Always `Authorization: Bearer` with client/env key | Hosts that only accept Bearer |
+| `client_bearer` | **Only** client Bearer; **never** `api_key_env` | Multi-tenant: each user brings OAuth access token |
+| `oauth2` | Fetch access token from `oauth.token_url` | Client credentials or refresh_token grant |
+| `adc` / `service_account` | Bearer from TokenSource (SA JWT, `token_file`, inject) | Vertex / GCP / WIF file tokens |
+
+---
+
+## Mode details
+
+### 1. `api_key` (default)
+
+**How it works**
+
+1. Read client credential from `Authorization: Bearer`, `x-api-key`, or `x-goog-api-key`.  
+2. If `api_key_env` is set and non-empty, **replace** with that env value.  
+3. Apply kind scheme: OpenAI Bearer · Anthropic `x-api-key` · Google `x-goog-api-key`.
+
+```yaml
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_API_KEY   # clients only need edge key if edge_auth is on
+```
+
+```bash
+export OPENAI_API_KEY=sk-...
+curl -sS "$GW/v1/chat/completions" \
+  -H "Authorization: Bearer $GATEWAY_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}'
+```
+
+---
+
+### 2. `oauth2`
+
+**What:** gateway is an OAuth2 **client**. It POSTs to a token endpoint, caches the access token, and sends `Authorization: Bearer <access_token>` upstream.
+
+**How it works**
+
+1. At process start, config is validated (`token_url`, client id/secret or refresh).  
+2. On first request (or after expiry), form-POST to `token_url`.  
+3. Cache until `expires_in` − 30s skew; concurrent requests share one refresh.  
+4. On upstream **401** (before writing to the client): invalidate cache, refresh once, retry.  
+5. Mid-SSE 401 after headers are flushed is **not** retried.
+
+**YAML**
 
 ```yaml
 providers:
@@ -26,36 +83,129 @@ providers:
       token_url: "https://auth.example.com/oauth/token"
       client_id_env: OAUTH_CLIENT_ID
       client_secret_env: OAUTH_CLIENT_SECRET
-      # refresh_token_env: OAUTH_REFRESH_TOKEN   # → refresh_token grant
+      # refresh_token_env: OAUTH_REFRESH_TOKEN  # auto-selects refresh_token grant
       scopes: ["api"]
-      # grant: client_credentials   # optional override
-      # audience: "..."
-      # extra: { resource: "..." }
+      # grant: client_credentials   # optional force
+      # audience: "https://api.openai.com"
+      # extra:
+      #   resource: "..."
 ```
 
 **Grants**
 
-- `client_credentials` — default when no refresh credential is configured.
-- `refresh_token` — default when `refresh_token` or `refresh_token_env` is set.
+| Grant | Selected when | Form fields |
+|-------|---------------|-------------|
+| `client_credentials` | No refresh credential configured | `client_id`, `client_secret`, optional `scope` |
+| `refresh_token` | `refresh_token` or `refresh_token_env` set | `refresh_token`, optional client id/secret |
 
-**Runtime**
+**Env**
 
-1. On first request (and after expiry), `POST` `application/x-www-form-urlencoded` to `token_url`.
-2. Cache `access_token` until `expires_in` (minus 30s skew). Concurrent callers share one refresh.
-3. Upstream requests send `Authorization: Bearer <access_token>` (all kinds).
-4. Usage `key_hash` hashes the **access token**, not the edge key.
+```bash
+export OAUTH_CLIENT_ID=...
+export OAUTH_CLIENT_SECRET=...
+# or
+export OAUTH_REFRESH_TOKEN=...
+```
 
-Secrets: prefer `*_env`. Inline `client_id` / `client_secret` / `refresh_token` are allowed for tests only. Errors from the token endpoint never echo response bodies that might contain secrets.
+**Secrets:** prefer `*_env`. Inline `client_id` / `client_secret` / `refresh_token` are for tests only. Token endpoint errors never log response bodies (may echo secrets).
 
-## `auth: client_bearer`
+---
 
-For multi-tenant gateways where each client presents their own upstream OAuth access token:
+### 3. `client_bearer` (multi-tenant user OAuth)
+
+**What:** every client presents **their own** upstream access token. The gateway never substitutes a server key.
 
 ```yaml
 edge_auth:
   enabled: true
-  keys_env: GATEWAY_EDGE_KEYS
+  keys_env: GATEWAY_EDGE_KEYS   # who may call the gateway
 
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    auth: client_bearer
+    # api_key_env is ignored
+```
+
+**Client design**
+
+| Header | Recommended use |
+|--------|-----------------|
+| `x-api-key` | Edge shared secret |
+| `Authorization: Bearer` | Upstream OAuth access token |
+
+If you only have one header, terminate edge auth at an external proxy and forward the upstream Bearer to the gateway.
+
+---
+
+### 4. Google SA / ADC (`service_account` / `adc`)
+
+**What:** `Authorization: Bearer` from a short-lived Google access token.
+
+**Auto-wire (binary):**
+
+| Config | Behavior |
+|--------|----------|
+| `service_account_file: /path/sa.json` | JWT assertion → token endpoint |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Same when `auth: adc` and no file in YAML |
+| `token_file: /path/token` | Read plain access token (WIF sidecar) — see [wif-recipes.md](wif-recipes.md) |
+
+```yaml
+providers:
+  vertex:
+    kind: google
+    base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
+    auth: service_account
+    service_account_file: /secrets/vertex-sa.json
+```
+
+Mount SA JSON **read-only**, mode `0600`. No Google Cloud SDK is bundled.
+
+**Library inject**
+
+```go
+srv := proxy.NewServer(cfg, hook)
+srv.SetTokenSource("vertex", mySource) // overrides auto-wire
+http.ListenAndServe(cfg.Listen, srv.Handler())
+```
+
+---
+
+## End-to-end recipes
+
+### A. Edge auth + server-held API key (most common)
+
+```yaml
+edge_auth: { enabled: true, keys_env: GATEWAY_EDGE_KEYS }
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_API_KEY
+```
+
+Clients send only the edge key; gateway holds `sk-…`.
+
+### B. Edge auth + OAuth2 client credentials
+
+```yaml
+edge_auth: { enabled: true, keys_env: GATEWAY_EDGE_KEYS }
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    auth: oauth2
+    oauth:
+      token_url: "https://…"
+      client_id_env: OIDC_CLIENT_ID
+      client_secret_env: OIDC_CLIENT_SECRET
+```
+
+### C. Multi-tenant user tokens
+
+```yaml
+edge_auth: { enabled: true, keys_env: GATEWAY_EDGE_KEYS }
 providers:
   openai:
     kind: openai
@@ -63,75 +213,34 @@ providers:
     auth: client_bearer
 ```
 
-Clients send: edge key (per your deployment) **and** the provider access token in `Authorization: Bearer …` as required by your front door design. When only one `Authorization` header is available, put the **upstream** token there and terminate edge auth at an external proxy, **or** use `x-api-key` for edge and `Authorization` for upstream (edge middleware must accept `x-api-key`).
+### D. Vertex service account
 
-With `client_bearer`, `api_key_env` is **ignored** so a server-held key cannot accidentally replace user tokens.
+See [vertex-dual-path.md](vertex-dual-path.md) + SA block above.
 
-## Google SA / ADC
+### E. OpenCode / Claude Code / Codex
 
-```yaml
-providers:
-  vertex:
-    kind: google
-    base_url: "https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/google"
-    auth: service_account
-    service_account_file: /secrets/sa.json
-```
+Point the tool `baseURL` at the gateway. Prefer **edge key + server `api_key_env` or `oauth2`**. If the tool already holds a provider OAuth access token, use `client_bearer`.
 
-- Reads standard GCP SA JSON (`client_email`, `private_key`, optional `token_uri`).
-- Signs a JWT and exchanges it at the token URL (`urn:ietf:params:oauth:grant-type:jwt-bearer`).
-- Default scope: `https://www.googleapis.com/auth/cloud-platform`.
-- `auth: adc` with `GOOGLE_APPLICATION_CREDENTIALS` pointing at the same JSON also auto-wires.
-- Library embedders may still call `proxy.Server.SetTokenSource(name, ts)` to override.
+**ToS:** consumer ChatGPT/Claude subscription OAuth is often restricted for multi-user products — use operator-held credentials.
 
-No Google Cloud SDK is bundled.
+---
 
-## Provider notes & ToS
+## Observability
 
-| Provider | Suggested pattern |
-|----------|-------------------|
-| **OpenAI** | API keys; WIF short-lived Bearer; optional `oauth2` / `client_bearer` for access tokens |
-| **xAI** | Bearer (`openai_compat`); OAuth when vendor documents a token URL |
-| **Anthropic** | Console API keys (`x-api-key`); operator-held OAuth refresh as `oauth2` Bearer — **check ToS** for consumer OAuth |
-| **Google** | API key or SA/ADC TokenSource as above |
-| **OpenCode** | Point `baseURL` at this gateway; use edge key + server `api_key_env`/`oauth2`, or `client_bearer` if OpenCode holds provider tokens |
-
-Consumer subscription OAuth (ChatGPT, Claude.ai consumer) is often **restricted** for multi-user products. This gateway supports operator-held credentials; it is not a ToS workaround.
+- Usage events include `key_hash` = first 12 hex of SHA-256 of the **upstream** credential (access token or API key), never the raw secret.  
+- Do not log `Authorization`, refresh tokens, or SA private keys.
 
 ## Security checklist
 
-- [ ] Secrets only via env or file mounts (mode `0600`, read-only volume)
-- [ ] Never log Authorization headers, refresh tokens, or SA private keys
-- [ ] Rotate refresh tokens / SA keys; prefer short-lived access tokens
-- [ ] Edge keys ≠ provider credentials
-- [ ] Multi-replica: each replica refreshes independently (no shared token DB in v1)
+- [ ] Secrets via env or file mounts only  
+- [ ] SA / token files read-only, `0600`  
+- [ ] Edge keys ≠ provider credentials  
+- [ ] Prefer short-lived access tokens  
+- [ ] Review vendor ToS for consumer OAuth  
 
-## Library injection
+## Related
 
-```go
-srv := proxy.NewServer(cfg, hook)
-srv.SetTokenSource("vertex", myTokenSource) // overrides auto-wire
-http.ListenAndServe(cfg.Listen, srv.Handler())
-```
-
-`gateway.New` auto-wires from YAML the same way as `proxy.NewServer`.
-
-## 401 force-refresh (one retry)
-
-When `auth` uses a TokenSource (`oauth2` / `adc` / `service_account`) and the upstream responds **401** before the gateway has written to the client:
-
-1. Invalidate the token cache (`CachingTokenSource.Invalidate`)
-2. Fetch a fresh access token
-3. Retry the upstream request **once**
-
-This covers expired access tokens on chat/media/JSON paths. **Mid-SSE 401** after response headers have already been flushed to the client is **not** retried (cannot safely restart a stream). Prefer token TTLs with skew so access tokens are refreshed before expiry.
-
-Static / non-invalidating TokenSources (e.g. test `StaticTokenSource`) do not retry.
-
-See also [WIF recipes](wif-recipes.md) (`token_file`, cloud OIDC patterns).
-
-## Non-goals (v1)
-
-- Device-code / browser PKCE login CLI (use vendor CLIs; load refresh into env)
-- Storing refresh tokens in a database
-- Gateway-hosted OpenCode `/provider/{id}/oauth/*` IdP surface (document edge + Bearer first)
+- [WIF recipes](wif-recipes.md)  
+- [Vertex dual-path](vertex-dual-path.md)  
+- [Realtime WebSocket auth](realtime-websocket.md)  
+- [SECURITY.md](https://github.com/inja-online/llm-gateway/blob/master/SECURITY.md)  

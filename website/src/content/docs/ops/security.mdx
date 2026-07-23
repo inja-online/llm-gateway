@@ -42,7 +42,22 @@ Attack surface is primarily: memory exhaustion, log leakage, path traversal via 
 | **Temp file leaks** | Mitigated | No temp files for multipart/media; in-memory only within the request lifetime. |
 | **Body / key logging** | Mitigated | Usage hooks emit `key_hash` (12 hex of SHA-256), never raw keys. Bodies and multipart bytes are not logged. Prefer `hooks.jsonl.output: stdout` + platform log redaction. |
 | **Edge auth** | Orthogonal | Optional `edge_auth` gates routes; does not replace upstream key validity or body limits. |
+| **Upstream OAuth / WIF** | Documented | `oauth2`, SA JWT, `token_file` — secrets via env/files only; token endpoint errors never echo bodies. See [OAuth](/llm-gateway/guides/oauth-auth/) and [WIF](/llm-gateway/guides/wif-identity/). |
+| **Realtime TLS** | Documented | Upstream `wss` uses system root CAs (TLS 1.2+); TCP keepalive on upstream sockets. |
 | **Files API** | Documented | `/v1/files*` proxies only; objects live on the **upstream** account. Gateway does not store file bytes after the response completes. |
+
+---
+
+## Upstream credentials (OAuth / WIF)
+
+| Mode | Guidance |
+|------|----------|
+| `api_key_env` | Prefer env/K8s secrets over client-held provider keys when edge auth is on |
+| `oauth2` | Prefer `*_env` for client id/secret/refresh; never log tokens |
+| `client_bearer` | Edge key ≠ upstream OAuth token; do not put refresh tokens in edge keys |
+| `service_account_file` / `token_file` | Mount read-only, mode `0600`; process is high privilege |
+
+Full instructions: [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/), [WIF & workload identity](/llm-gateway/guides/wif-identity/).
 
 ---
 

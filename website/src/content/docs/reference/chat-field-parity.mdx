@@ -1,0 +1,66 @@
+---
+title: "Chat field parity"
+description: "Which OpenAI, Anthropic, and Google chat fields pass through, rebuild on translate, or drop — including thinking, tools, and cache knobs."
+sidebar:
+  order: 22
+  label: "Chat field parity"
+  group:
+    label: "Reference"
+---
+
+Field-level behavior for chat translation vs passthrough.
+
+## Legend
+
+| Symbol | Meaning |
+|--------|---------|
+| **PT** | Passthrough (same family): kept on the wire |
+| **IR** | Parsed into canonical IR and rebuilt on supported egress |
+| **drop** | Not mapped on that target dialect |
+
+## OpenAI request fields
+
+| Field | PT | → Anthropic | → Google | Notes |
+|-------|----|-------------|----------|-------|
+| `messages` / multimodal | yes | IR | IR | |
+| `tools` function | yes | IR | IR | |
+| `tools` custom/server | yes | **error** | **error** | [Tools policy](/llm-gateway/guides/tools-policy/) |
+| `tool_choice` | yes | IR | IR | |
+| `temperature` / `top_p` | yes | IR | IR | |
+| `max_tokens` / `max_completion_tokens` | yes | max_tokens | maxOutputTokens | source field recorded |
+| `stream` / `stream_options` | yes | stream | alt=sse | usage forced when streaming |
+| `logprobs` / `top_logprobs` | yes | drop | drop | OpenAI rebuild only |
+| `modalities` | yes | drop | drop | |
+| `prediction` | yes | drop | drop | |
+| `safety_identifier` | yes | drop | drop | |
+| `verbosity` | yes | drop | drop | |
+| `prompt_cache_key` / retention / options | yes | drop | drop | |
+| `service_tier` | yes | drop | drop | |
+| `user` | yes | drop | drop | |
+| `reasoning_effort` | yes | thinking | thinking_config | best-effort |
+
+## Multi-turn thinking
+
+| Dialect | Continuity | Behavior |
+|---------|------------|----------|
+| Anthropic | thinking / redacted_thinking + signature | PT + IR preserve signature |
+| OpenAI-compat | `reasoning_content` | PT round-trip; IR `BlockThinking` on translate |
+| Google | `thought` + `thoughtSignature` | Preserved on Google IR build/parse |
+
+## Anthropic extras
+
+`output_config`, `service_tier`, `inference_geo`, mid-conversation `system` — **passthrough** preserves wire JSON. Translate rebuilds only IR-mapped fields.
+
+## Citations / grounding
+
+Canonical `BlockCitation` and optional raw `GroundingMetadata`. Cross-family invent of citations is **not** performed.
+
+## Observability
+
+Optional `observe_dropped_fields: true` sets response header `X-Gateway-Dropped-Fields` (names only) on translate paths.
+
+## Related
+
+- [Tools policy](/llm-gateway/guides/tools-policy/)  
+- [SSE protocol](/llm-gateway/reference/sse-protocol/)  
+- [Deprecation policy](/llm-gateway/reference/deprecation-policy/)  

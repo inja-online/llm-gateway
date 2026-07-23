@@ -1,0 +1,101 @@
+---
+title: "Vertex AI dual-path"
+description: "Configure Gemini on Vertex (project/location publisher URLs) vs AI Studio, with service account and WIF auth."
+sidebar:
+  order: 14
+  label: "Vertex AI"
+  group:
+    label: "Guides"
+---
+
+Run native Gemini (`kind: google`) against **Vertex AI** or **AI Studio** by choosing the right `base_url` and auth mode.
+
+## What it is
+
+| Path | Host | Auth |
+|------|------|------|
+| **AI Studio** | `generativelanguage.googleapis.com/v1beta` | API key or OAuth |
+| **Vertex** | `{LOCATION}-aiplatform.googleapis.com/v1/projects/{P}/locations/{L}/publishers/google` | ADC / service account / token file |
+
+Client paths stay the same (`/v1beta/models/{model}:generateContent`, Live, embeddings translate, platform proxies). Only the **provider `base_url` + auth** change.
+
+## How it works
+
+Egress builds relative paths like `/models/{id}:generateContent`. That is appended to `base_url`, so Vertex `base_url` must already include the publisher prefix (no extra `/v1beta` segment unless your endpoint requires it).
+
+Helper (Go library / tests):
+
+```go
+base := config.VertexBaseURL("my-project", "us-central1")
+// https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/publishers/google
+
+config.VertexBaseURL("my-project", "global")
+// https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google
+```
+
+## Configuration
+
+### AI Studio (API key)
+
+```yaml
+providers:
+  google:
+    kind: google
+    base_url: "https://generativelanguage.googleapis.com/v1beta"
+    api_key_env: GEMINI_API_KEY
+defaults:
+  google_dialect: google
+```
+
+### Vertex + service account JSON
+
+```yaml
+providers:
+  vertex:
+    kind: google
+    base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
+    auth: service_account
+    service_account_file: /secrets/vertex-sa.json
+defaults:
+  google_dialect: vertex
+```
+
+Mount the SA file read-only. The gateway signs a JWT and exchanges it for an access token (no Cloud SDK).
+
+### Vertex + WIF / token file
+
+```yaml
+providers:
+  vertex:
+    kind: google
+    base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
+    auth: adc
+    token_file: /var/run/secrets/gcp-access-token
+```
+
+See [WIF & workload identity](/llm-gateway/guides/wif-identity/).
+
+## How to call
+
+Same as AI Studio from the client:
+
+```bash
+curl -sS "$GW/v1beta/models/gemini-2.0-flash:generateContent" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $EDGE_OR_TOKEN" \
+  -d '{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}'
+```
+
+With `api_key_env` / SA on the server, clients only need edge auth.
+
+## IAM notes
+
+- Prefer least privilege (`roles/aiplatform.user` or custom).  
+- Prefer Workload Identity over long-lived JSON keys when possible.  
+- Do not embed end-user OAuth for multi-tenant products without reviewing ToS.  
+
+## Related
+
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)  
+- [WIF & workload identity](/llm-gateway/guides/wif-identity/)  
+- [Platform API proxies](/llm-gateway/guides/platform-apis/)  
