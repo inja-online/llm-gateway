@@ -152,6 +152,8 @@ Any mix of `claude`, `gpt`, `grok` with separators `+` `,` `-`:
 
 Upstream pins (2026-07): see `examples/configs/claude-code-subscriptions.yaml`.
 
+**Always-fresh list:** `GET /v1/models?live=1` fans out to each provider’s live catalog (plus aliases). Config-only list is aliases. Refresh helper: `./examples/scripts/refresh-model-catalog.sh`. Maintainers: **`AGENTS.md`**.
+
 Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC_GROK_HEAVY`, `CC_GROK_FAST`, `CC_GPT_HEAVY=sol`.
 
 ## 5. How OAuth is applied upstream

@@ -294,11 +294,19 @@ From [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja
 
 Sources: [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) · [GPT-5.6](https://openai.com/index/gpt-5-6/) · [xAI models](https://docs.x.ai/developers/models).
 
-Edit alias **targets** if your plan 404s (keep short names). List config-derived models:
+Edit alias **targets** if your plan 404s (keep short names).
 
 ```bash
-curl -s http://localhost:8787/v1/models | jq .
+# Short aliases from YAML only
+curl -sk https://127.0.0.1:8787/v1/models | jq -r '.data[].id'
+
+# Live: aliases + every provider’s current /models (needs credentials)
+curl -sk https://127.0.0.1:8787/v1/models?live=1 | jq -r '.data[].id' | sort
+
+./examples/scripts/refresh-model-catalog.sh
 ```
+
+Agents/maintainers: see repo root **`AGENTS.md`** (“Model aliases must stay current”).
 
 ### What “translate” means
 

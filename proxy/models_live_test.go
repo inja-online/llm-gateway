@@ -116,3 +116,57 @@ defaults:
 		t.Fatalf("config catalog expected: %s", body)
 	}
 }
+
+func TestLiveModelsMergeOpenAIAndConfig(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"gpt-5.6-sol"},{"id":"gpt-5.6-terra"}]}`))
+	}))
+	t.Cleanup(up.Close)
+
+	cfg, err := config.Parse([]byte(`
+providers:
+  openai:
+    kind: openai
+    base_url: "` + up.URL + `"
+    api_key_env: TEST_OPENAI_KEY
+aliases:
+  gpt: openai/gpt-5.6-terra
+defaults:
+  openai_dialect: openai
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TEST_OPENAI_KEY", "sk-test")
+	gw := httptest.NewServer(NewServer(cfg, nil).Handler())
+	t.Cleanup(gw.Close)
+
+	resp, err := http.Get(gw.URL + "/v1/models?live=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.Contains(s, `"gpt"`) {
+		t.Fatalf("alias missing: %s", s)
+	}
+	if !strings.Contains(s, "openai/gpt-5.6-sol") {
+		t.Fatalf("live id missing: %s", s)
+	}
+	if !strings.Contains(s, "openai/gpt-5.6-terra") {
+		t.Fatalf("live terra missing: %s", s)
+	}
+}
+
+func TestParseUpstreamModelIDs(t *testing.T) {
+	ids := parseUpstreamModelIDs([]byte(`{"data":[{"id":"a"},{"id":"b"}]}`))
+	if len(ids) != 2 || ids[0] != "a" {
+		t.Fatalf("%v", ids)
+	}
+}

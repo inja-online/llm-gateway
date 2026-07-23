@@ -115,17 +115,28 @@ func buildModelsCatalog(cfg *config.Config) []modelEntry {
 }
 
 // handleModelsList serves GET /v1/models.
-// Default: OpenAI list envelope from config (no network).
-// Live Anthropic: when anthropic-version is set OR ?live=1 with an anthropic
-// provider, proxy GET {base}/models (#126). No usage event (discovery only).
+// Default: OpenAI list envelope from config aliases only (no network).
+//
+// Live discovery:
+//   - anthropic-version header → pure Anthropic upstream proxy (#126).
+//   - ?live=1 → fan-out GET /models to all openai/openai_compat/anthropic
+//     providers that have credentials, merge with config aliases as
+//     provider/model ids. Failed providers are skipped.
+//
+// No usage event (discovery only).
 func (s *Server) handleModelsList(w http.ResponseWriter, r *http.Request) {
-	if s.wantAnthropicLiveModels(r) {
+	// Pure Anthropic dialect clients still get byte-proxied Anthropic /models.
+	if r.Header.Get("anthropic-version") != "" {
 		s.proxyAnthropicModels(w, r, "/models")
 		return
 	}
+	catalog := buildModelsCatalog(s.cfg)
+	if wantLiveModels(r) {
+		catalog = s.mergeLiveModels(r, catalog)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"object": "list",
-		"data":   buildModelsCatalog(s.cfg),
+		"data":   catalog,
 	})
 }
 
@@ -155,10 +166,11 @@ func (s *Server) handleModelsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) wantAnthropicLiveModels(r *http.Request) bool {
+	// Single-model GET still uses Anthropic live path for ?live=1 (proxy one id).
 	if r.Header.Get("anthropic-version") != "" {
 		return true
 	}
-	return r.URL.Query().Get("live") == "1" || strings.EqualFold(r.URL.Query().Get("live"), "true")
+	return wantLiveModels(r)
 }
 
 // proxyAnthropicModels forwards discovery to a kind:anthropic provider.
