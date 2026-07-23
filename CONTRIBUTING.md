@@ -38,7 +38,7 @@ Coverage gate in CI is **≥ 90%**. Add tests with behavior changes.
 | Package | Role |
 |---|---|
 | `proxy/` | HTTP pipeline (OpenAI, Anthropic, Google handlers; media; edge auth) |
-| `proxy/token.go` | `TokenSource` for ADC / service-account style Bearer tokens |
+| `proxy/token.go` / `proxy/oauth2_token.go` | `TokenSource`, OAuth2 / SA JWT auto-wire (`auth: oauth2`, `service_account_file`) |
 | `canonical/` | Dialect-neutral IR (same package). Files by modality: `chat.go`, `image.go`, `video.go`, `audio.go`, `realtime.go` — do not re-merge into one file |
 | `ingress/openai` | OpenAI dialect (+ Gemini OpenAI-compat clients) |
 | `ingress/anthropic` | Anthropic Messages dialect |

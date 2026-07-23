@@ -28,16 +28,47 @@ type Provider struct {
 	// Auth selects how the gateway authenticates to the upstream.
 	// Empty or "api_key" (default): use client key / api_key_env with kind scheme.
 	// "adc" / "service_account": OAuth2 access token via TokenSource (Bearer).
+	// "oauth2": YAML oauth block → built-in TokenSource (client_credentials / refresh_token).
+	// "client_bearer": always forward client Authorization Bearer; never replace with env.
 	// "bearer": force Authorization: Bearer (useful for some Vertex-style hosts).
 	Auth string `yaml:"auth"`
 	// ServiceAccountFile is an optional path to a GCP service-account JSON key.
-	// Documented for operators; real ADC wiring uses a TokenSource (see proxy).
-	// When set with auth: service_account, the path is recorded for helpers.
+	// With auth: service_account (or adc), the binary auto-builds a JWT TokenSource
+	// from this file when present (no SetTokenSource inject required).
 	ServiceAccountFile string `yaml:"service_account_file"`
+	// OAuth holds OAuth2 client settings when auth is oauth2 (#104).
+	OAuth *OAuthConfig `yaml:"oauth"`
 	// Capabilities overrides kind defaults. Nil → DefaultCapabilities(Kind).
 	// openai_compat defaults to text-only; set image_gen/video_gen/… explicitly.
 	Capabilities *Capabilities `yaml:"capabilities"`
 }
+
+// OAuthConfig is the YAML oauth: block for auth: oauth2 (#104).
+// Secrets should come from env vars (*_env); inline fields are allowed for tests.
+//
+// Grant selection (when grant is empty):
+//   - refresh_token if refresh_token / refresh_token_env is set
+//   - else client_credentials
+type OAuthConfig struct {
+	TokenURL        string            `yaml:"token_url"`
+	ClientID        string            `yaml:"client_id"`         // prefer client_id_env
+	ClientIDEnv     string            `yaml:"client_id_env"`
+	ClientSecret    string            `yaml:"client_secret"`     // prefer client_secret_env
+	ClientSecretEnv string            `yaml:"client_secret_env"`
+	RefreshToken    string            `yaml:"refresh_token"`     // prefer refresh_token_env
+	RefreshTokenEnv string            `yaml:"refresh_token_env"`
+	Scopes          []string          `yaml:"scopes"`
+	Audience        string            `yaml:"audience"` // optional form field "audience"
+	Extra           map[string]string `yaml:"extra"`    // extra form fields (no secrets in logs)
+	// Grant overrides auto detection: "client_credentials" | "refresh_token".
+	Grant string `yaml:"grant"`
+}
+
+// OAuth grant type constants.
+const (
+	OAuthGrantClientCredentials = "client_credentials"
+	OAuthGrantRefreshToken      = "refresh_token"
+)
 
 // DefaultMaxBodyBytes is the request/response body cap when max_body_bytes is unset.
 const DefaultMaxBodyBytes int64 = 32 << 20 // 32 MiB
@@ -82,10 +113,12 @@ type EdgeAuth struct {
 
 // Auth modes for a provider. Empty / "api_key" is the historical default.
 const (
-	AuthAPIKey         = "api_key"          // default: x-goog-api-key / Bearer / x-api-key from client or api_key_env
-	AuthADC            = "adc"              // Google ADC / injected TokenSource → Authorization: Bearer
-	AuthServiceAccount = "service_account"  // same as adc for token application; file path for operators
-	AuthBearer         = "bearer"           // force Bearer (OpenAI-style) even for google-shaped hosts
+	AuthAPIKey         = "api_key"         // default: x-goog-api-key / Bearer / x-api-key from client or api_key_env
+	AuthADC            = "adc"             // Google ADC / injected or auto SA TokenSource → Bearer
+	AuthServiceAccount = "service_account" // same as adc for token application; auto SA from file when set
+	AuthOAuth2         = "oauth2"          // YAML oauth block → built-in client_credentials / refresh_token TokenSource
+	AuthClientBearer   = "client_bearer"   // always forward client Bearer; never replace with api_key_env
+	AuthBearer         = "bearer"          // force Bearer (OpenAI-style) even for google-shaped hosts
 )
 
 type Config struct {
@@ -213,14 +246,17 @@ func (c *Config) validate() error {
 			c.Providers[name] = p
 		}
 		switch strings.ToLower(strings.TrimSpace(p.Auth)) {
-		case "", AuthAPIKey, AuthADC, AuthServiceAccount, AuthBearer:
+		case "", AuthAPIKey, AuthADC, AuthServiceAccount, AuthOAuth2, AuthClientBearer, AuthBearer:
 			// normalize empty → leave empty (treated as api_key)
 			if p.Auth != "" {
 				p.Auth = strings.ToLower(strings.TrimSpace(p.Auth))
 				c.Providers[name] = p
 			}
 		default:
-			return fmt.Errorf("config: provider %q: unknown auth %q (want api_key|adc|service_account|bearer)", name, p.Auth)
+			return fmt.Errorf("config: provider %q: unknown auth %q (want api_key|adc|service_account|oauth2|client_bearer|bearer)", name, p.Auth)
+		}
+		if err := validateProviderOAuth(name, c.Providers[name]); err != nil {
+			return err
 		}
 	}
 	for alias, target := range c.Aliases {
@@ -353,10 +389,137 @@ func (p Provider) AuthMode() string {
 	return a
 }
 
+// UsesTokenSource reports whether the provider authenticates via a server-held
+// TokenSource (ADC, service_account, or oauth2) rather than a client/env API key.
+func (p Provider) UsesTokenSource() bool {
+	switch p.AuthMode() {
+	case AuthADC, AuthServiceAccount, AuthOAuth2:
+		return true
+	default:
+		return false
+	}
+}
+
 // BodyLimit returns the effective request/response body size cap in bytes.
 func (c *Config) BodyLimit() int64 {
 	if c == nil || c.MaxBodyBytes <= 0 {
 		return DefaultMaxBodyBytes
 	}
 	return c.MaxBodyBytes
+}
+
+func validateProviderOAuth(name string, p Provider) error {
+	mode := p.AuthMode()
+	if mode == AuthOAuth2 {
+		if p.OAuth == nil {
+			return fmt.Errorf("config: provider %q: auth oauth2 requires oauth block", name)
+		}
+		return p.OAuth.validate(name)
+	}
+	// oauth block only valid with auth: oauth2
+	if p.OAuth != nil && mode != AuthOAuth2 {
+		return fmt.Errorf("config: provider %q: oauth block requires auth: oauth2", name)
+	}
+	return nil
+}
+
+func (o *OAuthConfig) validate(providerName string) error {
+	if o == nil {
+		return fmt.Errorf("config: provider %q: oauth block required", providerName)
+	}
+	if strings.TrimSpace(o.TokenURL) == "" {
+		return fmt.Errorf("config: provider %q: oauth.token_url required", providerName)
+	}
+	grant, err := o.EffectiveGrant()
+	if err != nil {
+		return fmt.Errorf("config: provider %q: %w", providerName, err)
+	}
+	switch grant {
+	case OAuthGrantClientCredentials:
+		if !o.hasClientID() {
+			return fmt.Errorf("config: provider %q: oauth client_credentials requires client_id or client_id_env", providerName)
+		}
+		if !o.hasClientSecret() {
+			return fmt.Errorf("config: provider %q: oauth client_credentials requires client_secret or client_secret_env", providerName)
+		}
+	case OAuthGrantRefreshToken:
+		if !o.hasRefreshToken() {
+			return fmt.Errorf("config: provider %q: oauth refresh_token grant requires refresh_token or refresh_token_env", providerName)
+		}
+	}
+	return nil
+}
+
+// EffectiveGrant returns the OAuth grant type (auto or explicit).
+// Auto: refresh_token when a refresh credential is configured; else client_credentials.
+func (o *OAuthConfig) EffectiveGrant() (string, error) {
+	if o == nil {
+		return "", fmt.Errorf("oauth: nil config")
+	}
+	g := strings.ToLower(strings.TrimSpace(o.Grant))
+	switch g {
+	case OAuthGrantClientCredentials, OAuthGrantRefreshToken:
+		return g, nil
+	case "":
+		if o.hasRefreshToken() {
+			return OAuthGrantRefreshToken, nil
+		}
+		return OAuthGrantClientCredentials, nil
+	default:
+		return "", fmt.Errorf("oauth.grant %q unknown (want client_credentials|refresh_token)", o.Grant)
+	}
+}
+
+func (o *OAuthConfig) hasClientID() bool {
+	return o != nil && (strings.TrimSpace(o.ClientID) != "" || strings.TrimSpace(o.ClientIDEnv) != "")
+}
+
+func (o *OAuthConfig) hasClientSecret() bool {
+	return o != nil && (strings.TrimSpace(o.ClientSecret) != "" || strings.TrimSpace(o.ClientSecretEnv) != "")
+}
+
+func (o *OAuthConfig) hasRefreshToken() bool {
+	return o != nil && (strings.TrimSpace(o.RefreshToken) != "" || strings.TrimSpace(o.RefreshTokenEnv) != "")
+}
+
+// ResolvedClientID returns inline client_id or the value of client_id_env.
+func (o *OAuthConfig) ResolvedClientID() string {
+	if o == nil {
+		return ""
+	}
+	if v := strings.TrimSpace(o.ClientID); v != "" {
+		return v
+	}
+	if o.ClientIDEnv != "" {
+		return strings.TrimSpace(os.Getenv(o.ClientIDEnv))
+	}
+	return ""
+}
+
+// ResolvedClientSecret returns inline client_secret or the value of client_secret_env.
+func (o *OAuthConfig) ResolvedClientSecret() string {
+	if o == nil {
+		return ""
+	}
+	if v := strings.TrimSpace(o.ClientSecret); v != "" {
+		return v
+	}
+	if o.ClientSecretEnv != "" {
+		return strings.TrimSpace(os.Getenv(o.ClientSecretEnv))
+	}
+	return ""
+}
+
+// ResolvedRefreshToken returns inline refresh_token or the value of refresh_token_env.
+func (o *OAuthConfig) ResolvedRefreshToken() string {
+	if o == nil {
+		return ""
+	}
+	if v := strings.TrimSpace(o.RefreshToken); v != "" {
+		return v
+	}
+	if o.RefreshTokenEnv != "" {
+		return strings.TrimSpace(os.Getenv(o.RefreshTokenEnv))
+	}
+	return ""
 }
