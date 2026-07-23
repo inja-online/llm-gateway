@@ -1,0 +1,332 @@
+---
+title: "Use subscriptions in any app"
+description: "Point Claude Desktop, ChatGPT/Codex Desktop, Cursor, Continue, Cline, Aider, Windsurf, and generic SDKs at the same subscription-backed gateway."
+sidebar:
+  order: 0
+  label: "Any app integrations"
+  group:
+    label: "Guides"
+---
+
+**Last updated:** 2026-07-23
+
+Run **one** local gateway with your **ChatGPT / Claude / SuperGrok** logins, then point **whatever client you like** at it. Same credentials, same models, two wire dialects.
+
+```
+  Claude Desktop          ──Anthropic──┐
+  Claude Code             ──Anthropic──┤
+  Cursor / Continue / Cline ──OpenAI───┼──►  llm-gateway  ──► subscriptions
+  ChatGPT Desktop / Codex ──OpenAI────┤
+  Aider / Windsurf / SDKs ──either────┘
+```
+
+| Dialect | Base URL | Credential |
+|---------|----------|------------|
+| **Anthropic** (`/v1/messages`) | `https://127.0.0.1:8787` | edge key e.g. `local-dev` |
+| **OpenAI** (`/v1/chat/completions`, `/v1/responses`, `/v1/models`) | `https://127.0.0.1:8787/v1` | same edge key |
+
+Related: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/) · [Cursor](/llm-gateway/guides/cursor-subscriptions/) · [OAuth](/llm-gateway/guides/oauth-auth/)
+
+---
+
+## Shared setup (do this once)
+
+```bash
+go build -o llm-gateway ./cmd/gateway
+
+./llm-gateway auth login chatgpt   # ChatGPT Plus/Pro via Codex OAuth
+./llm-gateway auth login claude    # Claude Pro/Max setup-token
+./llm-gateway auth import grok     # SuperGrok (Grok CLI recommended)
+
+source examples/shell/claude-code-helpers.sh
+export KEY=local-dev
+cc-gateway-up                      # HTTPS on 127.0.0.1:8787
+
+source examples/shell/apps-helpers.sh
+apps-setup                         # print every integration
+```
+
+TLS: prefer `mkcert -install` + `./examples/scripts/gen-localhost-tls.sh` so Electron apps trust the cert. Otherwise set `NODE_EXTRA_CA_CERTS` (and Python `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE`) to `examples/certs/localhost.pem`.
+
+Live models on **your** account:
+
+```bash
+curl -sk -H "Authorization: Bearer local-dev" \
+  'https://127.0.0.1:8787/v1/models?live=1' | jq -r '.data[].id' | sort
+```
+
+---
+
+## Claude Desktop
+
+Two config surfaces — use **both** if one alone does nothing on your build.
+
+### A. Shared Claude settings (recommended)
+
+Many Desktop builds share env with Claude Code via `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
+    "ANTHROPIC_API_KEY": "local-dev",
+    "ANTHROPIC_AUTH_TOKEN": "local-dev",
+    "ANTHROPIC_MODEL": "sonnet",
+    "NODE_EXTRA_CA_CERTS": "/absolute/path/to/examples/certs/localhost.pem"
+  }
+}
+```
+
+```bash
+apps-write-claude-settings   # backs up existing file, then writes
+```
+
+### B. Desktop config file
+
+| OS | Path |
+|----|------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+```json
+{
+  "mcpServers": {},
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
+    "ANTHROPIC_API_KEY": "local-dev",
+    "ANTHROPIC_AUTH_TOKEN": "local-dev",
+    "ANTHROPIC_MODEL": "sonnet",
+    "NODE_EXTRA_CA_CERTS": "/absolute/path/to/examples/certs/localhost.pem"
+  }
+}
+```
+
+```bash
+apps-claude-desktop          # show paths + JSON
+apps-write-claude-desktop    # write Desktop file (backs up; re-add MCP if wiped)
+```
+
+Template: [`examples/apps/claude-desktop/claude_desktop_config.json`](https://github.com/inja-online/llm-gateway/blob/master/examples/apps/claude-desktop/claude_desktop_config.json)
+
+**Notes**
+
+- Fully **quit** Claude Desktop (not just close the window) after saving.
+- Keep existing `mcpServers` when merging by hand — the write helper starts from a minimal file.
+- Enterprise/managed builds may use `inferenceGatewayBaseUrl` instead of `env`.
+- Routing non-Claude models depends on whether the UI accepts custom model strings; the **base URL** still sends Messages traffic through the gateway.
+
+---
+
+## ChatGPT Desktop / Codex (“GPT Desktop”)
+
+Codex CLI and many **ChatGPT desktop coding** modes read `~/.codex/config.toml`.
+
+```bash
+export INJA_GATEWAY_KEY=local-dev
+export NODE_EXTRA_CA_CERTS=/absolute/path/to/examples/certs/localhost.pem
+```
+
+```toml
+model = "gpt"
+model_provider = "inja"
+openai_base_url = "https://127.0.0.1:8787/v1"
+
+[model_providers.inja]
+name = "Inja LLM Gateway"
+base_url = "https://127.0.0.1:8787/v1"
+env_key = "INJA_GATEWAY_KEY"
+wire_api = "chat_completions"
+```
+
+```bash
+apps-codex
+apps-write-codex             # writes ~/.codex/config.toml (backs up)
+# template: examples/apps/codex/config.toml
+codex
+```
+
+Try models: `gpt`, `sol`, `terra`, `luna`, `grok-4.5`, `sonnet`.
+
+**Caveat:** pure ChatGPT **chat** UI may not honor custom providers (product limitation). **Codex / coding agent** surfaces that read `config.toml` are the supported path. If agent features need the Responses API, set `wire_api = "responses"`. See [Codex config](https://learn.chatgpt.com/docs/config-file/config-advanced).
+
+---
+
+## Cursor
+
+OpenAI key + **Override OpenAI Base URL** = `https://127.0.0.1:8787/v1`.
+
+Full steps: [Cursor + subscriptions](/llm-gateway/guides/cursor-subscriptions/).
+
+```bash
+source examples/shell/cursor-helpers.sh
+cursor-setup
+```
+
+---
+
+## Claude Code
+
+```bash
+KEY=local-dev ./examples/claude-code-multi.sh gpt      # or grok, gpt+grok, multi
+# or: cc-gpt / cc-grok / cc-multi
+```
+
+Full guide: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/).
+
+---
+
+## Continue.dev
+
+Merge models from [`examples/apps/continue/config.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/apps/continue/config.yaml) into `~/.continue/config.yaml`:
+
+- `provider: openai`
+- `apiBase: https://127.0.0.1:8787/v1`
+- `apiKey: local-dev`
+- `model: gpt` | `sol` | `grok-4.5` | `sonnet` | …
+
+```bash
+apps-continue
+```
+
+---
+
+## Cline / Roo Code
+
+VS Code / Cursor settings (key names vary by extension version):
+
+```json
+{
+  "cline.apiProvider": "openai",
+  "cline.openAiBaseUrl": "https://127.0.0.1:8787/v1",
+  "cline.openAiApiKey": "local-dev",
+  "cline.openAiModelId": "gpt"
+}
+```
+
+Snippet: [`examples/apps/cline/vscode-settings.snippet.json`](https://github.com/inja-online/llm-gateway/blob/master/examples/apps/cline/vscode-settings.snippet.json)
+
+```bash
+apps-cline
+```
+
+---
+
+## Aider
+
+```bash
+source examples/apps/aider/aider.env
+# OPENAI_API_BASE=https://127.0.0.1:8787/v1
+# OPENAI_API_KEY=local-dev
+
+aider --model openai/gpt
+# aider --model openai/sol
+# aider --model openai/grok-4.5
+```
+
+```bash
+apps-aider
+```
+
+---
+
+## Windsurf / Cascade
+
+Settings → AI / Models → OpenAI-compatible or custom provider:
+
+| Field | Value |
+|-------|--------|
+| Base URL | `https://127.0.0.1:8787/v1` |
+| API key | `local-dev` |
+| Models | gateway aliases (`gpt`, `grok-4.5`, `sonnet`, …) |
+
+```bash
+apps-windsurf
+# examples/apps/windsurf/settings.snippet.md
+```
+
+---
+
+## Generic OpenAI / Anthropic SDKs
+
+```bash
+# OpenAI-compatible
+source examples/apps/generic/openai.env
+
+# Anthropic Messages
+source examples/apps/generic/anthropic.env
+```
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="https://127.0.0.1:8787/v1", api_key="local-dev")
+client.chat.completions.create(model="gpt", messages=[{"role": "user", "content": "hi"}])
+```
+
+```python
+from anthropic import Anthropic
+client = Anthropic(base_url="https://127.0.0.1:8787", api_key="local-dev")
+client.messages.create(model="sonnet", max_tokens=256, messages=[{"role": "user", "content": "hi"}])
+```
+
+```bash
+apps-generic
+```
+
+---
+
+## Model names (Jul 2026 defaults)
+
+| Short alias | Typical upstream |
+|-------------|------------------|
+| `sonnet` / `opus` / `haiku` / `fable` | Claude Sonnet 5 / Opus 4.8 / Haiku 4.5 / Fable 5 |
+| `gpt` / `terra` / `sol` / `luna` | GPT-5.6 Terra / Sol / Luna (ChatGPT sub) |
+| `grok-4.5` / `composer-2.5` | Grok 4.5 / `grok-build-0.1` |
+
+Always verify with `?live=1`. Maintainers: repo **`AGENTS.md`**.
+
+---
+
+## What “works perfectly” means (honest matrix)
+
+| App | Supported path | Limits |
+|-----|----------------|--------|
+| **Claude Desktop** | Anthropic base via `env` in desktop config and/or `~/.claude/settings.json` | UI model picker may still show Claude-only labels; MCP merge careful |
+| **Claude Code** | `ANTHROPIC_BASE_URL` + combos | Best fidelity for Anthropic passthrough |
+| **Cursor** | OpenAI override + custom models | Agent may use Responses API (gateway supports it for openai_compat) |
+| **Codex / ChatGPT coding** | `~/.codex/config.toml` provider | Main ChatGPT **chat** UI may ignore custom base URL |
+| **Continue / Cline / Roo / Aider / Windsurf** | OpenAI-compatible settings | Extension / UI key names change — check current product UI |
+| **Any OpenAI SDK** | `OPENAI_BASE_URL` | Must include `/v1` |
+| **Any Anthropic SDK** | `ANTHROPIC_BASE_URL` | No `/v1` suffix for most SDKs |
+
+“Perfect” for a given app means: correct dialect, TLS trust, edge key, and a model id the gateway can route. Apps that **hardcode** first-party hosts cannot be forced through the gateway without their own override feature.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Connection refused | `cc-gateway-up` |
+| TLS / certificate errors | `mkcert -install` + regenerate certs; set `NODE_EXTRA_CA_CERTS` / `SSL_CERT_FILE` |
+| 401 | Edge key mismatch; or `auth status` missing provider |
+| 404 model | Use `?live=1` ids or retarget aliases |
+| App ignores base URL | That product may not support overrides (use Codex/Cursor/SDK instead) |
+| Claude Desktop no change | Fully quit app; try both `settings.json` and desktop JSON; Developer Mode |
+
+```bash
+cc-gateway-status
+./llm-gateway auth status
+curl -sk https://127.0.0.1:8787/healthz
+```
+
+---
+
+## File map
+
+| Path | Role |
+|------|------|
+| [`examples/apps/`](https://github.com/inja-online/llm-gateway/tree/master/examples/apps) | Templates per app |
+| [`examples/shell/apps-helpers.sh`](https://github.com/inja-online/llm-gateway/blob/master/examples/shell/apps-helpers.sh) | `apps-setup`, `apps-claude-desktop`, `apps-write-codex`, … |
+| [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml) | Subscription providers + aliases |
+| [`AGENTS.md`](https://github.com/inja-online/llm-gateway/blob/master/AGENTS.md) | Keep model ids current |

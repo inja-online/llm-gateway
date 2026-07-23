@@ -1,0 +1,48 @@
+# Continue.dev — merge into ~/.continue/config.yaml (or use Continue UI → config)
+# Docs: https://docs.continue.dev
+#
+# OpenAI-compatible → gateway. Model names = gateway aliases (sonnet, gpt, grok-4.5, …).
+
+name: Inja subscription gateway
+version: 1.0.0
+schema: v1
+
+models:
+  - name: GPT Terra (ChatGPT sub)
+    provider: openai
+    model: gpt
+    apiBase: https://127.0.0.1:8787/v1
+    apiKey: local-dev
+
+  - name: GPT Sol (ChatGPT sub)
+    provider: openai
+    model: sol
+    apiBase: https://127.0.0.1:8787/v1
+    apiKey: local-dev
+
+  - name: Grok 4.5 (SuperGrok)
+    provider: openai
+    model: grok-4.5
+    apiBase: https://127.0.0.1:8787/v1
+    apiKey: local-dev
+
+  - name: Composer / Grok Build
+    provider: openai
+    model: composer-2.5
+    apiBase: https://127.0.0.1:8787/v1
+    apiKey: local-dev
+
+  - name: Claude Sonnet 5
+    provider: openai
+    model: sonnet
+    apiBase: https://127.0.0.1:8787/v1
+    apiKey: local-dev
+
+  - name: Claude Opus 4.8
+    provider: openai
+    model: opus
+    apiBase: https://127.0.0.1:8787/v1
+    apiKey: local-dev
+
+# For self-signed certs without mkcert, set in your shell before launching VS Code:
+#   export NODE_EXTRA_CA_CERTS=/path/to/examples/certs/localhost.pem

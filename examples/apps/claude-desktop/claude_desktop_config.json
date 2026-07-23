@@ -1,0 +1,11 @@
+{
+  "$comment": "Merge into Claude Desktop. Paths: macOS ~/Library/Application Support/Claude/claude_desktop_config.json | Windows %APPDATA%\\Claude\\claude_desktop_config.json | Linux ~/.config/Claude/…  Also put the same env under ~/.claude/settings.json (shared with Claude Code). Restart app after save. KEY=local-dev is the gateway edge key; subscription OAuth lives on the gateway.",
+  "mcpServers": {},
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
+    "ANTHROPIC_API_KEY": "local-dev",
+    "ANTHROPIC_AUTH_TOKEN": "local-dev",
+    "ANTHROPIC_MODEL": "sonnet",
+    "NODE_EXTRA_CA_CERTS": "REPLACE_WITH_REPO/examples/certs/localhost.pem"
+  }
+}

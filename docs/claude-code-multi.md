@@ -194,7 +194,7 @@ cursor-setup    # OpenAI key + https://127.0.0.1:8787/v1 + model list
 | Override OpenAI Base URL | `https://127.0.0.1:8787/v1` |
 | Custom models | `gpt`, `grok-4.5`, `composer-2.5`, `sonnet`, … |
 
-Docs: [Cursor + subscriptions](https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/) · [`examples/cursor/README.md`](https://github.com/inja-online/llm-gateway/blob/master/examples/cursor/README.md)
+Docs: [Any app integrations](https://inja-online.github.io/llm-gateway/guides/app-integrations/) · [Cursor + subscriptions](https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/) · [`examples/cursor/README.md`](https://github.com/inja-online/llm-gateway/blob/master/examples/cursor/README.md) · [`examples/apps/`](https://github.com/inja-online/llm-gateway/tree/master/examples/apps)
 
 ## 7. Related
 

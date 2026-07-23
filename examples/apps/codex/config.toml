@@ -1,0 +1,27 @@
+# Codex CLI / ChatGPT coding (desktop Codex mode often shares ~/.codex)
+# Copy or merge into ~/.codex/config.toml
+#
+# 1) cc-gateway-up
+# 2) model_provider = "inja"
+# 3) codex
+#
+# Wire API: chat_completions works broadly; responses for agent-style Codex.
+# Auth: use the gateway edge key (local-dev), not a Platform sk- key.
+# Subscription OAuth lives on the gateway (llm-gateway auth login chatgpt|…​).
+
+model = "gpt"
+model_provider = "inja"
+openai_base_url = "https://127.0.0.1:8787/v1"
+
+[model_providers.inja]
+name = "Inja LLM Gateway"
+base_url = "https://127.0.0.1:8787/v1"
+env_key = "INJA_GATEWAY_KEY"
+wire_api = "chat_completions"
+# Prefer Responses for some agent features if your Codex build supports it:
+# wire_api = "responses"
+
+# Shell:
+#   export INJA_GATEWAY_KEY=local-dev
+#   export NODE_EXTRA_CA_CERTS=/path/to/examples/certs/localhost.pem
+#   # or use mkcert -install so TLS is trusted system-wide

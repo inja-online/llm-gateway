@@ -588,6 +588,21 @@ Shell helpers: `source examples/shell/claude-code-helpers.sh` → `cc-gpt` / `cc
 
 Guide: [docs/claude-code-multi.md](docs/claude-code-multi.md). Checklist: [docs/claude-code-checklist.md](docs/claude-code-checklist.md).
 
+### Same subscriptions in Claude Desktop, Codex, Cursor, …
+
+One gateway backs **any** OpenAI- or Anthropic-compatible app:
+
+```bash
+source examples/shell/claude-code-helpers.sh
+export KEY=local-dev && cc-gateway-up
+source examples/shell/apps-helpers.sh
+apps-setup                    # Claude Desktop, Codex, Continue, Cline, Aider, …
+# apps-write-claude-settings  # ~/.claude/settings.json
+# apps-write-codex            # ~/.codex/config.toml
+```
+
+Templates: [`examples/apps/`](examples/apps/). Docs: [Use subscriptions in any app](https://inja-online.github.io/llm-gateway/guides/app-integrations/).
+
 ---
 
 ## Library use

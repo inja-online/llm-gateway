@@ -1,0 +1,12 @@
+{
+  "//": "Merge into VS Code / Cursor user settings for Cline or Roo Code. Adjust extension-specific keys if your build renames them.",
+  "cline.apiProvider": "openai",
+  "cline.openAiBaseUrl": "https://127.0.0.1:8787/v1",
+  "cline.openAiApiKey": "local-dev",
+  "cline.openAiModelId": "gpt",
+
+  "roo-cline.apiProvider": "openai",
+  "roo-cline.openAiBaseUrl": "https://127.0.0.1:8787/v1",
+  "roo-cline.openAiApiKey": "local-dev",
+  "roo-cline.openAiModelId": "grok-4.5"
+}
