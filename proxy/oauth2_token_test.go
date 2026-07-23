@@ -919,3 +919,30 @@ defaults:
 		t.Fatalf("calls=%d", upCalls.Load())
 	}
 }
+
+func TestTokenInvalidatorHelpers(t *testing.T) {
+	if tokenInvalidatorFor(nil) != nil {
+		t.Fatal("nil")
+	}
+	if tokenInvalidatorFor(StaticTokenSource{AccessToken: "x"}) != nil {
+		t.Fatal("static has no Invalidate")
+	}
+	c := &CachingTokenSource{Inner: StaticTokenSource{AccessToken: "x"}}
+	if tokenInvalidatorFor(c) == nil {
+		t.Fatal("cache should invalidate")
+	}
+}
+
+func TestOAuth2SkewAndHTTPClientDefaults(t *testing.T) {
+	var o *OAuth2TokenSource
+	if o.skew() != DefaultOAuthSkew {
+		t.Fatal(o.skew())
+	}
+	if o.httpClient() == nil {
+		t.Fatal("client")
+	}
+	o2 := &OAuth2TokenSource{}
+	if o2.skew() != DefaultOAuthSkew || o2.httpClient() == nil {
+		t.Fatal("defaults")
+	}
+}

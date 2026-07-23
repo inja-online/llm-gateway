@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"bufio"
+	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -648,34 +650,103 @@ func TestCodeUnsupportedRealtimeBridgeStable(t *testing.T) {
 	}
 }
 
-func TestRealtimeTLSNotImplemented(t *testing.T) {
-	cfg, err := config.Parse([]byte(`
+func TestRealtimeTLSWSSPassthrough(t *testing.T) {
+	// Production path: base_url https → TLS dial + WebSocket upgrade (#105).
+	var gotAuth string
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		if r.URL.Path != "/realtime" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("no hijack")
+		}
+		conn, bufrw, err := hj.Hijack()
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := r.Header.Get("Sec-WebSocket-Key")
+		fmt.Fprintf(bufrw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", wsAccept(key))
+		bufrw.Flush()
+		_, _ = conn.Write([]byte("tls-upstream-hello"))
+		conn.Close()
+	}))
+	t.Cleanup(upstream.Close)
+
+	// Trust the httptest self-signed cert for this test only.
+	oldTLS := tlsClientConfig
+	tlsClientConfig = func() *tls.Config {
+		return &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
+	}
+	t.Cleanup(func() { tlsClientConfig = oldTLS })
+
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
 providers:
-  openai: { kind: openai, base_url: "https://api.openai.com/v1" }
+  openai: { kind: openai, base_url: %q }
 defaults:
   openai_dialect: openai
-`))
+`, upstream.URL)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	col := &collector{}
 	gw := httptest.NewServer(NewServer(cfg, col).Handler())
 	t.Cleanup(gw.Close)
-	req, _ := http.NewRequest(http.MethodGet, gw.URL+"/v1/realtime?model=openai/gpt-rt", nil)
-	req.Header.Set("Upgrade", "websocket")
-	req.Header.Set("Connection", "Upgrade")
-	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
-	req.Header.Set("Sec-WebSocket-Version", "13")
-	resp, err := http.DefaultClient.Do(req)
+
+	conn, err := dialWS(gw.URL+"/v1/realtime?model=openai/gpt-4o-realtime-preview", map[string]string{
+		"Authorization": "Bearer sk-tls-rt",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotImplemented {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("status %d %s", resp.StatusCode, body)
+	defer conn.Close()
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	buf := make([]byte, 64)
+	n, err := conn.Read(buf)
+	if err != nil && n == 0 {
+		t.Fatalf("read: %v", err)
 	}
-	col.one(t)
+	if !strings.Contains(string(buf[:n]), "tls-upstream-hello") {
+		t.Fatalf("got %q", buf[:n])
+	}
+	if gotAuth != "Bearer sk-tls-rt" {
+		t.Fatalf("auth=%q", gotAuth)
+	}
+	conn.Close()
+	ev := waitOne(t, col)
+	if ev.Modality != "realtime" || ev.Transport != hooks.TransportWebSocket {
+		t.Fatalf("%+v", ev)
+	}
+}
+
+func TestDialUpstreamWebSocketSchemes(t *testing.T) {
+	// Plain HTTP upstream.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		c.Close()
+	}()
+	u, _ := url.Parse("http://" + ln.Addr().String() + "/ws")
+	conn, err := dialUpstreamWebSocket(context.Background(), u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+
+	if _, err := dialUpstreamWebSocket(context.Background(), &url.URL{Scheme: "ftp", Host: "x"}); err == nil {
+		t.Fatal("expected unsupported scheme")
+	}
+	if _, err := dialUpstreamWebSocket(context.Background(), nil); err == nil {
+		t.Fatal("nil url")
+	}
 }
 
 func TestRealtimeUpstreamNon101(t *testing.T) {
@@ -727,5 +798,177 @@ func TestWsUpstreamURLStripsProvider(t *testing.T) {
 	}
 	if !strings.Contains(u, "model=m") {
 		t.Fatalf("%s", u)
+	}
+}
+
+func TestDialUpstreamWebSocketTLSAndDefaults(t *testing.T) {
+	// TLS listener with self-signed cert via httptest.
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	t.Cleanup(srv.Close)
+	old := tlsClientConfig
+	tlsClientConfig = func() *tls.Config {
+		return &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}
+	}
+	t.Cleanup(func() { tlsClientConfig = old })
+
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// https scheme
+	conn, err := dialUpstreamWebSocket(context.Background(), u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+
+	// wss scheme alias
+	u2 := *u
+	u2.Scheme = "wss"
+	conn, err = dialUpstreamWebSocket(context.Background(), &u2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+
+	// empty host
+	if _, err := dialUpstreamWebSocket(context.Background(), &url.URL{Scheme: "http"}); err == nil {
+		t.Fatal("empty host")
+	}
+	// ws scheme without port
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		c.Close()
+	}()
+	wu, _ := url.Parse("ws://" + ln.Addr().String() + "/x")
+	conn, err = dialUpstreamWebSocket(context.Background(), wu)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+}
+
+func TestRealtimeTokenSourceAuthOnWS(t *testing.T) {
+	var gotAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("no hijack")
+		}
+		conn, bufrw, err := hj.Hijack()
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := r.Header.Get("Sec-WebSocket-Key")
+		fmt.Fprintf(bufrw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", wsAccept(key))
+		bufrw.Flush()
+		conn.Close()
+	}))
+	t.Cleanup(upstream.Close)
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai: { kind: openai, base_url: %q, auth: oauth2, oauth: { token_url: "https://example.invalid", client_id: c, client_secret: s } }
+defaults:
+  openai_dialect: openai
+`, upstream.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	srv := NewServer(cfg, col)
+	srv.SetTokenSource("openai", StaticTokenSource{AccessToken: "ws-oauth-tok"})
+	gw := httptest.NewServer(srv.Handler())
+	t.Cleanup(gw.Close)
+	conn, err := dialWS(gw.URL+"/v1/realtime?model=openai/gpt-rt", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+	if gotAuth != "Bearer ws-oauth-tok" {
+		t.Fatalf("auth=%q", gotAuth)
+	}
+	waitOne(t, col)
+}
+
+func TestRealtimeMissingWSKey(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("should not dial")
+	}))
+	t.Cleanup(upstream.Close)
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai: { kind: openai, base_url: %q }
+defaults:
+  openai_dialect: openai
+`, upstream.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	gw := httptest.NewServer(NewServer(cfg, col).Handler())
+	t.Cleanup(gw.Close)
+	req, _ := http.NewRequest(http.MethodGet, gw.URL+"/v1/realtime?model=openai/rt", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	// no Sec-WebSocket-Key
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("%d %s", resp.StatusCode, body)
+	}
+	col.one(t)
+}
+
+func TestRealtimeDialFailure(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+providers:
+  openai: { kind: openai, base_url: "http://127.0.0.1:1" }
+defaults:
+  openai_dialect: openai
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	gw := httptest.NewServer(NewServer(cfg, col).Handler())
+	t.Cleanup(gw.Close)
+	req, _ := http.NewRequest(http.MethodGet, gw.URL+"/v1/realtime?model=openai/rt", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("%d %s", resp.StatusCode, body)
+	}
+	col.one(t)
+}
+
+func TestWsUpstreamURLBadBase(t *testing.T) {
+	// url.Parse rarely fails for concatenation; still exercise function.
+	u := wsUpstreamURL("http://h", "/p", nil)
+	if u == "" {
+		t.Fatal("empty")
 	}
 }

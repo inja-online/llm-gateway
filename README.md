@@ -265,6 +265,19 @@ Files and batches are **upstream-owned** (no gateway disk store). Body cap: `max
 
 Same-protocol passthrough only. Cross-protocol Realtime↔Live attempts return **`unsupported_realtime_bridge`**. Session limits: `realtime.max_sessions` (default 1024), `realtime.max_session_minutes` (default 60).
 
+**TLS / `wss`:** production upstreams work. Provider `base_url` may be `https://…` (or `wss://…`); the gateway dials TLS with system roots (TLS 1.2+) and HTTP Upgrade. Example:
+
+```yaml
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"   # dials wss via TLS
+    api_key_env: OPENAI_API_KEY
+    # capabilities.realtime defaults on for kind: openai
+```
+
+TCP keepalive (30s) is enabled on the upstream socket. Application WebSocket ping/pong frames from either peer are **passed through** raw. Auth uses the same modes as HTTP (`api_key_env`, `oauth2`, `client_bearer`, ADC/SA TokenSource).
+
 ### Completions (experimental)
 
 | Method | Path | Notes |
@@ -632,7 +645,6 @@ Shipped: multi-dialect chat fidelity, media/audio, Responses/Files/Batches, Real
 
 Possible follow-ups:
 
-- Hardened production `wss`/TLS dial edge cases for realtime
 - Optional full Realtime ↔ Live IR bridge (today: fail-closed)
 - Deeper cross-dialect image/video generation translation
 - Richer Prometheus histograms/labels beyond low-cardinality counters
