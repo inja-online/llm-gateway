@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
@@ -30,12 +31,28 @@ func (c *collector) OnUsage(_ context.Context, ev hooks.UsageEvent) {
 
 func (c *collector) one(t *testing.T) hooks.UsageEvent {
 	t.Helper()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.events) != 1 {
-		t.Fatalf("want exactly 1 usage event, got %d: %+v", len(c.events), c.events)
+	// Stream handlers may finish after the client has already read the body;
+	// wait briefly for the deferred emit under -race.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		c.mu.Lock()
+		n := len(c.events)
+		if n == 1 {
+			ev := c.events[0]
+			c.mu.Unlock()
+			return ev
+		}
+		if n > 1 {
+			evs := append([]hooks.UsageEvent(nil), c.events...)
+			c.mu.Unlock()
+			t.Fatalf("want exactly 1 usage event, got %d: %+v", n, evs)
+		}
+		c.mu.Unlock()
+		if time.Now().After(deadline) {
+			t.Fatalf("want exactly 1 usage event, got 0: []")
+		}
+		time.Sleep(time.Millisecond)
 	}
-	return c.events[0]
 }
 
 func newTestGateway(t *testing.T, upstream *httptest.Server) (*httptest.Server, *collector) {
