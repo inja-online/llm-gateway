@@ -101,9 +101,17 @@ func (s *Server) probeProvider(parent context.Context, name string, p config.Pro
 	if err != nil {
 		return 0, "build request failed"
 	}
-	// Prefer api_key_env for probes (no client request context). Never log keys.
+	// Prefer TokenSource / api_key_env for probes (no client request). Never log keys.
 	key := ""
-	if p.APIKeyEnv != "" {
+	if needsTokenSource(p) {
+		if ts := s.tokenSource(name); ts != nil {
+			tok, err := ts.Token(ctx)
+			if err != nil {
+				return 0, "token source error"
+			}
+			key = tok
+		}
+	} else if p.APIKeyEnv != "" {
 		key = envLookup(p.APIKeyEnv)
 	}
 	applyAuth(req, p, key)

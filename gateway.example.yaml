@@ -64,15 +64,36 @@ providers:
 
   # Vertex AI (Gemini on GCP) — native generateContent with OAuth2 / ADC.
   # Confirm region + project endpoints in Google Cloud docs (dated 2026-07).
-  # auth: adc|service_account uses Authorization: Bearer from a TokenSource
-  # (inject via proxy.Server.SetTokenSource in library mode; real Google ADC
-  # is optional — no cloud SDK bundled). Mount SA JSON read-only when used.
+  # auth: adc|service_account → Authorization: Bearer from TokenSource.
+  # Binary auto-wires SA JWT from service_account_file (or GOOGLE_APPLICATION_CREDENTIALS).
+  # Library mode may still inject via proxy.Server.SetTokenSource. No cloud SDK bundled.
+  # Mount SA JSON read-only when used.
   # vertex:
   #   kind: google
   #   base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
-  #   auth: adc
-  #   # service_account_file: /secrets/vertex-sa.json
-  #   # api_key_env:  # unused for adc
+  #   auth: service_account
+  #   service_account_file: /secrets/vertex-sa.json
+  #   # api_key_env:  # unused for TokenSource modes
+
+  # OAuth2 client credentials / refresh_token (#104) — any kind; Bearer upstream.
+  # Prefer *_env for secrets. grant auto: refresh when refresh_token(_env) set.
+  # openai_oauth:
+  #   kind: openai
+  #   base_url: "https://api.openai.com/v1"
+  #   auth: oauth2
+  #   oauth:
+  #     token_url: "https://oauth.example.com/token"
+  #     client_id_env: OPENAI_OAUTH_CLIENT_ID
+  #     client_secret_env: OPENAI_OAUTH_CLIENT_SECRET
+  #     # refresh_token_env: OPENAI_OAUTH_REFRESH_TOKEN
+  #     scopes: ["api"]
+
+  # Multi-tenant: edge auth + forward each client's OAuth access token upstream.
+  # openai_user_oauth:
+  #   kind: openai
+  #   base_url: "https://api.openai.com/v1"
+  #   auth: client_bearer
+  #   # api_key_env is ignored in client_bearer mode
 
   # --- OpenAI-compatible hosts (kind: openai_compat) ---
   deepseek:

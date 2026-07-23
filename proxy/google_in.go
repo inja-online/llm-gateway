@@ -212,7 +212,13 @@ func (s *Server) proxyGoogleCountTokens(w http.ResponseWriter, r *http.Request, 
 		return false
 	}
 	upReq.Header.Set("Content-Type", "application/json")
-	applyAuth(upReq, route.Provider, clientKey(r))
+	key := clientKey(r)
+	if k, msg := s.resolveUpstreamKey(r, route.ProviderName, route.Provider); msg == "" && k != "" {
+		key = k
+	} else if msg != "" {
+		return false
+	}
+	applyAuth(upReq, route.Provider, key)
 
 	resp, err := s.client.Do(upReq)
 	if err != nil {
@@ -301,7 +307,14 @@ func (s *Server) proxyGoogleGET(w http.ResponseWriter, r *http.Request, route Ro
 		writeGoogleError(w, http.StatusBadGateway, "api_error", "failed to build upstream request")
 		return
 	}
-	applyAuth(upReq, route.Provider, clientKey(r))
+	key := clientKey(r)
+	if k, msg := s.resolveUpstreamKey(r, route.ProviderName, route.Provider); msg == "" && k != "" {
+		key = k
+	} else if msg != "" {
+		writeGoogleError(w, http.StatusBadGateway, "api_error", msg)
+		return
+	}
+	applyAuth(upReq, route.Provider, key)
 
 	resp, err := s.client.Do(upReq)
 	if err != nil {

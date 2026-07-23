@@ -366,7 +366,9 @@ Single YAML file. Unknown fields are rejected.
 | `providers.<n>.base_url` | yes | Origin **with version prefix**; trailing `/` trimmed |
 | `providers.<n>.api_key_env` | no | Env var; when set & non-empty, **replaces** client key |
 | `providers.<n>.capabilities` | no | Override modality flags; nil → kind defaults (`openai_compat` = text only) |
-| `providers.<n>.auth` | no | `api_key` (default) \| `adc` \| `service_account` \| `bearer` |
+| `providers.<n>.auth` | no | `api_key` (default) \| `adc` \| `service_account` \| `oauth2` \| `client_bearer` \| `bearer` |
+| `providers.<n>.oauth` | when `auth: oauth2` | Token URL + client/refresh credentials (see [OAuth / token sources](#oauth--token-sources)) |
+| `providers.<n>.service_account_file` | no | GCP SA JSON path; auto TokenSource with `auth: service_account` / `adc` |
 | `defaults.openai_dialect` | no | Bare models on OpenAI ingress |
 | `defaults.anthropic_dialect` | no | Bare models on Anthropic ingress |
 | `defaults.google_dialect` | no | Bare models on Gemini ingress |
@@ -400,9 +402,50 @@ The gateway reads a client credential from:
 2. `x-api-key: <key>`, or  
 3. `x-goog-api-key: <key>`
 
-…and forwards it using the provider’s scheme, unless `api_key_env` or a TokenSource (`auth: adc` / `service_account`) supplies a server-held credential.
+…and forwards it using the provider’s scheme, unless a server-held mode replaces it:
+
+| Mode | Behavior |
+|---|---|
+| `api_key` (default) | Client key, or `api_key_env` when set and non-empty |
+| `bearer` | Always `Authorization: Bearer` (client or `api_key_env`) |
+| `client_bearer` | Always forward **client** Bearer; **never** replace with `api_key_env` (multi-tenant / user OAuth) |
+| `oauth2` | Built-in OAuth2 TokenSource from `oauth:` block (`client_credentials` or `refresh_token`) |
+| `adc` / `service_account` | Bearer from TokenSource: inject via `SetTokenSource`, or auto from `service_account_file` / `GOOGLE_APPLICATION_CREDENTIALS` |
 
 Usage events include `key_hash` (12 hex chars of SHA-256 of the **upstream** credential) — correlate without storing secrets.
+
+### OAuth / token sources
+
+Server-held OAuth2 (no cloud SDK; form POST + optional SA JWT):
+
+```yaml
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    auth: oauth2
+    oauth:
+      token_url: "https://oauth.example.com/token"
+      client_id_env: OPENAI_OAUTH_CLIENT_ID
+      client_secret_env: OPENAI_OAUTH_CLIENT_SECRET
+      # or refresh_token_env for refresh grant (auto when refresh is set)
+      scopes: ["api"]
+
+  vertex:
+    kind: google
+    base_url: "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT/locations/us-central1/publishers/google"
+    auth: service_account
+    service_account_file: /secrets/vertex-sa.json   # auto JWT → access token
+```
+
+- Tokens are cached until `expires_in` (30s skew). Concurrent refresh is single-flight.
+- Prefer `*_env` for secrets; inline `client_id` / `client_secret` / `refresh_token` are for tests only.
+- Edge auth is **orthogonal** to upstream OAuth — do not put provider refresh tokens in `edge_auth.keys`.
+- **ToS:** consumer subscription OAuth (e.g. ChatGPT/Claude consumer) may forbid multi-user products; use operator-held credentials and vendor docs.
+
+Multi-tenant pattern: `edge_auth` + `auth: client_bearer` so each client’s OAuth access token is forwarded upstream.
+
+See [SECURITY.md](SECURITY.md) and [docs/oauth-token-sources.md](docs/oauth-token-sources.md).
 
 ### Optional edge auth
 
@@ -442,7 +485,7 @@ Full comments: [`gateway.example.yaml`](gateway.example.yaml). Matrices: [docs/c
 | **xAI (Grok)** | `openai_compat` | Chat + Responses; Imagine images need `image_gen` — [docs/providers/xai.md](docs/providers/xai.md); alias `grok` |
 | **Groq** | `openai_compat` | **STT-first** split routing — [docs/providers/groq-stt.md](docs/providers/groq-stt.md); `audio_transcribe` + alias `whisper-fast` |
 | **Moonshot helpers** | `openai_compat` | `POST /v1/tokenizers/estimate-token-count`, `GET /v1/users/me/balance` via `?provider=` / default OpenAI dialect (regional base) |
-| **Vertex** | `google` + `auth: adc` | Inject TokenSource in library mode; no Google SDK bundled |
+| **Vertex** | `google` + `auth: adc` / `service_account` | Auto SA JWT from `service_account_file`, or inject TokenSource; no Google SDK bundled |
 
 ---
 

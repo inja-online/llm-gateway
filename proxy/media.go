@@ -438,7 +438,30 @@ func isOpenAIFamily(p config.Provider) bool {
 }
 
 // sendUpstreamRaw posts/gets with an optional Content-Type (for multipart).
+// For TokenSource auth modes, a single 401 triggers cache invalidate + force
+// refresh + one retry (safe here because the client has not been written yet).
+// Mid-SSE 401 after headers are flushed cannot be retried — document only.
 func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte, contentType string) (*http.Response, bool) {
+	resp, ok := x.doUpstreamOnce(route, method, path, body, contentType)
+	if !ok {
+		return nil, false
+	}
+	// One-shot force-refresh on 401 for server-held OAuth/ADC tokens (#104).
+	if resp.StatusCode == http.StatusUnauthorized && x.s != nil && needsTokenSource(route.Provider) {
+		if inv := tokenInvalidatorFor(x.s.tokenSource(route.ProviderName)); inv != nil {
+			inv.Invalidate()
+			io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+			resp.Body.Close()
+			resp, ok = x.doUpstreamOnce(route, method, path, body, contentType)
+			if !ok {
+				return nil, false
+			}
+		}
+	}
+	return resp, true
+}
+
+func (x *exchange) doUpstreamOnce(route Route, method, path string, body []byte, contentType string) (*http.Response, bool) {
 	key := clientKey(x.r)
 	x.ev.KeyHash = hashKey(key)
 
@@ -481,6 +504,21 @@ func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte
 		return nil, false
 	}
 	return resp, true
+}
+
+// tokenInvalidator is implemented by CachingTokenSource.
+type tokenInvalidator interface {
+	Invalidate()
+}
+
+func tokenInvalidatorFor(ts TokenSource) tokenInvalidator {
+	if ts == nil {
+		return nil
+	}
+	if inv, ok := ts.(tokenInvalidator); ok {
+		return inv
+	}
+	return nil
 }
 
 // peekMultipartModel looks for name="model" in a multipart body (best-effort).

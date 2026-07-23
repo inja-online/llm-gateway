@@ -30,7 +30,7 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 	m := newGatewayMetrics()
 	// Record usage into Prometheus registry for GET /metrics (#95/#154).
 	hook = metricsHook{m: m, next: hook}
-	return &Server{
+	s := &Server{
 		cfg:      cfg,
 		hook:     hook,
 		metrics:  m,
@@ -46,6 +46,9 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 		},
 		tokenSources: make(map[string]TokenSource),
 	}
+	// Auto-wire oauth2 / service_account_file TokenSources (#104).
+	s.autoWireTokenSources()
+	return s
 }
 
 func (s *Server) Handler() http.Handler {
@@ -243,13 +246,21 @@ func clientKey(r *http.Request) string {
 // Auth modes:
 //   - api_key (default): kind-specific header (Bearer / x-api-key / x-goog-api-key)
 //   - bearer: always Authorization: Bearer
-//   - adc / service_account: Authorization: Bearer from TokenSource (see applyAuthToken)
+//   - client_bearer: always Authorization: Bearer from the client key only (no env replace)
+//   - adc / service_account / oauth2: Authorization: Bearer from TokenSource
 //
-// For adc/service_account without a pre-fetched token, use applyAuthWithSource.
+// For TokenSource modes the caller must pass the resolved token as clientKey.
 func applyAuth(req *http.Request, p config.Provider, clientKey string) {
 	mode := p.AuthMode()
-	if mode == config.AuthADC || mode == config.AuthServiceAccount {
+	if mode == config.AuthADC || mode == config.AuthServiceAccount || mode == config.AuthOAuth2 {
 		// Token must be supplied as clientKey by the caller (from TokenSource).
+		if clientKey == "" {
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+clientKey)
+		return
+	}
+	if mode == config.AuthClientBearer {
 		if clientKey == "" {
 			return
 		}
@@ -280,20 +291,24 @@ func applyAuth(req *http.Request, p config.Provider, clientKey string) {
 	}
 }
 
-// resolveUpstreamKey returns the credential to send upstream and whether ADC
-// mode failed (token source missing or error). On ADC failure, msg is set.
+// resolveUpstreamKey returns the credential to send upstream. On TokenSource
+// modes, errMsg is set when the source is missing or returns an error.
 func (s *Server) resolveUpstreamKey(r *http.Request, providerName string, p config.Provider) (key string, errMsg string) {
 	mode := p.AuthMode()
-	if mode == config.AuthADC || mode == config.AuthServiceAccount {
+	if needsTokenSource(p) {
 		ts := s.tokenSource(providerName)
 		if ts == nil {
-			return "", "provider " + providerName + ": auth " + mode + " requires a TokenSource (SetTokenSource); real Google ADC is optional — inject a source or use auth: api_key"
+			return "", "provider " + providerName + ": auth " + mode + " requires a TokenSource (SetTokenSource, service_account_file, or oauth block); inject a source or use auth: api_key"
 		}
 		tok, err := ts.Token(r.Context())
 		if err != nil {
 			return "", "token source: " + err.Error()
 		}
 		return tok, ""
+	}
+	if mode == config.AuthClientBearer {
+		// Never substitute api_key_env — multi-tenant edge + user OAuth pattern.
+		return clientKey(r), ""
 	}
 	return clientKey(r), ""
 }

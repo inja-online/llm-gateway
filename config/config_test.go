@@ -316,3 +316,170 @@ edge_auth:
 		t.Fatal("expected error when keys_env empty")
 	}
 }
+
+func TestOAuth2ConfigParseAndValidate(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  openai:
+    kind: openai
+    base_url: "https://api.openai.com/v1"
+    auth: oauth2
+    oauth:
+      token_url: "https://auth.example/token"
+      client_id_env: CID
+      client_secret_env: CSEC
+      scopes: ["api"]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := cfg.Providers["openai"]
+	if p.AuthMode() != AuthOAuth2 {
+		t.Fatalf("auth %q", p.AuthMode())
+	}
+	if !p.UsesTokenSource() {
+		t.Fatal("expected UsesTokenSource")
+	}
+	if p.OAuth == nil || p.OAuth.TokenURL == "" {
+		t.Fatal("oauth block missing")
+	}
+	grant, err := p.OAuth.EffectiveGrant()
+	if err != nil || grant != OAuthGrantClientCredentials {
+		t.Fatalf("grant %q %v", grant, err)
+	}
+}
+
+func TestOAuth2RefreshGrantAuto(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  x:
+    kind: openai
+    base_url: "https://x"
+    auth: oauth2
+    oauth:
+      token_url: "https://auth.example/token"
+      refresh_token_env: RT
+      client_id: c
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := cfg.Providers["x"].OAuth.EffectiveGrant()
+	if err != nil || grant != OAuthGrantRefreshToken {
+		t.Fatalf("grant %q %v", grant, err)
+	}
+}
+
+func TestOAuth2ConfigRejects(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{"missing oauth block", `
+providers:
+  x: { kind: openai, base_url: "https://x", auth: oauth2 }
+`},
+		{"missing token_url", `
+providers:
+  x:
+    kind: openai
+    base_url: "https://x"
+    auth: oauth2
+    oauth:
+      client_id: a
+      client_secret: b
+`},
+		{"client_credentials missing secret", `
+providers:
+  x:
+    kind: openai
+    base_url: "https://x"
+    auth: oauth2
+    oauth:
+      token_url: "https://t"
+      client_id: a
+      grant: client_credentials
+`},
+		{"oauth without auth oauth2", `
+providers:
+  x:
+    kind: openai
+    base_url: "https://x"
+    oauth:
+      token_url: "https://t"
+      client_id: a
+      client_secret: b
+`},
+		{"bad grant", `
+providers:
+  x:
+    kind: openai
+    base_url: "https://x"
+    auth: oauth2
+    oauth:
+      token_url: "https://t"
+      client_id: a
+      client_secret: b
+      grant: password
+`},
+		{"unknown oauth field", `
+providers:
+  x:
+    kind: openai
+    base_url: "https://x"
+    auth: oauth2
+    oauth:
+      token_url: "https://t"
+      client_id: a
+      client_secret: b
+      nope: 1
+`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := Parse([]byte(tc.yaml)); err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestClientBearerAuthMode(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  x: { kind: openai, base_url: "https://x", auth: client_bearer }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers["x"].AuthMode() != AuthClientBearer {
+		t.Fatalf("%q", cfg.Providers["x"].AuthMode())
+	}
+	if cfg.Providers["x"].UsesTokenSource() {
+		t.Fatal("client_bearer is not TokenSource mode")
+	}
+}
+
+func TestOAuthResolvedSecrets(t *testing.T) {
+	t.Setenv("CID_R", "id-env")
+	t.Setenv("CSEC_R", "sec-env")
+	t.Setenv("RT_R", "rt-env")
+	o := &OAuthConfig{
+		ClientIDEnv:     "CID_R",
+		ClientSecretEnv: "CSEC_R",
+		RefreshTokenEnv: "RT_R",
+	}
+	if o.ResolvedClientID() != "id-env" || o.ResolvedClientSecret() != "sec-env" || o.ResolvedRefreshToken() != "rt-env" {
+		t.Fatalf("%q %q %q", o.ResolvedClientID(), o.ResolvedClientSecret(), o.ResolvedRefreshToken())
+	}
+	inline := &OAuthConfig{ClientID: "i", ClientSecret: "s", RefreshToken: "r"}
+	if inline.ResolvedClientID() != "i" || inline.ResolvedClientSecret() != "s" || inline.ResolvedRefreshToken() != "r" {
+		t.Fatal("inline")
+	}
+	if (*OAuthConfig)(nil).ResolvedClientID() != "" {
+		t.Fatal("nil")
+	}
+	if (*OAuthConfig)(nil).ResolvedClientSecret() != "" || (*OAuthConfig)(nil).ResolvedRefreshToken() != "" {
+		t.Fatal("nil secrets")
+	}
+}
