@@ -47,8 +47,41 @@ func (s *Server) handleGoogle(w http.ResponseWriter, r *http.Request) {
 
 	if !ok {
 		x.fail(http.StatusNotFound, "invalid_request_error",
-			"unknown google path; want models/{model}:generateContent, :streamGenerateContent, :countTokens, :embedContent, or :batchEmbedContents",
+			"unknown google path; want models/{model}:generateContent, :streamGenerateContent, :countTokens, :embedContent, :batchEmbedContents, :batchGenerateContent, or :asyncBatchEmbedContent",
 			hooks.StatusBadRequest)
+		return
+	}
+	// Async / batch platform methods (#198/#135): raw path passthrough, no chat parse.
+	if method == "batchGenerateContent" || method == "asyncBatchEmbedContent" || method == "asyncBatchEmbedContents" {
+		body, okBody := x.readBody()
+		if !okBody {
+			return
+		}
+		publicModel := model
+		x.ev.Model = publicModel
+		route, err := Resolve(s.cfg, DialectGoogle, publicModel)
+		if err != nil {
+			x.fail(http.StatusNotFound, "invalid_request_error", err.Error(), hooks.StatusBadRequest)
+			return
+		}
+		x.ev.Provider = route.ProviderName
+		if route.UpstreamModel == "" {
+			route.UpstreamModel = model
+		}
+		route.UpstreamModel = strings.TrimPrefix(route.UpstreamModel, "models/")
+		x.ev.UpstreamModel = route.UpstreamModel
+		if providerKind(route.Provider) != config.KindGoogle {
+			x.fail(http.StatusNotImplemented, "invalid_request_error",
+				"batch/async google methods require kind:google provider", hooks.StatusBadRequest)
+			return
+		}
+		path := "/models/" + route.UpstreamModel + ":" + method
+		resp, okUp := x.sendUpstream(route, path, body)
+		if !okUp {
+			return
+		}
+		defer resp.Body.Close()
+		s.forwardFilesResponse(x, resp)
 		return
 	}
 	stream := method == "streamGenerateContent"
@@ -158,6 +191,12 @@ func parseGoogleAction(action string) (model, method string, ok bool) {
 		return strings.TrimSuffix(action, ":generateVideos"), "generateVideos", true
 	case strings.HasSuffix(action, ":generateSpeech"):
 		return strings.TrimSuffix(action, ":generateSpeech"), "generateSpeech", true
+	case strings.HasSuffix(action, ":batchGenerateContent"):
+		return strings.TrimSuffix(action, ":batchGenerateContent"), "batchGenerateContent", true
+	case strings.HasSuffix(action, ":asyncBatchEmbedContents"):
+		return strings.TrimSuffix(action, ":asyncBatchEmbedContents"), "asyncBatchEmbedContents", true
+	case strings.HasSuffix(action, ":asyncBatchEmbedContent"):
+		return strings.TrimSuffix(action, ":asyncBatchEmbedContent"), "asyncBatchEmbedContent", true
 	default:
 		return "", "", false
 	}
