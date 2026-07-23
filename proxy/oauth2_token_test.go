@@ -946,3 +946,67 @@ func TestOAuth2SkewAndHTTPClientDefaults(t *testing.T) {
 		t.Fatal("defaults")
 	}
 }
+
+func TestFileTokenSourceAndWIFWire(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tok")
+	if err := os.WriteFile(path, []byte("  wif-access-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ts := FileTokenSource{Path: path}
+	tok, err := ts.Token(context.Background())
+	if err != nil || tok != "wif-access-token" {
+		t.Fatalf("%q %v", tok, err)
+	}
+	if _, err := (FileTokenSource{}).Token(context.Background()); err == nil {
+		t.Fatal("empty path")
+	}
+	if _, err := (FileTokenSource{Path: filepath.Join(dir, "missing")}).Token(context.Background()); err == nil {
+		t.Fatal("missing file")
+	}
+	empty := filepath.Join(dir, "empty")
+	_ = os.WriteFile(empty, []byte("  \n"), 0o600)
+	if _, err := (FileTokenSource{Path: empty}).Token(context.Background()); err == nil {
+		t.Fatal("empty token")
+	}
+
+	var gotAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"chatcmpl-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+	}))
+	t.Cleanup(upstream.Close)
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  openai:
+    kind: openai
+    base_url: %q
+    auth: adc
+    token_file: %q
+defaults:
+  openai_dialect: openai
+`, upstream.URL, path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &collector{}
+	gw := httptest.NewServer(NewServer(cfg, col).Handler())
+	t.Cleanup(gw.Close)
+	req, _ := http.NewRequest("POST", gw.URL+"/v1/chat/completions",
+		strings.NewReader(`{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("%d %s", resp.StatusCode, body)
+	}
+	if gotAuth != "Bearer wif-access-token" {
+		t.Fatalf("auth=%q", gotAuth)
+	}
+	col.one(t)
+}
