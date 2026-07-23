@@ -590,7 +590,20 @@ Guide: [docs/claude-code-multi.md](docs/claude-code-multi.md). Checklist: [docs/
 
 ### Same subscriptions in Claude Desktop, Codex, Cursor, …
 
-One gateway backs **any** OpenAI- or Anthropic-compatible app:
+One gateway backs **any** OpenAI- or Anthropic-compatible app.
+
+**From a release binary** (no git checkout):
+
+```bash
+llm-gateway helpers install    # or: llm-gateway load-helpers
+# add to ~/.zshrc the "source …" lines it prints, then:
+source ~/.config/inja-gateway/shell/claude-code-helpers.sh
+source ~/.config/inja-gateway/shell/cursor-helpers.sh
+source ~/.config/inja-gateway/shell/apps-helpers.sh
+export KEY=local-dev && cc-gateway-up
+```
+
+**From a git checkout:**
 
 ```bash
 source examples/shell/claude-code-helpers.sh

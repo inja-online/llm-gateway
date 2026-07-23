@@ -98,6 +98,12 @@ func run(args []string) error {
 		switch args[0] {
 		case "auth":
 			return runAuth(args[1:])
+		case "helpers", "load-helpers":
+			// load-helpers is an alias for helpers install (user-friendly).
+			if args[0] == "load-helpers" {
+				return runHelpers(append([]string{"install"}, args[1:]...))
+			}
+			return runHelpers(args[1:])
 		case "version", "-version", "--version":
 			fmt.Println("llm-gateway", version)
 			return nil
@@ -108,6 +114,9 @@ func run(args []string) error {
   llm-gateway auth login claude        Claude subscription setup-token
   llm-gateway auth login grok          SuperGrok / X Premium+ device OAuth
   llm-gateway auth status|logout|env   Manage stored subscription credentials
+  llm-gateway helpers install          Install shell helpers from this binary
+  llm-gateway load-helpers             Alias for helpers install
+  llm-gateway helpers source           Print source lines for ~/.zshrc
   llm-gateway version
 
 Env:
@@ -116,6 +125,7 @@ Env:
   GATEWAY_TLS_CERT     PEM cert path (with GATEWAY_TLS_KEY enables HTTPS)
   GATEWAY_TLS_KEY      PEM key path
   INJA_GATEWAY_AUTH_FILE  subscription credential store
+  INJA_GATEWAY_HELPERS_DIR  override helpers install directory
 `)
 			return nil
 		}
