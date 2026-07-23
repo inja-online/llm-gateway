@@ -26,6 +26,7 @@ If you find a vulnerability in **Inja LLM Gateway** (`llm-gateway`), please open
 - **Files API** (`/v1/files*`): the gateway does **not** persist uploads. Bytes exist only in the in-flight request/response (subject to the global body size limit). File objects live on the **upstream** provider account.
 - **Stored Responses** (`GET/DELETE /v1/responses/{id}`): proxied only; no gateway-side response store.
 - Prefer `hooks.jsonl.output: stdout` and your platform log pipeline over world-readable files.
+- **Realtime / Live WebSocket:** upstream TLS uses system root CAs and TLS 1.2+ by default (no custom CA pinning in v1). Idle load balancers may still drop long sessions — enable LB idle timeouts appropriately; the gateway sets TCP keepalive on the upstream socket.
 - Containers run as **non-root** (distroless). Keep the root filesystem read-only in Kubernetes when possible (see `deploy/k8s/gateway.yaml`).
 - Request/response body limit: configurable **`max_body_bytes`** (default **32 MiB**; see [README limits](README.md#limits--timeouts)). Oversize requests → HTTP **413** with a dialect-shaped error. Do not log multipart audio/image bytes.
 - **Multipart / media review:** [docs/security-multipart-review.md](docs/security-multipart-review.md) — size limits, filename handling (no local open), content-type notes, SSRF posture (URI pass-through, gateway does not fetch `image_url` / `file_data` URIs), `key_hash` only on usage events.

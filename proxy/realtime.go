@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -18,6 +19,20 @@ import (
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
 )
+
+// tlsClientConfig returns the TLS config for wss/https upstream dials.
+// Overridden in tests to trust httptest.NewTLSServer certs.
+var tlsClientConfig = func() *tls.Config {
+	return &tls.Config{MinVersion: tls.VersionTLS12}
+}
+
+// wsDialTimeout is the TCP+TLS dial budget for upstream WebSocket.
+const wsDialTimeout = 15 * time.Second
+
+// wsTCPKeepAlive is enabled on upstream TCP conns so idle LBs do not drop
+// long Realtime/Live sessions. Application WebSocket ping/pong frames from
+// either peer are passed through raw (no gateway-initiated control frames).
+const wsTCPKeepAlive = 30 * time.Second
 
 // sessionLimiter enforces process-local realtime concurrency and duration.
 type sessionLimiter struct {
@@ -275,15 +290,26 @@ func wsUpstreamURL(base, path string, q url.Values) string {
 	return u.String()
 }
 
-// proxyWebSocket dials the upstream with Upgrade, completes the client
-// handshake, then copies frames both ways until either side closes or the
-// session max duration elapses.
+// proxyWebSocket dials the upstream with HTTP Upgrade (plain or TLS/wss),
+// completes the client handshake, then copies frames both ways until either
+// side closes or the session max duration elapses.
 //
-// TODO(realtime): TLS/wss dial, full protocol validation, ping/pong,
-// OpenAI-Beta edge cases, Google Live auth query-key variants.
+// TLS uses system root CAs (MinVersion TLS1.2). Application WebSocket
+// ping/pong from either peer is passed through; TCP keepalive is enabled on
+// the upstream socket. Mid-session protocol validation is intentionally light
+// (raw frame passthrough).
 func (s *Server) proxyWebSocket(x *exchange, route Route, clientReq *http.Request, upstreamURL string) error {
 	key := clientKey(clientReq)
 	x.ev.KeyHash = hashKey(key)
+	if s != nil {
+		if k, errMsg := s.resolveUpstreamKey(clientReq, route.ProviderName, route.Provider); errMsg != "" {
+			x.fail(http.StatusBadGateway, "api_error", errMsg, hooks.StatusUpstreamError)
+			return fmt.Errorf("%s", errMsg)
+		} else if k != "" {
+			key = k
+			x.ev.KeyHash = hashKey(key)
+		}
+	}
 
 	clientWSKey := clientReq.Header.Get("Sec-WebSocket-Key")
 	if clientWSKey == "" {
@@ -302,20 +328,7 @@ func (s *Server) proxyWebSocket(x *exchange, route Route, clientReq *http.Reques
 		upURL.RawQuery = q.Encode()
 	}
 
-	if upURL.Scheme == "https" || upURL.Scheme == "wss" {
-		// TODO(realtime): dial TLS for production wss upstreams.
-		x.fail(http.StatusNotImplemented, "api_error",
-			"TLS WebSocket dial not yet implemented in this skeleton",
-			hooks.StatusUpstreamError)
-		return fmt.Errorf("tls ws not implemented")
-	}
-
-	addr := upURL.Host
-	if upURL.Port() == "" {
-		addr = net.JoinHostPort(upURL.Hostname(), "80")
-	}
-	d := net.Dialer{Timeout: 15 * time.Second}
-	upConn, err := d.DialContext(clientReq.Context(), "tcp", addr)
+	upConn, err := dialUpstreamWebSocket(clientReq.Context(), upURL)
 	if err != nil {
 		x.fail(http.StatusBadGateway, "api_error", "upstream dial failed: "+err.Error(), hooks.StatusUpstreamError)
 		return err
@@ -323,8 +336,12 @@ func (s *Server) proxyWebSocket(x *exchange, route Route, clientReq *http.Reques
 	// closed in closeBoth
 
 	// Build upstream upgrade request (reuse client Sec-WebSocket-Key for simplicity).
+	host := upURL.Host
+	if host == "" {
+		host = upURL.Hostname()
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "GET %s HTTP/1.1\r\nHost: %s\r\n", upURL.RequestURI(), upURL.Host)
+	fmt.Fprintf(&b, "GET %s HTTP/1.1\r\nHost: %s\r\n", upURL.RequestURI(), host)
 	b.WriteString("Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n")
 	fmt.Fprintf(&b, "Sec-WebSocket-Key: %s\r\n", clientWSKey)
 	if proto := clientReq.Header.Get("Sec-WebSocket-Protocol"); proto != "" {
@@ -471,4 +488,69 @@ func wsAccept(key string) string {
 	const magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 	h := sha1.Sum([]byte(key + magic))
 	return base64.StdEncoding.EncodeToString(h[:])
+}
+
+// dialUpstreamWebSocket opens a TCP (and optional TLS) connection for an
+// HTTP Upgrade to the upstream WebSocket. Supports http/ws and https/wss.
+func dialUpstreamWebSocket(ctx context.Context, upURL *url.URL) (net.Conn, error) {
+	if upURL == nil {
+		return nil, fmt.Errorf("nil upstream url")
+	}
+	host := upURL.Hostname()
+	if host == "" {
+		return nil, fmt.Errorf("upstream host required")
+	}
+	port := upURL.Port()
+	useTLS := false
+	switch strings.ToLower(upURL.Scheme) {
+	case "https", "wss":
+		useTLS = true
+		if port == "" {
+			port = "443"
+		}
+	case "http", "ws", "":
+		if port == "" {
+			port = "80"
+		}
+	default:
+		return nil, fmt.Errorf("unsupported websocket scheme %q", upURL.Scheme)
+	}
+	addr := net.JoinHostPort(host, port)
+
+	dctx := ctx
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok {
+		dctx, cancel = context.WithTimeout(ctx, wsDialTimeout)
+		defer cancel()
+	}
+	d := net.Dialer{Timeout: wsDialTimeout, KeepAlive: wsTCPKeepAlive}
+	conn, err := d.DialContext(dctx, "tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	if tc, ok := conn.(*net.TCPConn); ok {
+		_ = tc.SetKeepAlive(true)
+		_ = tc.SetKeepAlivePeriod(wsTCPKeepAlive)
+	}
+	if !useTLS {
+		return conn, nil
+	}
+	cfg := tlsClientConfig()
+	if cfg == nil {
+		cfg = &tls.Config{MinVersion: tls.VersionTLS12}
+	} else {
+		cfg = cfg.Clone()
+	}
+	if cfg.ServerName == "" {
+		cfg.ServerName = host
+	}
+	if cfg.MinVersion == 0 {
+		cfg.MinVersion = tls.VersionTLS12
+	}
+	tlsConn := tls.Client(conn, cfg)
+	if err := tlsConn.HandshakeContext(dctx); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("tls handshake: %w", err)
+	}
+	return tlsConn, nil
 }
