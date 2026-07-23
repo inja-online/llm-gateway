@@ -74,6 +74,7 @@ Claude Code needs a live API. Helpers start **HTTPS on 127.0.0.1:8787** in the b
 source examples/shell/claude-code-helpers.sh
 export KEY=local-dev
 cc-gateway-up          # certs + nohup + healthz
+cc-gateway-logs        # tail gateway.log (−f / −n N)
 # ANTHROPIC_BASE_URL=https://127.0.0.1:8787
 cc-gpt                 # or cc-grok / cc-gpt-grok / cc-multi
 ```

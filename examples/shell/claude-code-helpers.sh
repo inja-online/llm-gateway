@@ -4,6 +4,7 @@
 # Works in bash and zsh:
 #   source examples/shell/claude-code-helpers.sh
 #   cc-gateway-up          # background HTTPS gateway + wait for healthz
+#   cc-gateway-logs        # tail gateway.log (-f follow, -n N lines)
 #   cc-gpt                 # GPT only (Claude Code)
 #   cc-grok                # Grok only
 #   cc-gpt-grok            # GPT + Grok
@@ -219,10 +220,89 @@ cc-gateway-status() {
   else
     echo "not managed (no pidfile)"
   fi
+  echo "log=$state/gateway.log"
   if curl -skf --max-time 2 "$url/healthz" >/dev/null 2>&1; then
     echo "healthz ok  $url"
   else
     echo "healthz fail  $url"
+  fi
+}
+
+# Show / follow background gateway stdout+stderr (written by cc-gateway-up).
+#   cc-gateway-logs           # last 80 lines
+#   cc-gateway-logs -f        # follow (tail -f)
+#   cc-gateway-logs -n 200    # last 200 lines
+#   cc-gateway-logs --path    # print log file path only
+#   cc-gateway-logs -f -n 50  # last 50 then follow
+cc-gateway-logs() {
+  local state logfile lines=80 follow=0 path_only=0
+  state="$(_inja_cc_state_dir)"
+  logfile="${INJA_GATEWAY_LOG:-$state/gateway.log}"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -f|--follow)
+        follow=1
+        shift
+        ;;
+      -n|--lines)
+        if [[ -z "${2:-}" ]] || ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+          echo "usage: cc-gateway-logs [-f] [-n N] [--path]" >&2
+          return 2
+        fi
+        lines="$2"
+        shift 2
+        ;;
+      -n*)
+        lines="${1#-n}"
+        if ! [[ "$lines" =~ ^[0-9]+$ ]]; then
+          echo "usage: cc-gateway-logs [-f] [-n N] [--path]" >&2
+          return 2
+        fi
+        shift
+        ;;
+      --path|-p)
+        path_only=1
+        shift
+        ;;
+      -h|--help)
+        cat <<EOF
+usage: cc-gateway-logs [-f|--follow] [-n N] [--path]
+
+  Show logs from the background gateway started by cc-gateway-up.
+  Default file: \$XDG_STATE_HOME/inja-gateway/gateway.log
+                (override with INJA_GATEWAY_LOG)
+
+  -f, --follow   follow like tail -f
+  -n, --lines N  last N lines (default 80)
+  --path, -p     print log path only
+EOF
+        return 0
+        ;;
+      *)
+        echo "unknown arg: $1 (try cc-gateway-logs --help)" >&2
+        return 2
+        ;;
+    esac
+  done
+
+  if [[ "$path_only" -eq 1 ]]; then
+    printf '%s\n' "$logfile"
+    return 0
+  fi
+
+  if [[ ! -f "$logfile" ]]; then
+    echo "no log file yet: $logfile" >&2
+    echo "start the gateway: cc-gateway-up" >&2
+    return 1
+  fi
+
+  echo "── $logfile ──" >&2
+  if [[ "$follow" -eq 1 ]]; then
+    # shellcheck disable=SC2086
+    tail -n "$lines" -f "$logfile"
+  else
+    tail -n "$lines" "$logfile"
   fi
 }
 
