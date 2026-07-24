@@ -19,6 +19,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-24
+
+Consumer subscription OAuth proxy (ChatGPT / Claude / SuperGrok), Claude Code / Cursor helpers, and fidelity stack for subscription backends.
+
 ### Fixed
 
 - **Subscription OAuth proxy + model list:** inject Claude OAuth betas (`oauth-2025-04-20`, …) / `X-App: cli` and Codex `User-Agent`+`Originator`+`Chatgpt-Account-Id` for `oauth.credentials` providers; parse ChatGPT JWT account id on login/refresh; `GET /v1/models` only lists subscription aliases/catalog when the local auth store has usable credentials.
@@ -26,8 +30,6 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 ### Added
 
 - **Subscription fidelity stack:** Chrome-like TLS (utls) for Anthropic/ChatGPT hosts; Claude OAuth tool-name remap + response restore; optional cloaking (Claude Code system/billing/`cch`/`user_id`, mode auto/always/never); multi-account credential `pool` with round-robin and 429 cooldown retry; remote model catalog refresh (`INJA_GATEWAY_MODELS_URL`).
-
-### Added
 
 - **Subscription OAuth auth CLI + store:** `llm-gateway auth login chatgpt|claude|grok` (ChatGPT Codex PKCE, Claude setup-token, SuperGrok device-code / Grok CLI import), `auth status|logout|import|env`, credential store, `oauth.credentials: chatgpt|claude|grok`, config [`examples/configs/claude-code-subscriptions.yaml`](examples/configs/claude-code-subscriptions.yaml), package `subauth`.
 - **Claude Code combo launcher:** any provider mix (`gpt`, `grok`, `gpt+grok`, `multi`, …), Grok 4.5 + Composer 2.5 aliases, shell helpers `cc-gpt` / `cc-grok` / `cc-gpt-grok` / `cc-run`.

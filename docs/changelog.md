@@ -19,6 +19,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-24
+
+Consumer subscription OAuth proxy (ChatGPT / Claude / SuperGrok), Claude Code / Cursor helpers, and fidelity stack for subscription backends.
+
 ### Fixed
 
 - **Subscription OAuth proxy + model list:** inject Claude OAuth betas (`oauth-2025-04-20`, …) / `X-App: cli` and Codex `User-Agent`+`Originator`+`Chatgpt-Account-Id` for `oauth.credentials` providers; parse ChatGPT JWT account id on login/refresh; `GET /v1/models` only lists subscription aliases/catalog when the local auth store has usable credentials.
