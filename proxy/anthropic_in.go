@@ -56,6 +56,7 @@ func (s *Server) handleAnthropic(w http.ResponseWriter, r *http.Request) {
 
 // anthropicPassthrough forwards an Anthropic request to an Anthropic upstream,
 // rewriting only the model id. This is the full-fidelity path Claude Code uses.
+// For Claude subscription OAuth, applies tool rename + cloaking + cch signing.
 func (s *Server) anthropicPassthrough(x *exchange, route Route, body []byte, stream bool) {
 	var req map[string]any
 	if json.Unmarshal(body, &req) != nil {
@@ -64,6 +65,15 @@ func (s *Server) anthropicPassthrough(x *exchange, route Route, body []byte, str
 	}
 	req["model"] = route.UpstreamModel
 	upstreamBody, _ := json.Marshal(req)
+
+	var oauth claudeOAuthResult
+	if providerUsesClaudeSubscription(route.Provider) || subscriptionCredentialsID(route.Provider) == "claude" {
+		key, _ := s.resolveUpstreamKey(x.r, route.ProviderName, route.Provider)
+		oauth = prepareClaudeOAuthBody(upstreamBody, x.r.Header.Get("User-Agent"), cloakModeFromProvider(route.Provider), key)
+		if oauth.Applied {
+			upstreamBody = oauth.Body
+		}
+	}
 
 	resp, ok := x.sendUpstream(route, "/messages", upstreamBody)
 	if !ok {
@@ -76,17 +86,32 @@ func (s *Server) anthropicPassthrough(x *exchange, route Route, body []byte, str
 		return
 	}
 	if stream {
+		if len(oauth.ReverseMap) > 0 {
+			x.passthroughStreamMap(resp, extractAnthropicUsage, oauth.ReverseMap)
+			return
+		}
 		x.passthroughStream(resp, extractAnthropicUsage)
+		return
+	}
+	if len(oauth.ReverseMap) > 0 {
+		s.forwardAnthropicJSONMapped(x, resp, oauth.ReverseMap)
 		return
 	}
 	s.forwardAnthropicJSON(x, resp)
 }
 
 func (s *Server) forwardAnthropicJSON(x *exchange, resp *http.Response) {
+	s.forwardAnthropicJSONMapped(x, resp, nil)
+}
+
+func (s *Server) forwardAnthropicJSONMapped(x *exchange, resp *http.Response, reverse map[string]string) {
 	body, err := readAll(resp)
 	if err != nil {
 		x.fail(http.StatusBadGateway, "api_error", "failed to read upstream response", hooks.StatusUpstreamError)
 		return
+	}
+	if len(reverse) > 0 {
+		body = restoreClaudeOAuthResponse(body, reverse)
 	}
 	var parsed struct {
 		Usage *struct {

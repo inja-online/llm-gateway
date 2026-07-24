@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/inja-online/llm-gateway/config"
+	"github.com/inja-online/llm-gateway/subauth"
 )
 
 // TokenSource supplies OAuth2-style access tokens for providers using auth:
@@ -120,6 +121,24 @@ func (s *Server) tokenSource(provider string) TokenSource {
 		return nil
 	}
 	return s.tokenSources[provider]
+}
+
+// cooldownSubscriptionAccount marks the last-used store account for cooldown (429).
+func (s *Server) cooldownSubscriptionAccount(providerName string, p config.Provider) {
+	if s == nil {
+		return
+	}
+	ts := s.tokenSource(providerName)
+	if ts == nil {
+		return
+	}
+	if c, ok := ts.(*CachingTokenSource); ok && c.Inner != nil {
+		ts = c.Inner
+	}
+	if st, ok := ts.(*subauth.StoreTokenSource); ok {
+		st.CooldownLast(5 * time.Minute)
+	}
+	_ = p
 }
 
 // autoWireTokenSources constructs TokenSources from provider config (oauth2,

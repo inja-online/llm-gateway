@@ -23,6 +23,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 - **Subscription OAuth proxy + model list:** inject Claude OAuth betas (`oauth-2025-04-20`, …) / `X-App: cli` and Codex `User-Agent`+`Originator`+`Chatgpt-Account-Id` for `oauth.credentials` providers; parse ChatGPT JWT account id on login/refresh; `GET /v1/models` only lists subscription aliases/catalog when the local auth store has usable credentials.
 
+### Added
+
+- **Subscription fidelity stack:** Chrome-like TLS (utls) for Anthropic/ChatGPT hosts; Claude OAuth tool-name remap + response restore; optional cloaking (Claude Code system/billing/`cch`/`user_id`); multi-account credential `pool` with round-robin and 429 cooldown retry; remote model catalog refresh.
+
 ### Changed
 
 - **Product policy:** no more **wontfix / document-skip** for missing endpoints; see GitHub milestone M6.

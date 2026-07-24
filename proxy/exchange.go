@@ -193,6 +193,12 @@ type usageExtractor func(data []byte, ev *hooks.UsageEvent) bool
 // passthroughStream relays SSE bytes verbatim while scanning data lines for
 // usage. done payloads (e.g. "[DONE]") are handled by extract returning false.
 func (x *exchange) passthroughStream(resp *http.Response, extract usageExtractor) {
+	x.passthroughStreamMap(resp, extract, nil)
+}
+
+// passthroughStreamMap is like passthroughStream but rewrites Claude OAuth tool
+// names on each SSE line using reverseMap (may be nil).
+func (x *exchange) passthroughStreamMap(resp *http.Response, extract usageExtractor, reverse map[string]string) {
 	flusher, ok := x.w.(http.Flusher)
 	if !ok {
 		x.fail(http.StatusInternalServerError, "api_error", "streaming unsupported by server", hooks.StatusUpstreamError)
@@ -218,7 +224,11 @@ func (x *exchange) passthroughStream(resp *http.Response, extract usageExtractor
 				sawUsage = true
 			}
 		}
-		if _, werr := x.w.Write(line); werr != nil {
+		out := line
+		if len(reverse) > 0 {
+			out = restoreClaudeOAuthStreamLine(line, reverse)
+		}
+		if _, werr := x.w.Write(out); werr != nil {
 			return werr
 		}
 		flusher.Flush()

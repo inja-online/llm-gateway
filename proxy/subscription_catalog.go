@@ -95,7 +95,7 @@ func buildModelsCatalogCredentialAware(cfg *config.Config) []modelEntry {
 		if !ok || !usableByCred[cred] {
 			continue
 		}
-		ids := subscriptionCatalog[cred]
+		ids := catalogIDsForProvider(cred)
 		caps := capabilitiesFromProvider(p)
 		for _, id := range ids {
 			id = strings.TrimSpace(id)

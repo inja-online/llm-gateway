@@ -458,6 +458,19 @@ func (x *exchange) sendUpstreamRaw(route Route, method, path string, body []byte
 			}
 		}
 	}
+	// One-shot retry on 429 with another pool account when multi-account is configured.
+	if resp.StatusCode == http.StatusTooManyRequests && x.s != nil && needsTokenSource(route.Provider) {
+		x.s.cooldownSubscriptionAccount(route.ProviderName, route.Provider)
+		if inv := tokenInvalidatorFor(x.s.tokenSource(route.ProviderName)); inv != nil {
+			inv.Invalidate()
+		}
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+		resp.Body.Close()
+		resp, ok = x.doUpstreamOnce(route, method, path, body, contentType)
+		if !ok {
+			return nil, false
+		}
+	}
 	return resp, true
 }
 
@@ -494,7 +507,8 @@ func (x *exchange) doUpstreamOnce(route Route, method, path string, body []byte,
 	forwardOpenAIRequestHeaders(upReq, x.r, route.Provider)
 	applySubscriptionHeaders(upReq, x.r, route.Provider)
 
-	resp, err := x.s.client.Do(upReq)
+	client := x.s.httpClientFor(route.Provider.BaseURL, route.Provider)
+	resp, err := client.Do(upReq)
 	if err != nil {
 		if errors.Is(x.r.Context().Err(), context.Canceled) {
 			x.ev.Status = hooks.StatusClientAbort
@@ -503,6 +517,10 @@ func (x *exchange) doUpstreamOnce(route Route, method, path string, body []byte,
 		}
 		x.fail(http.StatusBadGateway, "api_error", "upstream request failed: "+err.Error(), hooks.StatusUpstreamError)
 		return nil, false
+	}
+	// Multi-account: cool down current slot on rate limit so the next try picks another.
+	if resp.StatusCode == http.StatusTooManyRequests && x.s != nil {
+		x.s.cooldownSubscriptionAccount(route.ProviderName, route.Provider)
 	}
 	return resp, true
 }

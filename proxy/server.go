@@ -12,12 +12,14 @@ import (
 
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
+	"github.com/inja-online/llm-gateway/internal/utls"
 )
 
 type Server struct {
 	cfg          *config.Config
 	hook         hooks.Hook
-	client       *http.Client
+	client       *http.Client // default (API keys, generic hosts)
+	subClient    *http.Client // utls Chrome TLS for Anthropic / ChatGPT subscription hosts
 	tokenSources map[string]TokenSource // provider name → ADC / SA token source
 	sessions     *sessionLimiter
 	metrics      *gatewayMetrics
@@ -44,11 +46,30 @@ func NewServer(cfg *config.Config, hook hooks.Hook) *Server {
 				ResponseHeaderTimeout: 60 * time.Second,
 			},
 		},
+		subClient:    utls.NewSubscriptionClient(),
 		tokenSources: make(map[string]TokenSource),
 	}
 	// Auto-wire oauth2 / service_account_file TokenSources (#104).
 	s.autoWireTokenSources()
+	// Background refresh of subscription model ids (optional network).
+	startRemoteModelsRefresh()
 	return s
+}
+
+// httpClientFor picks utls client for subscription / protected hosts.
+func (s *Server) httpClientFor(baseURL string, p config.Provider) *http.Client {
+	if s == nil {
+		return http.DefaultClient
+	}
+	if subscriptionCredentialsID(p) != "" || utls.HostNeeds(baseURL) {
+		if s.subClient != nil {
+			return s.subClient
+		}
+	}
+	if s.client != nil {
+		return s.client
+	}
+	return http.DefaultClient
 }
 
 func (s *Server) Handler() http.Handler {

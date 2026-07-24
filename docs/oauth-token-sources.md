@@ -260,12 +260,45 @@ For `oauth.credentials` providers the gateway adds CLI-compatible headers after 
 
 ChatGPT login/refresh parses the access/id JWT for `chatgpt_account_id` and stores it on the credential.
 
+#### TLS fingerprint (Anthropic / ChatGPT)
+
+Requests to `api.anthropic.com` and `chatgpt.com` use a **Chrome-like TLS ClientHello** (utls) so Cloudflare bot checks accept subscription traffic. Other hosts keep the standard Go transport.
+
+#### Claude OAuth body transforms
+
+When the upstream token is a Claude OAuth access token (`sk-ant-oat…`):
+
+| Step | Behavior |
+|------|----------|
+| **Tool rename** | Map third-party tool names (`bash`, `grep`, …) to Claude Code TitleCase (`Bash`, `Grep`, …); reverse on the response/SSE |
+| **Cloak (`auto`)** | If the client is **not** `claude-cli/*`, inject Claude Code system/billing blocks, sign `cch`, set `metadata.user_id` |
+| **cch signing** | `x-anthropic-billing-header` `cch=` is xxHash64 over the body (placeholder `00000` → signed) |
+
+Cloak mode via `oauth.extra.cloak` / `cloak_mode`: `auto` (default) \| `always` \| `never`.
+
+#### Multi-account pool
+
+The credential store supports **multiple accounts per provider**:
+
+```json
+{
+  "credentials": { "claude": { "access_token": "…" } },
+  "pool": {
+    "claude": [
+      { "id": "work", "access_token": "…", "refresh_token": "…" }
+    ]
+  }
+}
+```
+
+The gateway **round-robins** usable slots and **cools down** an account for 5 minutes after **429**, then retries once with another slot. Primary `credentials.<provider>` is always a pool member.
+
 #### Model list (`GET /v1/models`)
 
 When a provider uses `oauth.credentials`:
 
 - Aliases and `provider/model` targets for that provider appear **only if** the local store has a usable credential (`llm-gateway auth login` / import).
-- Logged-in providers also get a static subscription catalog (Claude / Codex / xAI ids) as `provider/<upstream-id>`.
+- Logged-in providers also get a model catalog (static table, optionally **refreshed** from `INJA_GATEWAY_MODELS_URL` or the default remote catalog) as `provider/<upstream-id>`.
 - Non-subscription providers (API keys) are unchanged.
 - `?live=1` still fans out to hosts that expose `/models` (Codex backend usually does not).
 

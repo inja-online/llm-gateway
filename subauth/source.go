@@ -9,13 +9,18 @@ import (
 
 // StoreTokenSource refreshes subscription OAuth tokens from the credential store.
 // Safe for concurrent use; refreshes under a mutex and rewrites the store.
+// Multi-account: picks a usable pool slot via round-robin (see Pool).
 type StoreTokenSource struct {
 	Path     string
 	Provider string
 	// Skew is subtracted from expiry when deciding to refresh (default 30s).
 	Skew time.Duration
+	// AccountID pins a pool slot (empty = pick from pool / primary).
+	AccountID string
 
 	mu sync.Mutex
+	// lastAccountID is the slot used for the most recent Token() (for cooldown).
+	lastAccountID string
 }
 
 // Token implements proxy.TokenSource.
@@ -36,18 +41,34 @@ func (s *StoreTokenSource) TokenWithExpiry(ctx context.Context) (string, time.Ti
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	c, ok := store.Get(s.Provider)
+
+	now := time.Now()
+	var acc Account
+	var ok bool
+	if s.AccountID != "" {
+		// Pin to labeled pool account or primary if id matches empty.
+		for _, a := range store.ListAccounts(s.Provider) {
+			if a.ID == s.AccountID {
+				acc, ok = a, true
+				break
+			}
+		}
+	} else {
+		acc, ok = store.PickAccount(s.Provider, now)
+	}
 	if !ok {
 		return "", time.Time{}, fmt.Errorf("subauth: no credentials for %s (run: llm-gateway auth login %s)", s.Provider, s.Provider)
 	}
+	s.lastAccountID = acc.ID
+	c := acc.Credential
+	c.Provider = s.Provider
 
 	skew := s.Skew
 	if skew <= 0 {
 		skew = defaultSkew
 	}
 	// Usable access token?
-	if c.AccessToken != "" && (c.Expiry.IsZero() || time.Now().Add(skew).Before(c.Expiry)) {
-		// Claude setup-token often has no refresh; still usable until Expiry.
+	if c.AccessToken != "" && (c.Expiry.IsZero() || now.Add(skew).Before(c.Expiry)) {
 		return c.AccessToken, c.Expiry, nil
 	}
 	if c.RefreshToken == "" {
@@ -78,11 +99,34 @@ func (s *StoreTokenSource) TokenWithExpiry(ctx context.Context) (string, time.Ti
 	} else if c.AccountID == "" {
 		c.AccountID = ParseAccountIDFromJWT(c.AccessToken)
 	}
-	store.Put(c)
+	acc.Credential = c
+	store.PutAccount(acc)
 	if err := store.Save(s.Path); err != nil {
 		return "", time.Time{}, err
 	}
 	return c.AccessToken, c.Expiry, nil
+}
+
+// LastAccountID returns the pool slot used by the last Token() call.
+func (s *StoreTokenSource) LastAccountID() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastAccountID
+}
+
+// CooldownLast marks the last used account unavailable (e.g. after 429).
+func (s *StoreTokenSource) CooldownLast(d time.Duration) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	id := s.lastAccountID
+	prov := s.Provider
+	s.mu.Unlock()
+	MarkCooldown(prov, id, d)
 }
 
 func defaultsForProvider(p string) (tokenURL, clientID string) {

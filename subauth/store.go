@@ -39,12 +39,17 @@ type Credential struct {
 }
 
 // Store is the on-disk credentials map.
+//
+// Primary credentials live in Credentials[provider]. Additional accounts for
+// the same provider (multi-account pool) live in Pool[provider].
 type Store struct {
 	Version     int                   `json:"version"`
 	Credentials map[string]Credential `json:"credentials"`
+	// Pool holds extra accounts per provider id (chatgpt|claude|grok).
+	Pool map[string][]Account `json:"pool,omitempty"`
 }
 
-const storeVersion = 1
+const storeVersion = 2
 
 // DefaultPath returns ~/.config/inja-gateway/credentials.json (or $INJA_GATEWAY_AUTH_FILE).
 func DefaultPath() (string, error) {
