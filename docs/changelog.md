@@ -19,6 +19,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+### Fixed
+
+- **Subscription OAuth proxy + model list:** inject Claude OAuth betas (`oauth-2025-04-20`, …) / `X-App: cli` and Codex `User-Agent`+`Originator`+`Chatgpt-Account-Id` for `oauth.credentials` providers; parse ChatGPT JWT account id on login/refresh; `GET /v1/models` only lists subscription aliases/catalog when the local auth store has usable credentials.
+
 ### Changed
 
 - **Product policy:** no more **wontfix / document-skip** for missing endpoints; see GitHub milestone M6.

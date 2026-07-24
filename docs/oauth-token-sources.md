@@ -248,6 +248,27 @@ Full guide: [claude-code-multi.md](claude-code-multi.md) · config [`examples/co
 
 **ToS:** personal use of accounts you own only; do not productize multi-tenant resale of consumer OAuth. Re-read OpenAI / Anthropic / xAI terms.
 
+#### Upstream headers the gateway injects
+
+For `oauth.credentials` providers the gateway adds CLI-compatible headers after Bearer auth:
+
+| Credentials | Injected (when missing / always for identity) |
+|-------------|-----------------------------------------------|
+| `claude` | `Authorization: Bearer` (never `x-api-key`); `anthropic-version: 2023-06-01`; `anthropic-beta` defaults including **`oauth-2025-04-20`** (merged with client betas); `X-App: cli` |
+| `chatgpt` | Codex-like `User-Agent` / `Originator: codex-tui`; **`Chatgpt-Account-Id`** from JWT claims stored at login |
+| `grok` | Plain Bearer only (no extra headers today) |
+
+ChatGPT login/refresh parses the access/id JWT for `chatgpt_account_id` and stores it on the credential.
+
+#### Model list (`GET /v1/models`)
+
+When a provider uses `oauth.credentials`:
+
+- Aliases and `provider/model` targets for that provider appear **only if** the local store has a usable credential (`llm-gateway auth login` / import).
+- Logged-in providers also get a static subscription catalog (Claude / Codex / xAI ids) as `provider/<upstream-id>`.
+- Non-subscription providers (API keys) are unchanged.
+- `?live=1` still fans out to hosts that expose `/models` (Codex backend usually does not).
+
 ---
 
 ## Observability

@@ -443,13 +443,15 @@ curl -s http://localhost:8787/healthz
 2. **Gateway** resolves `model` via aliases → `provider/model`.
 3. Same family as Anthropic → **passthrough**. Otherwise → **canonical IR translate**.
 4. **Upstream auth** comes from the subscription store (`oauth.credentials`), not from Claude Code’s env (except the edge/client key).
-5. **Usage** can be metered with `hooks.jsonl` (default `stdout` in the example config).
+5. **Subscription headers** — for OAuth providers the gateway injects CLI-compatible headers (Claude: `oauth-2025-04-20` betas + `X-App: cli`; ChatGPT/Codex: `User-Agent` / `Originator` / `Chatgpt-Account-Id`).
+6. **`GET /v1/models`** lists aliases/catalog ids only for providers you have logged into (credential-gated, offline).
+7. **Usage** can be metered with `hooks.jsonl` (default `stdout` in the example config).
 
 ```
   claude CLI  ──ANTHROPIC_BASE_URL──►  :8787
        KEY (edge)                         │
-                                          ├─ anthropic + Bearer (claude creds)
-                                          ├─ chatgpt + Bearer (chatgpt creds)
+                                          ├─ anthropic + Bearer + OAuth betas (claude creds)
+                                          ├─ chatgpt + Bearer + Codex headers (chatgpt creds)
                                           └─ xai + Bearer (grok creds)
 ```
 

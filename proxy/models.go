@@ -130,7 +130,7 @@ func (s *Server) handleModelsList(w http.ResponseWriter, r *http.Request) {
 		s.proxyAnthropicModels(w, r, "/models")
 		return
 	}
-	catalog := buildModelsCatalog(s.cfg)
+	catalog := s.modelsCatalog()
 	if wantLiveModels(r) {
 		catalog = s.mergeLiveModels(r, catalog)
 	}
@@ -155,7 +155,7 @@ func (s *Server) handleModelsGet(w http.ResponseWriter, r *http.Request) {
 		s.proxyAnthropicModels(w, r, "/models/"+upID)
 		return
 	}
-	for _, m := range buildModelsCatalog(s.cfg) {
+	for _, m := range s.modelsCatalog() {
 		if m.ID == id {
 			writeJSON(w, http.StatusOK, m)
 			return
@@ -199,6 +199,7 @@ func (s *Server) proxyAnthropicModels(w http.ResponseWriter, r *http.Request, pa
 	}
 	applyAuth(upReq, route.Provider, key)
 	copyForwardHeaders(upReq, r)
+	applySubscriptionHeaders(upReq, r, route.Provider)
 	resp, err := s.client.Do(upReq)
 	if err != nil {
 		writeOpenAIError(w, http.StatusBadGateway, "api_error", "upstream request failed")

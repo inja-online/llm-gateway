@@ -20,6 +20,12 @@ Claude Code still speaks **Anthropic Messages**. The gateway passthroughs Claude
                                               └── xAI Grok (device OAuth refresh)
 ```
 
+### Subscription request + model list behavior
+
+1. **Upstream headers** — for `oauth.credentials` the gateway injects Claude OAuth betas (`oauth-2025-04-20`, …) / Codex `User-Agent`+`Originator`+`Chatgpt-Account-Id` so subscription backends accept the request (not just a bare Bearer token).
+2. **`GET /v1/models`** — only lists aliases/catalog models for providers you have logged into. If you only ran `auth login claude`, `gpt` / ChatGPT catalog ids are omitted until ChatGPT is logged in too.
+3. **Routing** — you can still *call* a model id if you know it; missing credentials fail at token resolution with a clear error.
+
 ## Security & ToS (read this)
 
 - Log in only with **accounts you own**. Credentials are stored **locally** (`~/.config/inja-gateway/credentials.json`, mode `0600`).

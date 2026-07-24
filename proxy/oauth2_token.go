@@ -387,12 +387,9 @@ func tokenSourceFromProvider(p config.Provider) (TokenSource, error) {
 		// Subscription OAuth: tokens from `llm-gateway auth login` store.
 		if p.OAuth != nil {
 			if cred := strings.TrimSpace(p.OAuth.Credentials); cred != "" {
-				path, err := subauth.DefaultPath()
+				path, err := subauth.ResolvePath()
 				if err != nil {
 					return nil, err
-				}
-				if custom := strings.TrimSpace(os.Getenv("INJA_GATEWAY_AUTH_FILE")); custom != "" {
-					path = custom
 				}
 				return &CachingTokenSource{Inner: &subauth.StoreTokenSource{
 					Path:     path,

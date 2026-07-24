@@ -117,6 +117,7 @@ func (s *Server) fetchProviderModels(r *http.Request, name string, p config.Prov
 		req.Header.Set("anthropic-version", "2023-06-01")
 	}
 	copyForwardHeaders(req, r)
+	applySubscriptionHeaders(req, r, p)
 
 	resp, err := s.client.Do(req)
 	if err != nil {

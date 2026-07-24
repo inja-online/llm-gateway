@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -55,6 +56,50 @@ func DefaultPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, "inja-gateway", "credentials.json"), nil
+}
+
+// ResolvePath returns INJA_GATEWAY_AUTH_FILE if set, otherwise DefaultPath.
+func ResolvePath() (string, error) {
+	if p := strings.TrimSpace(os.Getenv("INJA_GATEWAY_AUTH_FILE")); p != "" {
+		return p, nil
+	}
+	return DefaultPath()
+}
+
+// HasUsableCredential reports whether the store has a credential that can
+// still produce an access token (live access, or refresh_token present).
+// Expired access without refresh is unusable.
+func HasUsableCredential(path, provider string) bool {
+	c, ok := LoadCredential(path, provider)
+	if !ok {
+		return false
+	}
+	return c.Usable(time.Now())
+}
+
+// LoadCredential loads one provider from path (missing file → false).
+func LoadCredential(path, provider string) (Credential, bool) {
+	if path == "" || provider == "" {
+		return Credential{}, false
+	}
+	store, err := Load(path)
+	if err != nil {
+		return Credential{}, false
+	}
+	return store.Get(provider)
+}
+
+// Usable reports whether this credential can still authorize requests.
+func (c Credential) Usable(now time.Time) bool {
+	if c.AccessToken == "" && c.RefreshToken == "" {
+		return false
+	}
+	// Live access token (zero expiry = long-lived / unknown).
+	if c.AccessToken != "" && (c.Expiry.IsZero() || now.Before(c.Expiry)) {
+		return true
+	}
+	// Can refresh.
+	return c.RefreshToken != ""
 }
 
 // Load reads the store from path. Missing file → empty store.

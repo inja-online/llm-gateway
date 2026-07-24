@@ -86,6 +86,7 @@ func RefreshAccessToken(ctx context.Context, client *http.Client, tokenURL, clie
 		ClientID:     clientID,
 		TokenURL:     tokenURL,
 		Expiry:       expiryFrom(tr),
+		AccountID:    AccountIDFromTokens(tr.AccessToken, tr.IDToken),
 	}
 	if tr.RefreshToken != "" {
 		c.RefreshToken = tr.RefreshToken

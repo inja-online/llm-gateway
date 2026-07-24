@@ -350,6 +350,7 @@ func (s *Server) proxyWebSocket(x *exchange, route Route, clientReq *http.Reques
 	tmp, _ := http.NewRequest(http.MethodGet, upstreamURL, nil)
 	applyAuth(tmp, route.Provider, key)
 	forwardOpenAIRequestHeaders(tmp, clientReq, route.Provider)
+	applySubscriptionHeaders(tmp, clientReq, route.Provider)
 	for k, vs := range tmp.Header {
 		for _, v := range vs {
 			fmt.Fprintf(&b, "%s: %s\r\n", k, v)

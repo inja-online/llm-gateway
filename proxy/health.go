@@ -115,6 +115,7 @@ func (s *Server) probeProvider(parent context.Context, name string, p config.Pro
 		key = envLookup(p.APIKeyEnv)
 	}
 	applyAuth(req, p, key)
+	applySubscriptionHeaders(req, nil, p)
 
 	client := s.client
 	if client == nil {

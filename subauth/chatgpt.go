@@ -118,6 +118,7 @@ func LoginChatGPT(ctx context.Context, noBrowser bool) (Credential, error) {
 		TokenURL:     ChatGPTTokenURL,
 		Expiry:       expiryFrom(tr),
 		Source:       "oauth_pkce",
+		AccountID:    AccountIDFromTokens(tr.AccessToken, tr.IDToken),
 	}
 	if c.RefreshToken == "" {
 		return Credential{}, fmt.Errorf("chatgpt oauth: no refresh_token (need offline_access)")
@@ -181,6 +182,7 @@ func ImportChatGPTFromCodexCLI() (Credential, error) {
 		ClientID:     ChatGPTClientID,
 		TokenURL:     ChatGPTTokenURL,
 		Source:       "import_codex_cli",
+		AccountID:    ParseAccountIDFromJWT(access),
 	}, nil
 }
 

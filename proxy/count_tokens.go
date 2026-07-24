@@ -86,6 +86,7 @@ func (s *Server) proxyCountTokensViaGoogle(w http.ResponseWriter, r *http.Reques
 	}
 	upReq.Header.Set("Content-Type", "application/json")
 	applyAuth(upReq, route.Provider, clientKey(r))
+	applySubscriptionHeaders(upReq, r, route.Provider)
 
 	resp, err := s.client.Do(upReq)
 	if err != nil {
@@ -192,6 +193,7 @@ func (s *Server) proxyCountTokens(w http.ResponseWriter, r *http.Request, route 
 	applyAuth(upReq, route.Provider, key)
 	copyForwardHeaders(upReq, r)
 	forwardOpenAIRequestHeaders(upReq, r, route.Provider)
+	applySubscriptionHeaders(upReq, r, route.Provider)
 
 	resp, err := s.client.Do(upReq)
 	if err != nil {

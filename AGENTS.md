@@ -28,11 +28,13 @@ Those upstream ids **change often**. Never invent or leave multi-year-old snapsh
 
 | Endpoint | Behavior |
 |----------|----------|
-| `GET /v1/models` | Config aliases only (offline, deterministic) |
-| `GET /v1/models?live=1` | Aliases **plus** live `GET {provider.base}/models` for openai / openai_compat / anthropic when credentials resolve; failures skipped |
+| `GET /v1/models` | Config aliases (offline) **filtered** by usable `oauth.credentials` store entries; plus static subscription catalog ids for logged-in chatgpt/claude/grok |
+| `GET /v1/models?live=1` | Above **plus** live `GET {provider.base}/models` for openai / openai_compat / anthropic when credentials resolve; failures skipped |
 | `anthropic-version` on `GET /v1/models` | Pure Anthropic upstream proxy (existing path) |
 
-Clients (Cursor, SDKs) that need “what exists on my account” should use **`?live=1`**, not the static alias list alone.
+Subscription OAuth (`oauth.credentials`) also injects CLI-compatible upstream headers (Claude OAuth betas, Codex UA / `Chatgpt-Account-Id`) — see `docs/oauth-token-sources.md`.
+
+Clients (Cursor, SDKs) that need “what exists on my API-key account” should use **`?live=1`**. Consumer subscription catalogs are local + credential-gated (Codex has no useful public `/models`).
 
 ### Stable short names
 

@@ -73,6 +73,11 @@ func (s *StoreTokenSource) TokenWithExpiry(ctx context.Context) (string, time.Ti
 	c.TokenURL = tokenURL
 	c.ClientID = clientID
 	c.Provider = s.Provider
+	if fresh.AccountID != "" {
+		c.AccountID = fresh.AccountID
+	} else if c.AccountID == "" {
+		c.AccountID = ParseAccountIDFromJWT(c.AccessToken)
+	}
 	store.Put(c)
 	if err := store.Save(s.Path); err != nil {
 		return "", time.Time{}, err
