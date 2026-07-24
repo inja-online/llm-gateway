@@ -136,6 +136,8 @@ providers:
     #   realtime: false
 
   # Moonshot / Kimi (use the regional base that matches your key).
+  # Full guide: docs/providers/moonshot-kimi.md (updated 2026-07-24).
+  # Vendor: platform.kimi.ai — API keys, K3 (kimi-k3), Kimi Code CLI /login — checked 2026-07.
   # Helpers proxied when defaults.openai_dialect or ?provider= points here (#89/#137):
   #   POST /v1/tokenizers/estimate-token-count
   #   GET  /v1/users/me/balance
@@ -146,6 +148,7 @@ providers:
   # moonshot_cn:
   #   kind: openai_compat
   #   base_url: "https://api.moonshot.cn/v1"
+  #   # api_key_env: MOONSHOT_API_KEY
 
   # Zhipu / Z.AI (GLM) — pick the regional OpenAI-compat base that matches your key.
   # Wrong region ⇒ auth fail. Full guide: docs/providers/zai.md (updated 2026-07-21).
@@ -266,7 +269,10 @@ aliases:
   fast: deepseek/deepseek-chat
   grok: xai/grok-3
   gemini: google/gemini-2.0-flash
-  kimi: moonshot/kimi-latest
+  # Model aliases (updated 2026-07-24) — Moonshot/Kimi; verify with GET /v1/models
+  kimi: moonshot/kimi-k3
+  kimi-k3: moonshot/kimi-k3
+  kimi-latest: moonshot/kimi-latest
   qwen-turbo: qwen/qwen-turbo
   qwen-plus: qwen/qwen-plus
   # STT-first: enable after capabilities.audio_transcribe: true on groq (see docs/providers/groq-stt.md)

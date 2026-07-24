@@ -1,0 +1,209 @@
+# Moonshot / Kimi (K3, API keys, Kimi Code CLI)
+
+**Last updated:** 2026-07-24  
+**Kind:** `openai_compat` (Bearer)  
+**Helpers:** `POST /v1/tokenizers/estimate-token-count`, `GET /v1/users/me/balance` ([#89](https://github.com/inja-online/llm-gateway/issues/89), [#137](https://github.com/inja-online/llm-gateway/issues/137))
+
+Moonshot AI’s **Kimi API Platform** is OpenAI-compatible. Through this gateway you get model rewrite, auth, metering, and thin proxies for Moonshot’s token-estimate and balance helpers — **not** a Kimi-specific dialect.
+
+## Get an API key
+
+1. Open the **[Kimi API Platform](https://platform.kimi.ai/)** (same product family as [platform.moonshot.ai](https://platform.moonshot.ai/)) and sign in.
+2. Go to **[API Keys](https://platform.kimi.ai/console/api-keys)** → **Create API Key**.
+3. Copy the key **once** (it is not shown again). Store it outside git:
+
+   ```bash
+   export MOONSHOT_API_KEY="sk-..."   # name used in vendor samples
+   ```
+
+4. **Billing / K3 access:** flagship models such as **Kimi K3** require a successful top-up (vendor minimum is currently **$1**). Cumulative recharge also sets rate-limit tiers — see [Recharge and rate limits](https://platform.kimi.ai/docs/pricing/limits).
+
+Never commit keys. Prefer `api_key_env` on the provider (or edge auth + server-side env) over pasting secrets into client configs.
+
+## Regional base URLs
+
+Match the **host that issued the key**. Wrong region ⇒ auth failure.
+
+| Region | `base_url` (gateway) | Notes |
+|---|---|---|
+| **International** | `https://api.moonshot.ai/v1` | Default in [`gateway.example.yaml`](../../gateway.example.yaml); vendor docs use this for K3 |
+| **China** | `https://api.moonshot.cn/v1` | Separate console/key family when you signed up on the CN platform |
+
+Vendor overview (checked **2026-07**): [API overview](https://platform.kimi.ai/docs/api/overview) · [Quickstart](https://platform.kimi.ai/docs/overview) · [Kimi K3](https://platform.kimi.ai/docs/guide/kimi-k3-quickstart).
+
+## Gateway config
+
+```yaml
+providers:
+  moonshot:
+    kind: openai_compat
+    base_url: "https://api.moonshot.ai/v1"
+    api_key_env: MOONSHOT_API_KEY
+    # openai_compat media defaults OFF — opt in only if your account exposes the route
+    # capabilities:
+    #   text: true
+
+  # China (uncomment only if your key is CN)
+  # moonshot_cn:
+  #   kind: openai_compat
+  #   base_url: "https://api.moonshot.cn/v1"
+  #   api_key_env: MOONSHOT_API_KEY
+
+defaults:
+  openai_dialect: openai   # or moonshot if bare model ids should hit Moonshot
+
+# Model aliases (updated 2026-07-24) — verify ids: GET /v1/models or vendor catalog
+aliases:
+  kimi: moonshot/kimi-k3
+  kimi-k3: moonshot/kimi-k3
+  kimi-latest: moonshot/kimi-latest   # vendor rolling id when available
+```
+
+### Model routing
+
+| Client `model` | Upstream |
+|---|---|
+| `moonshot/kimi-k3` | Explicit provider + K3 |
+| `kimi` / `kimi-k3` | Alias → `moonshot/kimi-k3` |
+| bare `kimi-k3` | Only if `defaults.openai_dialect: moonshot` |
+
+Prefer `provider/model` or aliases in multi-provider configs.
+
+### Common model ids (date-stamped)
+
+Confirm on [Models](https://platform.kimi.ai/docs/models) or `GET https://api.moonshot.ai/v1/models` with your key — names change.
+
+| Id | Role |
+|---|---|
+| `kimi-k3` | Flagship (2.8T class, **1M** context, vision, always-on thinking) |
+| `kimi-k2.7-code` / `kimi-k2.7-code-highspeed` | Coding-focused |
+| `kimi-k2.6` | General + multimodal |
+| `kimi-latest` | Rolling pointer when the platform exposes it |
+
+**K3 notes (vendor, 2026-07):** thinking is always on; set top-level `reasoning_effort` to `low` / `high` / `max` (default `max`). Some sampling fields are fixed server-side — see the [K3 guide](https://platform.kimi.ai/docs/guide/kimi-k3-quickstart). Streaming may include `reasoning_content` deltas (gateway maps these on translate when applicable).
+
+## Curl / SDK via gateway
+
+```bash
+export MOONSHOT_API_KEY=...
+
+curl -s http://localhost:8787/v1/chat/completions \
+  -H "Authorization: Bearer $MOONSHOT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "moonshot/kimi-k3",
+    "messages": [{"role": "user", "content": "ping"}]
+  }'
+```
+
+With **edge auth** enabled, clients send the edge key; upstream uses `api_key_env`.
+
+### Python (OpenAI SDK → gateway)
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["MOONSHOT_API_KEY"],  # or edge key if edge_auth is on
+    base_url="http://localhost:8787/v1",
+)
+print(client.chat.completions.create(
+    model="moonshot/kimi-k3",
+    messages=[{"role": "user", "content": "Introduce Kimi K3 in one sentence."}],
+).choices[0].message.content)
+```
+
+### Direct to Moonshot (no gateway)
+
+Same wire; only `base_url` changes:
+
+```python
+client = OpenAI(
+    api_key=os.environ["MOONSHOT_API_KEY"],
+    base_url="https://api.moonshot.ai/v1",
+)
+```
+
+## Moonshot helpers (via gateway)
+
+When the OpenAI-family provider resolves to your `moonshot` entry (`?provider=moonshot`, `X-Provider: moonshot`, or `defaults.openai_dialect: moonshot`):
+
+| Gateway path | Upstream |
+|---|---|
+| `POST /v1/tokenizers/estimate-token-count` | `{base}/tokenizers/estimate-token-count` |
+| `GET /v1/users/me/balance` | `{base}/users/me/balance` |
+
+```bash
+# Balance (pick provider explicitly in multi-provider configs)
+curl -s "http://localhost:8787/v1/users/me/balance?provider=moonshot" \
+  -H "Authorization: Bearer $MOONSHOT_API_KEY"
+
+# Token estimate
+curl -s "http://localhost:8787/v1/tokenizers/estimate-token-count?provider=moonshot" \
+  -H "Authorization: Bearer $MOONSHOT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"kimi-k3","messages":[{"role":"user","content":"hi"}]}'
+```
+
+## Kimi Code CLI (`kimi`)
+
+[Kimi Code CLI](https://www.kimi.com/code/) is Moonshot’s terminal agent (`kimi` binary). It can use a **platform API key** or Kimi Code OAuth. Official guide: [Use Kimi API Platform with Kimi Code CLI](https://platform.kimi.ai/docs/guide/kimi-code-cli).
+
+### Install
+
+```bash
+# macOS / Linux
+curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
+
+# Windows (PowerShell) — also need Git for Windows
+# irm https://code.kimi.com/kimi-code/install.ps1 | iex
+```
+
+Docs: [Getting started](https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started.html).
+
+### Connect with a platform API key
+
+1. Create a key on [platform.kimi.ai/console/api-keys](https://platform.kimi.ai/console/api-keys) (steps above).
+2. In a project directory:
+
+   ```bash
+   kimi
+   ```
+
+3. In the interactive UI, run:
+
+   ```text
+   /login
+   ```
+
+4. Select **`Kimi Platform (API key · platform.kimi.ai)`** — the platform must match where the key was created, or validation fails.
+5. Paste the API key → choose a model (e.g. **Kimi K3** when your account has access) → confirm.
+6. Verify with `/status` and a short prompt (e.g. “list this directory briefly”).
+
+To switch keys or platforms later, run `/login` again (CLI idle: wait for generation to finish, or `Esc` / `Ctrl-C`).
+
+### Kimi Code CLI vs this gateway
+
+| Path | When to use |
+|---|---|
+| **CLI `/login` → platform key** | Use Kimi Code’s own agent UI; traffic goes to Moonshot directly |
+| **Gateway `providers.moonshot`** | OpenAI/Anthropic SDKs, Cursor, Claude Code, multi-provider routing, usage hooks, shared edge auth |
+
+The gateway does **not** replace Kimi Code CLI login. Point OpenAI-compatible tools at the gateway (`…/v1` + `moonshot/kimi-k3` or alias `kimi`) when you want metering and multi-provider routing; use `/login` inside `kimi` for the native agent.
+
+## Checklist
+
+- [x] API key steps + env var
+- [x] Intl vs CN `base_url`
+- [x] K3 model id + alias samples
+- [x] Curl / SDK via gateway
+- [x] Token estimate + balance helpers
+- [x] Kimi Code CLI install + `/login` with platform key
+
+## Related
+
+- [`gateway.example.yaml`](../../gateway.example.yaml) — `moonshot` / `moonshot_cn` + `aliases.kimi`
+- [M6 surface notes](../m6-remaining-surface.md)
+- [Compatibility matrix](../compatibility-matrix.md) — `openai_compat` defaults
+- Vendor: [platform.kimi.ai docs](https://platform.kimi.ai/docs/overview) · [K3](https://platform.kimi.ai/docs/guide/kimi-k3-quickstart) · [Kimi Code CLI](https://platform.kimi.ai/docs/guide/kimi-code-cli)

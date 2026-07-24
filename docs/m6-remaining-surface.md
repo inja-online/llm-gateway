@@ -7,7 +7,7 @@ Companion to shipped proxy/fidelity waves. Documents behavior for issues that ar
 | Provider | Kind | Notes |
 |----------|------|-------|
 | xAI | openai_compat | Chat/Responses; deferred via `/v1/chat/deferred-completion/{id}`; Imagine needs `image_gen` |
-| Moonshot/Kimi | openai_compat | Helpers: estimate-token-count, balance; regional base_url |
+| Moonshot/Kimi | openai_compat | API keys, K3, Kimi Code CLI, helpers — [providers/moonshot-kimi.md](providers/moonshot-kimi.md); regional base_url |
 | Z.AI/GLM | openai_compat | Regional bases — [providers/zai.md](providers/zai.md); native extras use same base when vendor exposes OpenAI-shaped paths |
 | DeepSeek | openai_compat | Completions/FIM; Anthropic-compat hosts use `kind: anthropic` + DeepSeek base if vendor supports |
 | Groq | openai_compat | STT split — [providers/groq-stt.md](providers/groq-stt.md); Responses when base supports |

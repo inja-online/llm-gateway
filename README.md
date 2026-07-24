@@ -497,6 +497,7 @@ Full comments: [`gateway.example.yaml`](gateway.example.yaml). Matrices: [docs/c
 | **Qwen (DashScope)** | `openai_compat` | **Regional bases** + `compatible-mode` path — [docs/providers/qwen.md](docs/providers/qwen.md); aliases `qwen-turbo` / `qwen-plus` |
 | **xAI (Grok)** | `openai_compat` | Chat + Responses; Imagine images need `image_gen` — [docs/providers/xai.md](docs/providers/xai.md); alias `grok` |
 | **Groq** | `openai_compat` | **STT-first** split routing — [docs/providers/groq-stt.md](docs/providers/groq-stt.md); `audio_transcribe` + alias `whisper-fast` |
+| **Moonshot / Kimi** | `openai_compat` | API keys, K3, Kimi Code CLI, helpers — [docs/providers/moonshot-kimi.md](docs/providers/moonshot-kimi.md); aliases `kimi` / `kimi-k3`; regional base |
 | **Moonshot helpers** | `openai_compat` | `POST /v1/tokenizers/estimate-token-count`, `GET /v1/users/me/balance` via `?provider=` / default OpenAI dialect (regional base) |
 | **Vertex** | `google` + `auth: adc` / `service_account` | Auto SA JWT from `service_account_file`, or inject TokenSource; no Google SDK bundled |
 

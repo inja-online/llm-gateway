@@ -19,6 +19,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+### Added
+
+- **Docs:** [Moonshot / Kimi provider guide](providers/moonshot-kimi.md) — get API keys on platform.kimi.ai, Kimi K3 (`kimi-k3`), regional bases, gateway curl/SDK, helpers, Kimi Code CLI `/login`; example aliases `kimi` / `kimi-k3`.
+
 ## [0.2.0] — 2026-07-24
 
 Consumer subscription OAuth proxy (ChatGPT / Claude / SuperGrok), Claude Code / Cursor helpers, and fidelity stack for subscription backends.

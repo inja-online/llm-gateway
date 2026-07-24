@@ -60,7 +60,7 @@
 | [Compatibility](compatibility-matrix.md) | P / T / U matrix |
 | [SDK hermetic matrix](sdk-compatibility-matrix.md) | CI anchors |
 | [Deprecation policy](deprecation-policy.md) | Translation field drops |
-| [Z.AI](providers/zai.md) · [Qwen](providers/qwen.md) · [xAI](providers/xai.md) · [Groq STT](providers/groq-stt.md) · [DeepSeek FIM](providers/deepseek-fim.md) | Regional providers |
+| [Z.AI](providers/zai.md) · [Qwen](providers/qwen.md) · [xAI](providers/xai.md) · [Moonshot/Kimi](providers/moonshot-kimi.md) · [Groq STT](providers/groq-stt.md) · [DeepSeek FIM](providers/deepseek-fim.md) | Regional providers |
 | [service_tier / fingerprint](service-tier-fingerprint.md) | OpenAI optional metadata |
 | [cache_control policy](cache-control-policy.md) | Anthropic caching |
 | [Header matrix](header-matrix.md) | Rate-limit / request-id |
