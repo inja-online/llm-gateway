@@ -35,6 +35,7 @@ var subscriptionCatalog = map[string][]string{
 		"gpt-5.4-mini",
 	},
 	subauth.ProviderGrok: {
+		"grok-4.6",
 		"grok-4.5",
 		"grok-4.3",
 		"grok-build-0.1",

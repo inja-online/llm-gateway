@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -56,6 +57,23 @@ func TestHelpersInstallAndSource(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "certs")); err != nil {
 		t.Fatal("certs dir", err)
+	}
+	for _, script := range []string{"gen-localhost-tls.sh", "claude-grok"} {
+		p := filepath.Join(dir, "scripts", script)
+		st, err := os.Stat(p)
+		if err != nil || st.Size() < 100 {
+			t.Fatalf("%s: %v size=%v", p, err, st)
+		}
+		if st.Mode()&0o111 == 0 {
+			t.Fatalf("%s: not executable", p)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "shell", "claude-code-helpers.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "$root/scripts/gen-localhost-tls.sh") {
+		t.Fatal("installed helpers do not search scripts/gen-localhost-tls.sh")
 	}
 
 	// source lines point at install dir
@@ -152,6 +170,64 @@ func TestEmbeddedShellMatchesExamples(t *testing.T) {
 		}
 		if string(ex) != string(emb) {
 			t.Fatalf("%s: examples/shell and cmd/gateway/shell differ — copy both when editing", name)
+		}
+	}
+}
+
+func TestShellNormalizeProvidersZshAndBash(t *testing.T) {
+	script := `
+source ./shell/claude-code-profiles.sh
+printf 'n=%s\n' "$(_inja_cc_normalize_providers grok)"
+printf 'p=%s\n' "$(_inja_cc_normalize_providers gpt+grok)"
+_inja_cc_apply_combo grok
+printf 'm=%s\n' "$ANTHROPIC_MODEL"
+`
+	gotOne := false
+	for _, sh := range []string{"bash", "zsh"} {
+		path, err := exec.LookPath(sh)
+		if err != nil {
+			t.Logf("skip %s: not on PATH", sh)
+			continue
+		}
+		gotOne = true
+		cmd := exec.Command(path, "-c", script)
+		cmd.Dir = "."
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", sh, err, out)
+		}
+		s := string(out)
+		if !strings.Contains(s, "n=grok\n") {
+			t.Fatalf("%s normalize grok: %q", sh, s)
+		}
+		if !strings.Contains(s, "p=gpt grok\n") {
+			t.Fatalf("%s normalize gpt+grok: %q", sh, s)
+		}
+		if !strings.Contains(s, "m=grok-4.5\n") {
+			t.Fatalf("%s apply grok model: %q", sh, s)
+		}
+	}
+	if !gotOne {
+		t.Skip("neither bash nor zsh on PATH")
+	}
+}
+
+func TestEmbeddedScriptsMatchExamples(t *testing.T) {
+	names := []string{"gen-localhost-tls.sh", "claude-grok"}
+	for _, name := range names {
+		ex, err := os.ReadFile(filepath.Join("..", "..", "examples", "scripts", name))
+		if err != nil {
+			ex, err = os.ReadFile(filepath.Join("examples", "scripts", name))
+		}
+		if err != nil {
+			t.Skip("examples/scripts not found from test cwd")
+		}
+		emb, err := embeddedFS.ReadFile("scripts/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(ex) != string(emb) {
+			t.Fatalf("%s: examples/scripts and cmd/gateway/scripts differ — copy both when editing", name)
 		}
 	}
 }

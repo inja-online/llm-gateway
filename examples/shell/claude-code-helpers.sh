@@ -118,20 +118,31 @@ _inja_cc_find_bin() {
   return 1
 }
 
+_inja_cc_tls_gen_script() {
+  local root gen
+  root="$(_inja_gateway_root)"
+  for gen in \
+    "$root/scripts/gen-localhost-tls.sh" \
+    "$root/examples/scripts/gen-localhost-tls.sh"; do
+    if [[ -f "$gen" ]]; then
+      printf '%s' "$gen"
+      return 0
+    fi
+  done
+  return 1
+}
+
 _inja_cc_ensure_tls() {
-  local certs cert key
+  local certs cert key gen
   certs="$(_inja_cc_certs_dir)"
   cert="$certs/localhost.pem"
   key="$certs/localhost-key.pem"
   if [[ -f "$cert" && -f "$key" ]]; then
     return 0
   fi
-  local gen="$(_inja_gateway_root)/examples/scripts/gen-localhost-tls.sh"
-  if [[ ! -x "$gen" ]]; then
-    chmod +x "$gen" 2>/dev/null || true
-  fi
-  if [[ ! -f "$gen" ]]; then
-    echo "missing $gen — cannot create TLS certs" >&2
+  mkdir -p "$certs"
+  if ! gen="$(_inja_cc_tls_gen_script)"; then
+    echo "cannot find gen-localhost-tls.sh — re-run: llm-gateway helpers install" >&2
     return 1
   fi
   bash "$gen" "$certs"
@@ -367,8 +378,9 @@ _inja_cc_wire_client_env() {
   export KEY="${KEY:-${GATEWAY_EDGE_KEY:-local-dev}}"
   _inja_cc_export_trust
   export ANTHROPIC_BASE_URL="$GATEWAY"
-  export ANTHROPIC_API_KEY="$KEY"
+  # Bearer only — setting both TOKEN and API_KEY makes Claude Code warn.
   export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-$KEY}"
+  unset ANTHROPIC_API_KEY
 }
 
 # ---------------------------------------------------------------------------
@@ -388,7 +400,7 @@ cc-gateway-env() {
 export GATEWAY='$GATEWAY'
 export KEY='$KEY'
 export ANTHROPIC_BASE_URL='$ANTHROPIC_BASE_URL'
-export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'
+unset ANTHROPIC_API_KEY
 export ANTHROPIC_AUTH_TOKEN='$ANTHROPIC_AUTH_TOKEN'
 export ANTHROPIC_MODEL='$ANTHROPIC_MODEL'
 export ANTHROPIC_DEFAULT_OPUS_MODEL='$ANTHROPIC_DEFAULT_OPUS_MODEL'
@@ -417,9 +429,27 @@ cc-gateway-start() {
   exec "$bin" -config "$cfg"
 }
 
+_inja_cc_info_only() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      -h|--help|-v|--version) return 0 ;;
+    esac
+  done
+  return 1
+}
+
 _inja_cc_run() {
   local profile="$1"
   shift
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "claude CLI not found on PATH" >&2
+    return 127
+  fi
+  # --help / --version: behave like `claude`, do not start the gateway.
+  if _inja_cc_info_only "$@"; then
+    exec claude "$@"
+  fi
   # Ensure gateway is up in background (HTTPS) before launching Claude Code.
   if [[ "${CC_SKIP_GATEWAY_UP:-}" != "1" ]]; then
     cc-gateway-up || return $?
@@ -427,13 +457,9 @@ _inja_cc_run() {
     _inja_cc_wire_client_env
   fi
   _inja_cc_apply_combo "$profile" || return $?
-  if ! command -v claude >/dev/null 2>&1; then
-    echo "claude CLI not found on PATH" >&2
-    return 127
-  fi
   echo "profile=$CC_GATEWAY_PROFILE  providers=$CC_GATEWAY_PROVIDERS  $ANTHROPIC_BASE_URL  model=$ANTHROPIC_MODEL" >&2
   echo "  /model $CC_MODEL_HINTS" >&2
-  claude "$@"
+  exec claude "$@"
 }
 
 cc-claude() { _inja_cc_run claude "$@"; }

@@ -19,8 +19,8 @@ GATEWAY="${GATEWAY:-http://localhost:8787}"
 : "${KEY:?set KEY to an api key valid for the provider you route to}"
 
 export ANTHROPIC_BASE_URL="$GATEWAY"
-export ANTHROPIC_API_KEY="$KEY"
 export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-$KEY}"
+unset ANTHROPIC_API_KEY
 [ -n "${MODEL:-}" ] && export ANTHROPIC_MODEL="$MODEL"
 
 echo "ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL"

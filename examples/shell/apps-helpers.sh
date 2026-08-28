@@ -261,47 +261,106 @@ _apps_ensure_default_snapshot() {
 # Write gateway content for each target
 # ---------------------------------------------------------------------------
 
-_apps_write_gateway_claude_settings() {
-  local live anth key cert
-  live="$(_apps_claude_settings_path)"
+_apps_model() {
+  printf '%s' "${CC_MODEL:-${ANTHROPIC_MODEL:-sonnet}}"
+}
+
+# Merge gateway env into an existing JSON object file (do not wipe MCP / hooks / prefs).
+_apps_merge_json_env() {
+  local live="$1" anth key cert model
   anth="$(_apps_base_anthropic)"
   key="$(_apps_key)"
   cert="$(_apps_cert)"
+  model="$(_apps_model)"
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 required to merge JSON without overwriting $live" >&2
+    return 1
+  fi
   mkdir -p "$(dirname "$live")"
-  cat >"$live" <<EOF
+  python3 - "$live" "$anth" "$key" "$cert" "$model" <<'PY'
+import json, os, sys
+path, anth, key, cert, model = sys.argv[1:6]
+data = {}
+if os.path.isfile(path) and os.path.getsize(path) > 0:
+    with open(path) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise SystemExit(f"{path}: expected a JSON object")
+env = data.get("env")
+if not isinstance(env, dict):
+    env = {}
+env.update({
+    "ANTHROPIC_BASE_URL": anth,
+    "ANTHROPIC_AUTH_TOKEN": key,
+    "ANTHROPIC_MODEL": model,
+    "NODE_EXTRA_CA_CERTS": cert,
+})
+env.pop("ANTHROPIC_API_KEY", None)
+data["env"] = env
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+os.replace(tmp, path)
+print(path)
+PY
+}
+
+_apps_3p_import_path() {
+  local root
+  root="$(_inja_gateway_root 2>/dev/null || true)"
+  if [[ -n "$root" ]]; then
+    printf '%s/claude-desktop-3p.json' "$root"
+  else
+    printf '%s/.config/inja-gateway/claude-desktop-3p.json' "$HOME"
+  fi
+}
+
+# Claude Desktop (2026) routes inference via 3P config, not ANTHROPIC_BASE_URL.
+# Write an import file for Developer → Configure Third-Party Inference → Import.
+_apps_write_claude_desktop_3p_import() {
+  local out anth key model
+  out="$(_apps_3p_import_path)"
+  anth="$(_apps_base_anthropic)"
+  key="$(_apps_key)"
+  model="$(_apps_model)"
+  mkdir -p "$(dirname "$out")"
+  cat >"$out" <<EOF
 {
-  "env": {
-    "ANTHROPIC_BASE_URL": "$anth",
-    "ANTHROPIC_API_KEY": "$key",
-    "ANTHROPIC_AUTH_TOKEN": "$key",
-    "ANTHROPIC_MODEL": "sonnet",
-    "NODE_EXTRA_CA_CERTS": "$cert"
-  }
+  "inferenceProvider": "gateway",
+  "inferenceGatewayBaseUrl": "$anth",
+  "inferenceGatewayApiKey": "$key",
+  "inferenceGatewayAuthScheme": "x-api-key",
+  "inferenceCredentialKind": "static",
+  "inferenceModels": [
+    {"name": "grok-4.6", "displayName": "Grok 4.6"},
+    {"name": "grok-4.5", "displayName": "Grok 4.5"},
+    {"name": "composer-2.5", "displayName": "Composer 2.5"},
+    {"name": "sonnet", "displayName": "Sonnet"},
+    {"name": "opus", "displayName": "Opus"},
+    {"name": "gpt", "displayName": "GPT (Terra)"}
+  ]
 }
 EOF
-  echo "wrote $live (gateway)" >&2
+  echo "wrote 3P import $out" >&2
+  echo "  Claude Desktop: Help → Troubleshooting → Enable Developer Mode" >&2
+  echo "  then Developer → Configure Third-Party Inference… → Import this file → Apply locally" >&2
+  echo "  or enter: provider=Gateway  base=$anth  key=$key  scheme=x-api-key" >&2
+}
+
+_apps_write_gateway_claude_settings() {
+  local live
+  live="$(_apps_claude_settings_path)"
+  _apps_merge_json_env "$live" || return $?
+  echo "merged gateway env into $live (other keys preserved)" >&2
 }
 
 _apps_write_gateway_claude_desktop() {
-  local live anth key cert
+  local live
   live="$(_apps_claude_desktop_path)"
-  anth="$(_apps_base_anthropic)"
-  key="$(_apps_key)"
-  cert="$(_apps_cert)"
-  mkdir -p "$(dirname "$live")"
-  cat >"$live" <<EOF
-{
-  "mcpServers": {},
-  "env": {
-    "ANTHROPIC_BASE_URL": "$anth",
-    "ANTHROPIC_API_KEY": "$key",
-    "ANTHROPIC_AUTH_TOKEN": "$key",
-    "ANTHROPIC_MODEL": "sonnet",
-    "NODE_EXTRA_CA_CERTS": "$cert"
-  }
-}
-EOF
-  echo "wrote $live (gateway)" >&2
+  _apps_merge_json_env "$live" || return $?
+  echo "merged gateway env into $live (mcpServers/preferences preserved)" >&2
+  _apps_write_claude_desktop_3p_import
 }
 
 _apps_write_gateway_codex() {
@@ -590,6 +649,8 @@ Claude Code / Cursor:
   cc-gpt / cc-grok / cc-multi · cursor-setup
 
 Docs: https://inja-online.github.io/llm-gateway/guides/app-integrations/
+  Claude app: https://inja-online.github.io/llm-gateway/guides/claude-desktop-subscriptions/
+  Codex:      https://inja-online.github.io/llm-gateway/guides/codex-subscriptions/
 
 ═══════════════════════════════════════════════════════════════════
 EOF
@@ -613,14 +674,26 @@ Prefer switch commands (backup + rollback built-in):
   apps-use-gateway
   apps-use-default
 
-Or write only Claude files:
+Or write only Claude files (merges env; does not wipe MCP/hooks):
   apps-write-claude-settings
   apps-write-claude-desktop
 
-Manual env:
+Claude Desktop chat (2026) does **not** use ANTHROPIC_BASE_URL.
+Use third-party inference:
+  Help → Troubleshooting → Enable Developer Mode
+  Developer → Configure Third-Party Inference…
+    provider: Gateway
+    base URL: $anth
+    API key:  $key
+    scheme:   x-api-key
+  Import file: $(_apps_3p_import_path)
+  Then Apply locally and fully quit/reopen Claude.
+
+Claude Code inside Desktop / CLI still uses:
   ANTHROPIC_BASE_URL=$anth
   ANTHROPIC_API_KEY=$key
   NODE_EXTRA_CA_CERTS=$cert
+  ANTHROPIC_MODEL=$(_apps_model)
 EOF
 }
 

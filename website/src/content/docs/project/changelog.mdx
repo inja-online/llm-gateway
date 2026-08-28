@@ -27,9 +27,18 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+### Fixed
+
+- **`cc-gateway-up` after `helpers install`:** ship `scripts/gen-localhost-tls.sh` with the embedded helpers and look it up under the install dir (`~/.config/inja-gateway/scripts/`), not only the git-checkout path `examples/scripts/`. Fresh `helpers install` layouts can create localhost TLS certs without a repo tree.
+- **`cc-grok` in zsh:** `_inja_cc_normalize_providers` used bash `read -a`, which zsh rejects (`bad option: -a`) and then reported `empty provider set`. Split on `+` with a portable loop; do not rely on bash-dynamic `local` for slot variables.
+- **Claude Desktop writers:** merge `env` into existing `claude_desktop_config.json` / `~/.claude/settings.json` instead of replacing the file (keeps MCP, Cowork prefs, hooks). Write a 3P import JSON — current Claude Desktop routes inference via **Developer → Configure Third-Party Inference**, not `ANTHROPIC_BASE_URL`.
+- **Grok 4.6 alias:** `grok-4.6` / `grok/4.6` / `inja/grok-4.6` → `xai/grok-4.6` so Claude Code can `/model grok-4.6` with `reasoning_effort: xhigh` (4.5 coerces xhigh to high).
+
 ### Added
 
 - **Docs:** [Moonshot / Kimi provider guide](/llm-gateway/providers/moonshot-kimi/) — get API keys on platform.kimi.ai, Kimi K3 (`kimi-k3`), regional bases, gateway curl/SDK, helpers, Kimi Code CLI `/login`; example aliases `kimi` / `kimi-k3`.
+- **Docs:** [Claude app + subscriptions](/llm-gateway/guides/claude-desktop-subscriptions/) and [Codex + subscriptions](/llm-gateway/guides/codex-subscriptions/) — third-party inference in the Claude desktop app; Codex CLI / ChatGPT coding via `~/.codex/config.toml`.
+- **`claude-grok` PATH wrapper:** `helpers install` writes `scripts/claude-grok`; `ln -sf` onto `PATH`. Forwards all args to `claude` (`--help` does not start the gateway). Defaults Grok 4.6 + `xhigh`. Claude Code env uses `ANTHROPIC_AUTH_TOKEN` only (avoids dual-key warning).
 
 ## [0.2.0] — 2026-07-24
 

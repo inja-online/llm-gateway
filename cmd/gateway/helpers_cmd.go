@@ -152,6 +152,31 @@ func helpersInstall(args []string) error {
 		written = append(written, out)
 	}
 
+	// scripts (TLS generator used by cc-gateway-up)
+	scriptDir := filepath.Join(dir, "scripts")
+	if err := os.MkdirAll(scriptDir, 0o755); err != nil {
+		return err
+	}
+	scriptEntries, err := fs.ReadDir(embeddedFS, "scripts")
+	if err != nil {
+		return fmt.Errorf("helpers: embedded scripts: %w", err)
+	}
+	for _, e := range scriptEntries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		data, err := embeddedFS.ReadFile("scripts/" + name)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(scriptDir, name)
+		if err := os.WriteFile(out, data, 0o755); err != nil {
+			return err
+		}
+		written = append(written, out)
+	}
+
 	fmt.Fprintf(os.Stderr, "Installed %d files under %s\n", len(written), dir)
 	for _, w := range written {
 		fmt.Fprintf(os.Stderr, "  %s\n", w)
@@ -165,6 +190,9 @@ func helpersInstall(args []string) error {
 	fmt.Fprintln(os.Stderr, "  llm-gateway auth login chatgpt   # and/or claude, grok")
 	fmt.Fprintln(os.Stderr, "  cc-gateway-up")
 	fmt.Fprintln(os.Stderr, "  cc-gateway-logs -f")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Optional PATH wrapper (forwards all args to claude, Grok 4.6 + xhigh):")
+	fmt.Fprintf(os.Stderr, "  ln -sf %s ~/.local/bin/claude-grok\n", filepath.Join(dir, "scripts", "claude-grok"))
 	return nil
 }
 
@@ -183,7 +211,7 @@ func helpersList() error {
 
 func helpersPrint(name string) error {
 	// allow short names
-	candidates := []string{name, "shell/" + name, "assets/" + name}
+	candidates := []string{name, "shell/" + name, "assets/" + name, "scripts/" + name}
 	for _, c := range candidates {
 		data, err := embeddedFS.ReadFile(c)
 		if err == nil {

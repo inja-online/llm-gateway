@@ -55,6 +55,8 @@
 | [Getting started](getting-started.md) | Install, config sketch, health check |
 | [Any app integrations](https://inja-online.github.io/llm-gateway/guides/app-integrations/) | Claude Desktop, Codex/GPT Desktop, Cursor, Continue, Cline, Aider, Windsurf, SDKs — start with `llm-gateway helpers install` |
 | [Claude Code + subscriptions](claude-code-multi.md) | ChatGPT / Claude / SuperGrok OAuth, any combo (`gpt`, `grok`, `gpt+grok`, …) |
+| [Claude app + subscriptions](claude-desktop-subscriptions.md) | Claude desktop app via third-party inference + merged settings |
+| [Codex + subscriptions](codex-subscriptions.md) | Codex CLI / ChatGPT coding via `~/.codex/config.toml` |
 | [Cursor + subscriptions](https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/) | Same gateway in Cursor (OpenAI base URL override + `claude/fable-5` customs) |
 | [Claude Code checklist](claude-code-checklist.md) | Anthropic base URL + release regression |
 | [Compatibility](compatibility-matrix.md) | P / T / U matrix |

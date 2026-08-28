@@ -14,6 +14,8 @@ After the basics, continue with:
 
 - [Use subscriptions in any app](/llm-gateway/guides/app-integrations/) — Claude Desktop, Codex/GPT Desktop, Cursor, Continue, Cline, Aider, Windsurf, SDKs  
 - [Claude Code + ChatGPT / SuperGrok subscriptions](/llm-gateway/guides/claude-code-subscriptions/) — OAuth login, any provider combo  
+- [Claude app + subscriptions](/llm-gateway/guides/claude-desktop-subscriptions/) — third-party inference in the Claude desktop app  
+- [Codex + subscriptions](/llm-gateway/guides/codex-subscriptions/) — Codex CLI and ChatGPT coding via `~/.codex/config.toml`  
 - [Cursor + same subscriptions](/llm-gateway/guides/cursor-subscriptions/) — point Cursor OpenAI base URL at the gateway  
 - [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) — keys, OAuth2, multi-tenant Bearer  
 - [Realtime WebSocket](/llm-gateway/guides/realtime-websocket/) — production `wss`  
@@ -73,7 +75,7 @@ curl -s http://localhost:8787/healthz
 
 Use ChatGPT Plus/Pro, Claude Pro/Max, and/or SuperGrok through Claude Code, Cursor, Desktop apps, and more.
 
-**[Full guide → Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/)** · **[Any app](/llm-gateway/guides/app-integrations/)**
+**[Claude Code](/llm-gateway/guides/claude-code-subscriptions/)** · **[Claude app](/llm-gateway/guides/claude-desktop-subscriptions/)** · **[Codex](/llm-gateway/guides/codex-subscriptions/)** · **[Any app](/llm-gateway/guides/app-integrations/)**
 
 ```bash
 # From a release binary:
@@ -115,6 +117,8 @@ Full routing details: [README · Model routing](https://github.com/inja-online/l
 - [Platform APIs](/llm-gateway/guides/platform-apis/) — files, evals, agents, batches  
 - [Embeddings](/llm-gateway/guides/embeddings/) — dimensions / task_type  
 - [Claude Code](/llm-gateway/guides/claude-code/) — point `ANTHROPIC_BASE_URL` at the gateway  
+- [Claude app](/llm-gateway/guides/claude-desktop-subscriptions/) — third-party inference in the desktop app  
+- [Codex](/llm-gateway/guides/codex-subscriptions/) — Codex CLI / ChatGPT coding via `config.toml`  
 - [Compatibility matrix](/llm-gateway/reference/compatibility-matrix/) — dialect × modality × provider kind  
 - [HTTP API](https://github.com/inja-online/llm-gateway/blob/master/README.md#http-api) — full route list in the README  
 
