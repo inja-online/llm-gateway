@@ -58,6 +58,8 @@ chatgpt/terra
 chatgpt/sol
 chatgpt/luna
 chatgpt/gpt
+grok/4.6
+grok/grok-4.6
 grok/4.5
 grok/grok-4.5
 grok/composer-2.5
@@ -66,6 +68,7 @@ inja/fable-5
 inja/sonnet
 inja/gpt
 inja/sol
+inja/grok-4.6
 inja/grok-4.5
 inja/composer-2.5
 EOF

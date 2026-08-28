@@ -118,20 +118,31 @@ _inja_cc_find_bin() {
   return 1
 }
 
+_inja_cc_tls_gen_script() {
+  local root gen
+  root="$(_inja_gateway_root)"
+  for gen in \
+    "$root/scripts/gen-localhost-tls.sh" \
+    "$root/examples/scripts/gen-localhost-tls.sh"; do
+    if [[ -f "$gen" ]]; then
+      printf '%s' "$gen"
+      return 0
+    fi
+  done
+  return 1
+}
+
 _inja_cc_ensure_tls() {
-  local certs cert key
+  local certs cert key gen
   certs="$(_inja_cc_certs_dir)"
   cert="$certs/localhost.pem"
   key="$certs/localhost-key.pem"
   if [[ -f "$cert" && -f "$key" ]]; then
     return 0
   fi
-  local gen="$(_inja_gateway_root)/examples/scripts/gen-localhost-tls.sh"
-  if [[ ! -x "$gen" ]]; then
-    chmod +x "$gen" 2>/dev/null || true
-  fi
-  if [[ ! -f "$gen" ]]; then
-    echo "missing $gen — cannot create TLS certs" >&2
+  mkdir -p "$certs"
+  if ! gen="$(_inja_cc_tls_gen_script)"; then
+    echo "cannot find gen-localhost-tls.sh — re-run: llm-gateway helpers install" >&2
     return 1
   fi
   bash "$gen" "$certs"

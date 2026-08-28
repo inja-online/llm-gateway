@@ -1,0 +1,196 @@
+---
+title: "Claude app with ChatGPT, Claude & SuperGrok"
+description: "Point the Claude macOS/Windows desktop app (and Claude Code inside it) at the Inja LLM Gateway using third-party inference plus merged settings."
+sidebar:
+  order: 1
+  label: "Claude app + subscriptions"
+  group:
+    label: "Guides"
+---
+
+**Last updated:** 2026-08-28
+
+Use the **Claude desktop application** with the same local gateway and **consumer subscriptions** as Claude Code: ChatGPT (Codex OAuth), Claude (setup-token), SuperGrok (Grok CLI / device OAuth).
+
+Current Claude Desktop (2026, including builds like 1.37937.x) does **not** send **chat** through `ANTHROPIC_BASE_URL` or `~/.claude/settings.json`. Official routing is [third-party inference](https://claude.com/docs/third-party/claude-desktop/gateway). Claude Code **inside** the app (and the `claude` CLI) still uses the Anthropic env vars.
+
+```
+  Claude app chat
+       │  Developer → Configure Third-Party Inference
+       ▼
+  llm-gateway (HTTPS localhost)
+       ├── SuperGrok
+       ├── ChatGPT subscription
+       └── Claude subscription
+
+  Claude Code tab / `claude` CLI
+       │  ANTHROPIC_BASE_URL
+       ▼
+  same llm-gateway
+```
+
+Related: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/) · [Codex](/llm-gateway/guides/codex-subscriptions/) · [Cursor](/llm-gateway/guides/cursor-subscriptions/) · [Any app](/llm-gateway/guides/app-integrations/) · [OAuth](/llm-gateway/guides/oauth-auth/)
+
+---
+
+## Prerequisites
+
+```bash
+llm-gateway helpers install
+eval "$(llm-gateway helpers source)"
+
+llm-gateway auth login grok      # or: auth import grok  (uses ~/.grok/auth.json)
+# optional:
+# llm-gateway auth login chatgpt
+# llm-gateway auth login claude
+llm-gateway auth status
+
+export KEY=local-dev
+cc-gateway-up                    # https://127.0.0.1:8787
+```
+
+Prefer `mkcert -install` so Electron trusts local HTTPS. Helpers write certs under `~/.config/inja-gateway/certs/`.
+
+ToS: personal accounts you own only. Do not resell consumer OAuth.
+
+---
+
+## Chat in the Claude app (required)
+
+Keep the gateway running, then in Claude:
+
+1. **Help → Troubleshooting → Enable Developer Mode** (the app restarts and a **Developer** menu appears).
+2. **Developer → Configure Third-Party Inference…**
+3. **Connection**
+   - Inference provider: **Gateway**
+   - Gateway base URL: `https://127.0.0.1:8787`
+   - Gateway API key: `local-dev` (same as `KEY`; not an Anthropic `sk-`)
+   - Auth scheme: **x-api-key**
+   - Credential kind: **Static API key**
+4. **Apply locally**, fully quit Claude (not just the window), reopen.
+
+Or import the JSON the helper writes:
+
+```bash
+export KEY=local-dev
+CC_MODEL=grok-4.6 apps-write-claude-desktop
+# → ~/.config/inja-gateway/claude-desktop-3p.json
+```
+
+In the same window: **Import configuration** → that file → **Apply locally**.
+
+`apps-write-claude-desktop` **merges** `env` into your existing `claude_desktop_config.json`. It does **not** wipe MCP servers, Cowork prefs, or trusted folders.
+
+### Model picker
+
+Desktop auto-discovery only lists ids that look like Claude. The import file sets `inferenceModels` so Grok and GPT aliases appear:
+
+| Import `name` | Gateway target |
+|---------------|----------------|
+| `grok-4.6` | SuperGrok Grok 4.6 (`reasoning_effort: xhigh` is 4.6-only) |
+| `grok-4.5` | SuperGrok Grok 4.5 (xhigh coerced to high) |
+| `composer-2.5` | SuperGrok Build (`grok-build-0.1`) |
+| `sonnet` / `opus` | Claude subscription |
+| `gpt` | ChatGPT Terra |
+
+If the picker is empty, list models explicitly in the 3P form. Confirm traffic with `cc-gateway-logs -f` (`provider=xai` / `chatgpt` / `anthropic`).
+
+### What 3P mode changes
+
+With a gateway configuration active, the desktop app runs sessions **on this machine only**. Anthropic-hosted cloud environments and [Remote Control](https://code.claude.com/docs/en/remote-control) are unavailable. Sign in with Anthropic again (leave 3P) to restore those features.
+
+---
+
+## Claude Code inside the app / the `claude` CLI
+
+That path still uses Anthropic Messages + `ANTHROPIC_BASE_URL`. Helpers merge `env` and leave hooks/plugins intact:
+
+```bash
+export KEY=local-dev
+CC_MODEL=grok-4.6 apps-write-claude-settings   # ~/.claude/settings.json
+```
+
+| OS | Desktop JSON (MCP / prefs; env is optional extra) |
+|----|------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+CLI launcher (Grok 4.6 + xhigh):
+
+```bash
+eval "$(llm-gateway helpers source)"
+export KEY=local-dev
+export CC_MODEL=grok-4.6 CC_GROK_HEAVY=grok-4.6
+export CLAUDE_CODE_EFFORT_LEVEL=xhigh
+export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES=effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking
+export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES=effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking
+# Claude Code warns if both keys are set — token only is enough:
+unset ANTHROPIC_API_KEY
+export ANTHROPIC_AUTH_TOKEN=local-dev
+cc-grok --effort xhigh
+```
+
+Wrappers you put on `PATH` **must** start with `#!/bin/zsh` or `#!/bin/bash`. A script with no shebang is run with `/bin/sh`, which rejects hyphenated helper names (`cc-gateway-up`: *not a valid identifier*).
+
+In session: `/model grok-4.6` · `/effort xhigh` · `/status` (base URL must be `https://127.0.0.1:8787`).
+
+Full CLI guide: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/).
+
+---
+
+## Dual `ANTHROPIC_API_KEY` + `ANTHROPIC_AUTH_TOKEN`
+
+Claude Code warns when both are set. The gateway accepts either header (`edge_auth` off). The client uses **Bearer** (`ANTHROPIC_AUTH_TOKEN`) and may still mix a saved claude.ai login.
+
+If chat already comes from Grok, the banner is noise. To make auth unambiguous:
+
+```bash
+unset ANTHROPIC_API_KEY
+export ANTHROPIC_AUTH_TOKEN=local-dev
+```
+
+If `/status` does not show the gateway URL, `/logout` and decline API-key approval.
+
+`7 MCP servers need authentication` is those MCP servers’ own OAuth. It does not affect Grok routing.
+
+---
+
+## Rollback
+
+```bash
+apps-use-default          # restore pre-gateway snapshots
+# or one file:
+apps-restore-slot default
+```
+
+Then in Claude: Developer → Configure Third-Party Inference → return to Anthropic / clear the gateway, fully quit, reopen.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Chat still hits claude.ai | 3P form not applied; fully quit the app |
+| TLS / certificate errors | `mkcert -install`; helpers set `NODE_EXTRA_CA_CERTS` for the CLI |
+| Empty model picker | Import `claude-desktop-3p.json` (`inferenceModels`) |
+| `ConnectionRefused` | `cc-gateway-up` |
+| Grok 403 after login | xAI tier gate — SuperGrok OAuth API not entitled |
+| `cc-gateway-up`: not a valid identifier | Wrapper ran under `/bin/sh` — add `#!/bin/zsh` |
+| Dual auth warning | Unset `ANTHROPIC_API_KEY`; keep `ANTHROPIC_AUTH_TOKEN=local-dev` |
+
+```bash
+cc-gateway-status
+llm-gateway auth status
+curl -sk https://127.0.0.1:8787/healthz
+apps-claude-desktop
+```
+
+---
+
+## Related
+
+- In-repo: [`docs/claude-desktop-subscriptions.md`](https://github.com/inja-online/llm-gateway/blob/master/docs/claude-desktop-subscriptions.md)
+- Helpers: `apps-write-claude-desktop` · `apps-write-claude-settings` · `apps-claude-desktop`
+- Anthropic: [Configure a gateway](https://claude.com/docs/third-party/claude-desktop/gateway) · [In-app configuration](https://claude.com/docs/third-party/claude-desktop/in-app-configuration)

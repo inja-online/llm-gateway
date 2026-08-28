@@ -610,7 +610,7 @@ apps-use-default              # restore pre-gateway settings
 # apps-status · apps-list-backups · apps-switch gateway|default
 ```
 
-Templates: [`examples/apps/`](examples/apps/). Docs: [Use subscriptions in any app](https://inja-online.github.io/llm-gateway/guides/app-integrations/).
+Templates: [`examples/apps/`](examples/apps/). Docs: [Any app](https://inja-online.github.io/llm-gateway/guides/app-integrations/) · [Claude app](https://inja-online.github.io/llm-gateway/guides/claude-desktop-subscriptions/) · [Codex](https://inja-online.github.io/llm-gateway/guides/codex-subscriptions/).
 
 ---
 

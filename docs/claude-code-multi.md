@@ -192,6 +192,8 @@ Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC
 | Claude 401 after import | On macOS, Keychain isn’t imported — use `auth login claude` / setup-token |
 | Grok 403 after successful login | xAI tier gate — try API key provider or check subscription |
 | Token refresh fails `invalid_grant` | `auth logout <provider>` then login again |
+| `missing …/examples/scripts/gen-localhost-tls.sh` | Re-run `llm-gateway helpers install` (script lives at `~/.config/inja-gateway/scripts/`). Or: `bash $REPO/examples/scripts/gen-localhost-tls.sh ~/.config/inja-gateway/certs` |
+| `_inja_cc_normalize_providers:read:16: bad option: -a` | zsh + stale helpers. Re-`source` after `llm-gateway helpers install` (split is now portable). |
 
 ## Cursor IDE (same gateway)
 
@@ -215,6 +217,7 @@ Docs: [Any app integrations](https://inja-online.github.io/llm-gateway/guides/ap
 
 ## 7. Related
 
+- [Claude app + subscriptions](claude-desktop-subscriptions.md) · [Codex + subscriptions](codex-subscriptions.md)
 - [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml)
 - [`llm-gateway auth`](https://github.com/inja-online/llm-gateway/blob/master/cmd/gateway/auth_cmd.go) · package `subauth`
 - [oauth-token-sources.md](oauth-token-sources.md) · [claude-code-checklist.md](claude-code-checklist.md)

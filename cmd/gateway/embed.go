@@ -7,4 +7,5 @@ import "embed"
 //
 //go:embed shell/*.sh
 //go:embed assets/*
+//go:embed scripts/*
 var embeddedFS embed.FS

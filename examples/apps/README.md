@@ -76,10 +76,10 @@ curl -sk -H "Authorization: Bearer local-dev" \
 | App | Template / helper |
 |-----|-------------------|
 | **Switch all (backup/rollback)** | `apps-use-gateway` · `apps-use-default` · `apps-status` · `apps-list-backups` |
-| Claude Desktop | `claude-desktop/` · `apps-claude-desktop` · `apps-write-claude-*` |
+| Claude Desktop | `claude-desktop/` · `apps-claude-desktop` · `apps-write-claude-*` · [guide](https://inja-online.github.io/llm-gateway/guides/claude-desktop-subscriptions/) |
 | Claude Code | `claude-code-*` helpers · [guide](https://inja-online.github.io/llm-gateway/guides/claude-code-subscriptions/) |
 | Cursor | `cursor-helpers.sh` · [guide](https://inja-online.github.io/llm-gateway/guides/cursor-subscriptions/) |
-| ChatGPT Desktop / Codex | `codex/config.toml` · `apps-codex` · `apps-write-codex` |
+| ChatGPT Desktop / Codex | `codex/config.toml` · `apps-codex` · `apps-write-codex` · [guide](https://inja-online.github.io/llm-gateway/guides/codex-subscriptions/) |
 | Continue.dev | `continue/config.yaml` · `apps-continue` |
 | Cline / Roo | `cline/vscode-settings.snippet.json` · `apps-cline` |
 | Aider | `aider/aider.env` · `apps-aider` |
@@ -93,7 +93,7 @@ Full guide: [App integrations (docs site)](https://inja-online.github.io/llm-gat
 
 | App | Wire | Config surface |
 |-----|------|----------------|
-| Claude Desktop | Anthropic | `claude_desktop_config.json` and/or `~/.claude/settings.json` `env` |
+| Claude Desktop | Anthropic | **Chat:** Developer → Configure Third-Party Inference (Gateway). **Claude Code in-app / CLI:** merged `env` in `claude_desktop_config.json` and `~/.claude/settings.json` |
 | Claude Code | Anthropic | `ANTHROPIC_BASE_URL` (+ combo scripts) |
 | Cursor | OpenAI | Settings → Models override base URL + `claude/fable-5` custom models |
 | Codex / GPT coding | OpenAI | `~/.codex/config.toml` provider |

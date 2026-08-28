@@ -57,8 +57,8 @@ Helpers: `cursor-models`, `examples/cursor/models-to-add.txt`. Short aliases sta
 ## Subscription OAuth / Claude Code / Cursor
 
 - Auth CLI: `llm-gateway auth login|import|status` (`subauth` package).  
-- **Embedded helpers:** `llm-gateway helpers install` / `load-helpers` → `~/.config/inja-gateway/shell/` (source of truth for release binaries). Keep `cmd/gateway/shell/*.sh` and `examples/shell/*.sh` in sync (CI test).  
-- HTTPS local: `examples/scripts/gen-localhost-tls.sh`, helpers `cc-gateway-up`, logs `cc-gateway-logs`.  
+- **Embedded helpers:** `llm-gateway helpers install` / `load-helpers` → `~/.config/inja-gateway/` (source of truth for release binaries). Keep `cmd/gateway/shell/*.sh` and `examples/shell/*.sh` in sync, and `cmd/gateway/scripts/gen-localhost-tls.sh` with `examples/scripts/gen-localhost-tls.sh` (CI test).  
+- HTTPS local: `examples/scripts/gen-localhost-tls.sh` (also installed as `scripts/gen-localhost-tls.sh`), helpers `cc-gateway-up`, logs `cc-gateway-logs`.  
 - Claude Code combos: `examples/claude-code-multi.sh`, `cc-gpt` / `cc-grok` / `cc-multi`.  
 - Cursor: OpenAI base `…/v1` + **prefixed** custom models (`cursor-apply`) next to Cursor built-ins.  
 - **ToS:** personal accounts only; no multi-tenant resale of consumer OAuth.

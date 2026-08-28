@@ -1,0 +1,190 @@
+---
+title: "Codex / ChatGPT coding with ChatGPT, Claude & SuperGrok"
+description: "Point Codex CLI and ChatGPT desktop coding at the Inja LLM Gateway using ~/.codex/config.toml and your consumer subscriptions."
+sidebar:
+  order: 2
+  label: "Codex + subscriptions"
+  group:
+    label: "Guides"
+---
+
+**Last updated:** 2026-08-28
+
+Use **Codex CLI** and **ChatGPT desktop coding / Codex mode** with the same local gateway as Claude Code: ChatGPT Plus/Pro (Codex OAuth), plus Claude and SuperGrok when those logins are present.
+
+The **ChatGPT chat** UI often **ignores** a custom provider (product limitation). The supported path is anything that reads `~/.codex/config.toml` (Codex CLI, many ChatGPT **coding agent** surfaces).
+
+```
+  Codex CLI / ChatGPT coding
+       │  OpenAI-compatible  ~/.codex/config.toml
+       ▼
+  llm-gateway  https://127.0.0.1:8787/v1
+       ├── ChatGPT subscription (Codex OAuth)
+       ├── SuperGrok (device / Grok CLI OAuth)
+       └── Claude subscription (translated)
+```
+
+Related: [Claude app](/llm-gateway/guides/claude-desktop-subscriptions/) · [Claude Code](/llm-gateway/guides/claude-code-subscriptions/) · [Cursor](/llm-gateway/guides/cursor-subscriptions/) · [Any app](/llm-gateway/guides/app-integrations/) · [OAuth](/llm-gateway/guides/oauth-auth/)
+
+---
+
+## Prerequisites
+
+```bash
+llm-gateway helpers install
+eval "$(llm-gateway helpers source)"
+
+llm-gateway auth login chatgpt    # ChatGPT Plus/Pro via Codex OAuth
+# optional: llm-gateway auth import grok
+# optional: llm-gateway auth login claude
+llm-gateway auth status
+
+export KEY=local-dev
+cc-gateway-up                     # https://127.0.0.1:8787
+```
+
+Prefer `mkcert -install` so Node/Electron trusts local HTTPS. Cert path after helpers install:
+
+```text
+~/.config/inja-gateway/certs/localhost.pem
+```
+
+`KEY=local-dev` is the **edge** credential Codex sends to the gateway. Subscription tokens stay in the gateway auth store (`~/Library/Application Support/inja-gateway/credentials.json` on macOS).
+
+ToS: personal accounts you own only.
+
+---
+
+## One-command write
+
+```bash
+export KEY=local-dev
+apps-write-codex          # snapshots ~/.codex/config.toml, then writes gateway provider
+# or: apps-use-gateway    # Claude settings + Desktop + Codex together
+```
+
+Then in **this** shell (and your login shell / launchd if you start Codex from the Dock):
+
+```bash
+export INJA_GATEWAY_KEY=local-dev
+export NODE_EXTRA_CA_CERTS="$HOME/.config/inja-gateway/certs/localhost.pem"
+codex
+```
+
+Rollback:
+
+```bash
+apps-use-default
+```
+
+---
+
+## `~/.codex/config.toml`
+
+Template: [`examples/apps/codex/config.toml`](https://github.com/inja-online/llm-gateway/blob/master/examples/apps/codex/config.toml).
+
+```toml
+model = "gpt"
+model_provider = "inja"
+openai_base_url = "https://127.0.0.1:8787/v1"
+
+[model_providers.inja]
+name = "Inja LLM Gateway"
+base_url = "https://127.0.0.1:8787/v1"
+env_key = "INJA_GATEWAY_KEY"
+wire_api = "chat_completions"
+# Some Codex agent builds prefer Responses:
+# wire_api = "responses"
+```
+
+| Field | Why |
+|-------|-----|
+| `base_url` **with** `/v1` | OpenAI clients call `{base}/chat/completions` and `{base}/responses` |
+| `env_key = "INJA_GATEWAY_KEY"` | Avoid stuffing the edge key in the file; export it in the environment |
+| `wire_api = "chat_completions"` | Broadest compatibility |
+| `wire_api = "responses"` | Try this if agent/tools features fail on chat completions |
+
+Do **not** put a ChatGPT Platform `sk-` here. The gateway holds Codex OAuth.
+
+### Models
+
+Gateway aliases (subscription YAML, Aug 2026):
+
+| Codex `model` | Upstream |
+|---------------|----------|
+| `gpt` / `terra` | ChatGPT GPT-5.6 Terra |
+| `sol` | ChatGPT GPT-5.6 Sol |
+| `luna` | ChatGPT GPT-5.6 Luna |
+| `grok-4.6` | SuperGrok Grok 4.6 |
+| `grok-4.5` | SuperGrok Grok 4.5 |
+| `composer-2.5` | SuperGrok Build (`grok-build-0.1`) |
+| `sonnet` / `opus` | Claude via translate |
+
+```bash
+codex --model grok-4.6
+# or edit model = "grok-4.6" in config.toml
+```
+
+List what this gateway will route:
+
+```bash
+curl -sk -H "Authorization: Bearer local-dev" \
+  'https://127.0.0.1:8787/v1/models' | jq -r '.data[].id' | sort
+```
+
+Grok 4.6 **xhigh** effort is `reasoning_effort` on the OpenAI wire. If your Codex build exposes a reasoning-effort setting, set it to `xhigh` and use `model = "grok-4.6"` (`grok-4.5` coerces xhigh → high).
+
+---
+
+## ChatGPT desktop coding
+
+Many ChatGPT **desktop coding / Codex** modes share `~/.codex/config.toml`. After `apps-write-codex`:
+
+1. Export `INJA_GATEWAY_KEY` and `NODE_EXTRA_CA_CERTS` for processes launched from the Dock (macOS GUI apps do not inherit your zshrc). A LaunchAgent, `launchctl setenv`, or starting ChatGPT from a terminal that already exported the vars all work.
+2. Fully quit ChatGPT / Codex and reopen.
+3. Confirm `cc-gateway-logs -f` shows `path=/v1/chat/completions` or `/v1/responses` when you send a prompt.
+
+If the **chat** tab still talks to OpenAI directly, that surface has no custom-base override — use Codex CLI, Cursor, or the coding agent UI instead.
+
+---
+
+## TLS
+
+| Setup | What to do |
+|-------|------------|
+| `mkcert -install` (recommended) | System trust store; ChatGPT/Codex/Node accept `https://127.0.0.1:8787` |
+| Self-signed only | `export NODE_EXTRA_CA_CERTS=$HOME/.config/inja-gateway/certs/localhost.pem` (and `SSL_CERT_FILE` for some runtimes) |
+
+Helpers: `cc-gateway-up` generates certs via `scripts/gen-localhost-tls.sh` in the install dir.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Connection refused | `cc-gateway-up` |
+| TLS / `UNABLE_TO_VERIFY_LEAF_SIGNATURE` | `mkcert -install` or `NODE_EXTRA_CA_CERTS` |
+| 401 | `export INJA_GATEWAY_KEY=local-dev`; `llm-gateway auth status` must show `chatgpt` (or grok/claude for those models) |
+| 404 model | Use an alias from `GET /v1/models`; `grok-4.6` needs the current subscription YAML |
+| Codex ignores config | Confirm `~/.codex/config.toml` `model_provider = "inja"`; fully quit the app |
+| ChatGPT **chat** unchanged | Expected — use Codex CLI / coding agent |
+| Agent tools fail | Try `wire_api = "responses"` |
+| Want OpenAI defaults back | `apps-use-default` |
+
+```bash
+cc-gateway-status
+llm-gateway auth status
+apps-codex
+curl -sk https://127.0.0.1:8787/healthz
+cc-gateway-logs --usage
+```
+
+---
+
+## Related
+
+- In-repo: [`docs/codex-subscriptions.md`](https://github.com/inja-online/llm-gateway/blob/master/docs/codex-subscriptions.md)
+- Template: [`examples/apps/codex/config.toml`](https://github.com/inja-online/llm-gateway/blob/master/examples/apps/codex/config.toml)
+- Helpers: `apps-write-codex` · `apps-codex` · `apps-use-gateway`
+- External: [Codex config](https://learn.chatgpt.com/docs/config-file/config-advanced) · [Codex / ChatGPT auth](https://learn.chatgpt.com/docs/auth)

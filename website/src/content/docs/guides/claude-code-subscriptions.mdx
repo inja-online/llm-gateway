@@ -29,7 +29,7 @@ You can use **any combination**: GPT only, Grok only, GPT+Grok, Claude+GPT, all 
                ──► SuperGrok / xAI       (translate)
 ```
 
-Related: [Any app integrations](/llm-gateway/guides/app-integrations/) · [Cursor + same subscriptions](/llm-gateway/guides/cursor-subscriptions/) · [Claude Code checklist](/llm-gateway/guides/claude-code/) · [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/) · [xAI provider notes](/llm-gateway/providers/xai/)
+Related: [Any app](/llm-gateway/guides/app-integrations/) · [Claude app](/llm-gateway/guides/claude-desktop-subscriptions/) · [Codex](/llm-gateway/guides/codex-subscriptions/) · [Cursor](/llm-gateway/guides/cursor-subscriptions/) · [Claude Code checklist](/llm-gateway/guides/claude-code/) · [OAuth](/llm-gateway/guides/oauth-auth/) · [xAI](/llm-gateway/providers/xai/)
 
 ---
 
@@ -319,6 +319,7 @@ From [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja
 | `sol` | `chatgpt/gpt-5.6-sol` |
 | `luna` / `gpt-mini` | `chatgpt/gpt-5.6-luna` |
 | `grok` / `grok-4.5` | `xai/grok-4.5` |
+| `grok-4.6` | `xai/grok-4.6` (`reasoning_effort: xhigh` is 4.6-only) |
 | `composer-2.5` / `composer` | `xai/grok-build-0.1` (Grok Build / Composer-class) |
 
 Sources: [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) · [GPT-5.6](https://openai.com/index/gpt-5-6/) · [xAI models](https://docs.x.ai/developers/models).
@@ -417,6 +418,7 @@ Same combo launcher and shell helpers work. See [Getting started](/llm-gateway/s
 |---|---|
 | `ConnectionRefused` / Unable to connect to API | Gateway not running → `cc-gateway-up` or `./examples/claude-code-multi.sh gpt` (auto-starts HTTPS) |
 | TLS / certificate errors | `./examples/scripts/gen-localhost-tls.sh`; prefer `mkcert -install`; helpers set `NODE_EXTRA_CA_CERTS` |
+| `missing …/examples/scripts/gen-localhost-tls.sh` | Re-run `llm-gateway helpers install` (script is `$HOME/.config/inja-gateway/scripts/`). Or generate into the install certs dir: `bash $REPO/examples/scripts/gen-localhost-tls.sh ~/.config/inja-gateway/certs` |
 | `cc-list: command not found: _inja_cc_list_profiles` | Re-`source` helpers (`eval "$(llm-gateway helpers source)"` or `examples/shell/…`) |
 | Empty `cc-gateway-logs` | Rebuild/restart gateway after upgrade; only **gateway-routed** traffic logs (not Cursor built-in models) |
 | `no credentials for chatgpt` (or claude/grok) | `llm-gateway auth login <provider>` or `auth import …` |

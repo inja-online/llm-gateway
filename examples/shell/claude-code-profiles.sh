@@ -34,16 +34,26 @@ _inja_cc_normalize_providers() {
     claude+xai|xai+claude) raw="claude+grok" ;;
   esac
 
-  local -a want=()
-  local part
-  IFS='+' read -r -a parts <<<"$raw"
-  for part in "${parts[@]}"; do
+  # Split on + without `read -a` (zsh rejects -a; bash uses -a / zsh uses -A).
+  local has_c=0 has_g=0 has_x=0
+  local rest="$raw" part
+  while [[ -n "$rest" ]]; do
+    case "$rest" in
+      *'+'*)
+        part="${rest%%+*}"
+        rest="${rest#*+}"
+        ;;
+      *)
+        part="$rest"
+        rest=""
+        ;;
+    esac
     part="${part// /}"
     case "$part" in
-      claude|anthropic) want+=("claude") ;;
-      gpt|openai|chatgpt) want+=("gpt") ;;
-      grok|xai|supergrok) want+=("grok") ;;
-      multi|all) want+=("claude" "gpt" "grok") ;;
+      claude|anthropic) has_c=1 ;;
+      gpt|openai|chatgpt) has_g=1 ;;
+      grok|xai|supergrok) has_x=1 ;;
+      multi|all) has_c=1; has_g=1; has_x=1 ;;
       "") ;;
       *)
         echo "unknown provider in profile: $part (use claude|gpt|grok)" >&2
@@ -52,16 +62,7 @@ _inja_cc_normalize_providers() {
     esac
   done
 
-  # unique preserve order claude,gpt,grok
-  local out="" has_c=0 has_g=0 has_x=0
-  local p
-  for p in "${want[@]}"; do
-    case "$p" in
-      claude) has_c=1 ;;
-      gpt) has_g=1 ;;
-      grok) has_x=1 ;;
-    esac
-  done
+  local out=""
   [[ $has_c -eq 1 ]] && out="${out}claude "
   [[ $has_g -eq 1 ]] && out="${out}gpt "
   [[ $has_x -eq 1 ]] && out="${out}grok "
@@ -136,10 +137,19 @@ _inja_cc_apply_combo() {
   local providers
   providers="$(_inja_cc_normalize_providers "$raw")" || return $?
 
-  local OPUS_M SONNET_M HAIKU_M MAIN_M PROFILE_LABEL
+  # Do not mark these local: _inja_cc_map_slots assigns them, and zsh local is
+  # not dynamically scoped like bash.
+  OPUS_M="" SONNET_M="" HAIKU_M="" MAIN_M="" PROFILE_LABEL=""
   _inja_cc_map_slots "$providers"
 
-  local gateway="${GATEWAY:-http://localhost:8787}"
+  local gateway
+  if [[ -n "${GATEWAY:-}" ]]; then
+    gateway="$GATEWAY"
+  elif command -v _inja_cc_public_base >/dev/null 2>&1; then
+    gateway="$(_inja_cc_public_base)"
+  else
+    gateway="https://127.0.0.1:8787"
+  fi
   local key="${KEY:-${GATEWAY_EDGE_KEY:-${ANTHROPIC_API_KEY:-gateway}}}"
 
   export ANTHROPIC_BASE_URL="$gateway"
@@ -162,7 +172,7 @@ _inja_cc_apply_combo() {
     *gpt*) CC_MODEL_HINTS+="gpt sol terra luna " ;;
   esac
   case "$providers" in
-    *grok*) CC_MODEL_HINTS+="grok-4.5 composer-2.5 grok-build grok " ;;
+    *grok*) CC_MODEL_HINTS+="grok-4.6 grok-4.5 composer-2.5 grok-build grok " ;;
   esac
   export CC_MODEL_HINTS="${CC_MODEL_HINTS% }"
 }
@@ -196,7 +206,7 @@ Upstream targets (pinned in YAML):
   grok-4.5 → grok-4.5        composer-2.5 → grok-build-0.1
 
 In session:
-  /model grok-4.5 | /model composer-2.5 | /model sol | /model terra | /model sonnet
+  /model grok-4.6 | /model grok-4.5 | /model composer-2.5 | /model sol | /model terra | /model sonnet
 
 Overrides:
   CC_OPUS_MODEL CC_SONNET_MODEL CC_HAIKU_MODEL CC_MODEL
