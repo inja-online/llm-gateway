@@ -134,6 +134,10 @@ export KEY=local-dev
 
 cc-gpt              # GPT only
 cc-grok             # Grok 4.5 + composer-2.5
+# PATH shim (after helpers install):
+#   ln -sf ~/.config/inja-gateway/scripts/claude-grok ~/.local/bin/claude-grok
+#   claude-grok --help   # forwarded to claude; no gateway
+#   claude-grok          # Grok 4.6 + xhigh
 cc-gpt-grok         # both non-Claude
 cc-multi            # all three
 cc-run gpt+grok     # any combo

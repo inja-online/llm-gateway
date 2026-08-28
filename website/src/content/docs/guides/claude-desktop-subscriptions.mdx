@@ -119,17 +119,13 @@ CC_MODEL=grok-4.6 apps-write-claude-settings   # ~/.claude/settings.json
 CLI launcher (Grok 4.6 + xhigh):
 
 ```bash
-eval "$(llm-gateway helpers source)"
-export KEY=local-dev
-export CC_MODEL=grok-4.6 CC_GROK_HEAVY=grok-4.6
-export CLAUDE_CODE_EFFORT_LEVEL=xhigh
-export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES=effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking
-export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES=effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking
-# Claude Code warns if both keys are set — token only is enough:
-unset ANTHROPIC_API_KEY
-export ANTHROPIC_AUTH_TOKEN=local-dev
-cc-grok --effort xhigh
+llm-gateway helpers install
+ln -sf ~/.config/inja-gateway/scripts/claude-grok ~/.local/bin/claude-grok
+claude-grok --help          # same as claude --help
+claude-grok                 # gateway up, Grok 4.6, xhigh
 ```
+
+Helpers set **only** `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) so Claude Code does not warn about dual credentials.
 
 Wrappers you put on `PATH` **must** start with `#!/bin/zsh` or `#!/bin/bash`. A script with no shebang is run with `/bin/sh`, which rejects hyphenated helper names (`cc-gateway-up`: *not a valid identifier*).
 

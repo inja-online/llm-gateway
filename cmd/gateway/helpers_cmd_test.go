@@ -58,10 +58,15 @@ func TestHelpersInstallAndSource(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "certs")); err != nil {
 		t.Fatal("certs dir", err)
 	}
-	gen := filepath.Join(dir, "scripts", "gen-localhost-tls.sh")
-	st, err := os.Stat(gen)
-	if err != nil || st.Size() < 100 {
-		t.Fatalf("tls gen script: %v size=%v", err, st)
+	for _, script := range []string{"gen-localhost-tls.sh", "claude-grok"} {
+		p := filepath.Join(dir, "scripts", script)
+		st, err := os.Stat(p)
+		if err != nil || st.Size() < 100 {
+			t.Fatalf("%s: %v size=%v", p, err, st)
+		}
+		if st.Mode()&0o111 == 0 {
+			t.Fatalf("%s: not executable", p)
+		}
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "shell", "claude-code-helpers.sh"))
 	if err != nil {
@@ -207,19 +212,22 @@ printf 'm=%s\n' "$ANTHROPIC_MODEL"
 	}
 }
 
-func TestEmbeddedTLSScriptMatchesExamples(t *testing.T) {
-	ex, err := os.ReadFile(filepath.Join("..", "..", "examples", "scripts", "gen-localhost-tls.sh"))
-	if err != nil {
-		ex, err = os.ReadFile(filepath.Join("examples", "scripts", "gen-localhost-tls.sh"))
-	}
-	if err != nil {
-		t.Skip("examples/scripts not found from test cwd")
-	}
-	emb, err := embeddedFS.ReadFile("scripts/gen-localhost-tls.sh")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(ex) != string(emb) {
-		t.Fatal("examples/scripts/gen-localhost-tls.sh and cmd/gateway/scripts differ — copy both when editing")
+func TestEmbeddedScriptsMatchExamples(t *testing.T) {
+	names := []string{"gen-localhost-tls.sh", "claude-grok"}
+	for _, name := range names {
+		ex, err := os.ReadFile(filepath.Join("..", "..", "examples", "scripts", name))
+		if err != nil {
+			ex, err = os.ReadFile(filepath.Join("examples", "scripts", name))
+		}
+		if err != nil {
+			t.Skip("examples/scripts not found from test cwd")
+		}
+		emb, err := embeddedFS.ReadFile("scripts/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(ex) != string(emb) {
+			t.Fatalf("%s: examples/scripts and cmd/gateway/scripts differ — copy both when editing", name)
+		}
 	}
 }

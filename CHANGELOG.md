@@ -30,6 +30,7 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 - **Docs:** [Moonshot / Kimi provider guide](docs/providers/moonshot-kimi.md) — get API keys on platform.kimi.ai, Kimi K3 (`kimi-k3`), regional bases, gateway curl/SDK, helpers, Kimi Code CLI `/login`; example aliases `kimi` / `kimi-k3`.
 - **Docs:** [Claude app + subscriptions](https://inja-online.github.io/llm-gateway/guides/claude-desktop-subscriptions/) and [Codex + subscriptions](https://inja-online.github.io/llm-gateway/guides/codex-subscriptions/) — third-party inference in the Claude desktop app; Codex CLI / ChatGPT coding via `~/.codex/config.toml`.
+- **`claude-grok` PATH wrapper:** `helpers install` writes `scripts/claude-grok`; `ln -sf` onto `PATH`. Forwards all args to `claude` (`--help` does not start the gateway). Defaults Grok 4.6 + `xhigh`. Claude Code env uses `ANTHROPIC_AUTH_TOKEN` only (avoids dual-key warning).
 
 ## [0.2.0] — 2026-07-24
 

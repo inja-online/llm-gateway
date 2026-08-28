@@ -291,11 +291,11 @@ if not isinstance(env, dict):
     env = {}
 env.update({
     "ANTHROPIC_BASE_URL": anth,
-    "ANTHROPIC_API_KEY": key,
     "ANTHROPIC_AUTH_TOKEN": key,
     "ANTHROPIC_MODEL": model,
     "NODE_EXTRA_CA_CERTS": cert,
 })
+env.pop("ANTHROPIC_API_KEY", None)
 data["env"] = env
 tmp = path + ".tmp"
 with open(tmp, "w") as f:

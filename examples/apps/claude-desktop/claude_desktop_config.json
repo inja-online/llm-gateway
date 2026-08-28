@@ -3,7 +3,6 @@
   "mcpServers": {},
   "env": {
     "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
-    "ANTHROPIC_API_KEY": "local-dev",
     "ANTHROPIC_AUTH_TOKEN": "local-dev",
     "ANTHROPIC_MODEL": "sonnet",
     "NODE_EXTRA_CA_CERTS": "REPLACE_WITH_REPO/examples/certs/localhost.pem"

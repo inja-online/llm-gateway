@@ -153,8 +153,8 @@ _inja_cc_apply_combo() {
   local key="${KEY:-${GATEWAY_EDGE_KEY:-${ANTHROPIC_API_KEY:-gateway}}}"
 
   export ANTHROPIC_BASE_URL="$gateway"
-  export ANTHROPIC_API_KEY="$key"
   export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-$key}"
+  unset ANTHROPIC_API_KEY
   export ANTHROPIC_MODEL="$MAIN_M"
   export ANTHROPIC_DEFAULT_OPUS_MODEL="$OPUS_M"
   export ANTHROPIC_DEFAULT_SONNET_MODEL="$SONNET_M"

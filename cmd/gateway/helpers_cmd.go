@@ -190,6 +190,9 @@ func helpersInstall(args []string) error {
 	fmt.Fprintln(os.Stderr, "  llm-gateway auth login chatgpt   # and/or claude, grok")
 	fmt.Fprintln(os.Stderr, "  cc-gateway-up")
 	fmt.Fprintln(os.Stderr, "  cc-gateway-logs -f")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Optional PATH wrapper (forwards all args to claude, Grok 4.6 + xhigh):")
+	fmt.Fprintf(os.Stderr, "  ln -sf %s ~/.local/bin/claude-grok\n", filepath.Join(dir, "scripts", "claude-grok"))
 	return nil
 }
 

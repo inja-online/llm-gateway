@@ -158,6 +158,14 @@ cc-gpt-grok            # GPT + Grok
 cc-multi               # all three
 ```
 
+PATH wrapper (forwards every arg to `claude`, defaults Grok 4.6 + xhigh):
+
+```bash
+ln -sf ~/.config/inja-gateway/scripts/claude-grok ~/.local/bin/claude-grok
+claude-grok --help          # same as claude --help (no gateway)
+claude-grok -p "ping"       # Grok 4.6, effort xhigh
+```
+
 Or:
 
 ```bash
