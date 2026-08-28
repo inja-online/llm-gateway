@@ -22,7 +22,8 @@
 # Prints: "claude" | "gpt" | "grok" | "claude gpt" | "gpt grok" | "claude gpt grok" | ...
 _inja_cc_normalize_providers() {
   local raw="${1:-}"
-  raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr ',/|' '+++' | tr -s '+- ' '+')"
+  # GNU tr treats '+- ' as a reverse range; keep '-' last so it is literal.
+  raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr ',/| -' '+++++' | tr -s '+')"
   # named shortcuts
   case "$raw" in
     ""|multi|all|full|cgg|cgx) raw="claude+gpt+grok" ;;
