@@ -10,7 +10,7 @@ sidebar:
 
 **Last updated:** 2026-08-28
 
-Use the **Claude desktop application** with the same local gateway and **consumer subscriptions** as Claude Code: ChatGPT (Codex OAuth), Claude (setup-token), SuperGrok (Grok CLI / device OAuth).
+Use the **Claude desktop application** with the same local gateway and **consumer subscriptions** as Claude Code: ChatGPT (Codex OAuth), Claude (setup-token), SuperGrok (Grok CLI / device OAuth), Gemini / Antigravity (Jetski import).
 
 Current Claude Desktop (2026, including builds like 1.37937.x) does **not** send **chat** through `ANTHROPIC_BASE_URL` or `~/.claude/settings.json`. Official routing is [third-party inference](https://claude.com/docs/third-party/claude-desktop/gateway). Claude Code **inside** the app (and the `claude` CLI) still uses the Anthropic env vars.
 
@@ -43,6 +43,7 @@ llm-gateway auth login grok      # or: auth import grok  (uses ~/.grok/auth.json
 # optional:
 # llm-gateway auth login chatgpt
 # llm-gateway auth login claude
+# llm-gateway auth import gemini
 llm-gateway auth status
 
 export KEY=local-dev

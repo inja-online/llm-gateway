@@ -170,3 +170,60 @@ func TestParseUpstreamModelIDs(t *testing.T) {
 		t.Fatalf("%v", ids)
 	}
 }
+
+func TestParseUpstreamModelIDsGoogleName(t *testing.T) {
+	ids := parseUpstreamModelIDs([]byte(`{"models":[{"name":"models/gemini-2.5-flash"},{"name":"models/gemini-2.5-pro"}]}`))
+	if len(ids) != 2 {
+		t.Fatalf("%v", ids)
+	}
+	if ids[0] != "gemini-2.5-flash" || ids[1] != "gemini-2.5-pro" {
+		t.Fatalf("want stripped ids, got %v", ids)
+	}
+}
+
+func TestLiveModelsMergeGoogle(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"models":[{"name":"models/gemini-2.5-flash"},{"name":"models/gemini-2.5-pro"}]}`))
+	}))
+	t.Cleanup(up.Close)
+
+	cfg, err := config.Parse([]byte(`
+providers:
+  google:
+    kind: google
+    base_url: "` + up.URL + `"
+    api_key_env: TEST_GEMINI_KEY
+aliases:
+  gemini: google/gemini-2.5-flash
+defaults:
+  google_dialect: google
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TEST_GEMINI_KEY", "gk-test")
+	gw := httptest.NewServer(NewServer(cfg, nil).Handler())
+	t.Cleanup(gw.Close)
+
+	resp, err := http.Get(gw.URL + "/v1/models?live=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.Contains(s, `"gemini"`) {
+		t.Fatalf("alias missing: %s", s)
+	}
+	if !strings.Contains(s, "google/gemini-2.5-flash") {
+		t.Fatalf("live flash missing: %s", s)
+	}
+	if !strings.Contains(s, "google/gemini-2.5-pro") {
+		t.Fatalf("live pro missing: %s", s)
+	}
+}

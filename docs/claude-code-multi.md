@@ -1,8 +1,8 @@
-# Claude Code with subscription OAuth (ChatGPT + Claude + SuperGrok)
+# Claude Code with subscription OAuth (ChatGPT + Claude + SuperGrok + Gemini)
 
-**Last updated:** 2026-07-23
+**Last updated:** 2026-09-04
 
-> **Docs site (recommended):** [Claude Code with ChatGPT, Claude & SuperGrok](https://inja-online.github.io/llm-gateway/guides/claude-code-subscriptions/) — full public guide with combos, aliases, and troubleshooting.
+> **Docs site (recommended):** [Claude Code with ChatGPT, Claude, SuperGrok & Gemini](https://inja-online.github.io/llm-gateway/guides/claude-code-subscriptions/) — full public guide with combos, PATH wrappers, live models, and the Gemini client-secret export.
 
 Use **your own consumer subscriptions** (not API keys) through the gateway:
 
@@ -11,13 +11,15 @@ Use **your own consumer subscriptions** (not API keys) through the gateway:
 | **ChatGPT** | `llm-gateway auth login chatgpt` | ChatGPT Plus / Pro / Team via **Codex OAuth** (PKCE) |
 | **Claude** | `llm-gateway auth login claude` | Claude Pro / Max via **setup-token** / Claude Code login |
 | **Grok** | `llm-gateway auth login grok` | **SuperGrok** or **X Premium+** via xAI **device-code OAuth** |
+| **Gemini** | `llm-gateway auth login gemini` | **Antigravity / Gemini CLI** Jetski token (`google` / `antigravity` aliases) |
 
-Claude Code still speaks **Anthropic Messages**. The gateway passthroughs Claude and **translates** to ChatGPT/xAI when you pick those model aliases.
+Claude Code still speaks **Anthropic Messages**. The gateway passthroughs Claude and **translates** to ChatGPT/xAI/Google when you pick those model aliases.
 
 ```
   Claude Code  ──Anthropic──►  llm-gateway  ──┬── Claude (subscription OAuth bearer)
                                               ├── ChatGPT (Codex OAuth refresh)
-                                              └── xAI Grok (device OAuth refresh)
+                                              ├── xAI Grok (device OAuth refresh)
+                                              └── Gemini (Antigravity / Jetski OAuth)
 ```
 
 ### Subscription request + model list behavior
@@ -36,6 +38,7 @@ Claude Code still speaks **Anthropic Messages**. The gateway passthroughs Claude
 - **Anthropic** restricts Free/Pro/Max OAuth for many third-party products. Prefer `claude setup-token` / official Claude Code flows and re-check [Anthropic’s terms](https://www.anthropic.com/legal) and [Claude Code auth docs](https://code.claude.com/docs/en/authentication). Do not resell multi-tenant access to consumer OAuth.
 - **xAI** may allowlist which SuperGrok tiers receive OAuth API tokens; if login works but inference returns 403, use an API key path or upgrade the tier.
 - Never commit `credentials.json` or paste tokens into tickets/chat.
+- **Gemini / Antigravity:** personal accounts only. Token import is not enough to refresh — set `INJA_GATEWAY_GEMINI_CLIENT_SECRET` (never commit `GOCSPX-…`).
 
 ## 1. Build and log in
 
@@ -45,6 +48,7 @@ go build -o llm-gateway ./cmd/gateway
 ./llm-gateway auth login chatgpt    # browser opens auth.openai.com
 ./llm-gateway auth login claude     # setup-token / paste
 ./llm-gateway auth login grok       # prefers ~/.grok/auth.json, else device code
+./llm-gateway auth login gemini     # ~/.gemini/jetski-standalone-oauth-token (aliases: google, antigravity)
 
 ./llm-gateway auth status
 ```
@@ -63,11 +67,24 @@ codex login
 ./llm-gateway auth import grok
 # or force browser device flow: ./llm-gateway auth login grok --device
 
+# After Gemini CLI / Antigravity login:
+export INJA_GATEWAY_GEMINI_CLIENT_SECRET='GOCSPX-…'   # matching desktop client; never commit
+./llm-gateway auth import gemini
+
 # Headless ChatGPT (print URL only):
 ./llm-gateway auth login chatgpt --no-browser
 ```
 
 **Grok “Invalid action”:** xAI’s `accounts.x.ai/oauth2/device?user_code=…` page often fails when the session is wrong. Prefer `auth import grok` from the Grok CLI store (`~/.grok/auth.json`). Device login now opens the **base** URL and prints the code separately.
+
+**Gemini client secret:** `~/.gemini/jetski-standalone-oauth-token` has access/refresh tokens, **not** Google’s OAuth client secret. Refresh needs the secret for client id `1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com`. Export it from [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) (that Desktop client only). Then:
+
+```bash
+export INJA_GATEWAY_GEMINI_CLIENT_SECRET='GOCSPX-…'  # never commit
+llm-gateway auth import gemini   # copies secret into 0600 store when env is set
+```
+
+Do **not** reuse a `gcloud` / Cloud Code ADC `GOCSPX-…` — different client. If you cannot open that OAuth client in Console, use a Gemini API key instead. Full steps: [docs site](https://inja-online.github.io/llm-gateway/guides/claude-code-subscriptions/).
 
 Store path override:
 
@@ -92,7 +109,7 @@ export KEY=local-dev
 cc-gateway-up          # certs + nohup + healthz
 cc-gateway-logs -f     # http + usage (model, tokens, latency)
 # ANTHROPIC_BASE_URL=https://127.0.0.1:8787
-cc-gpt                 # or cc-grok / cc-gpt-grok / cc-multi
+cc-gpt                 # or cc-grok / cc-gemini / cc-gpt-grok / cc-multi
 ```
 
 Manual:
@@ -110,10 +127,10 @@ That config sets each provider to:
 ```yaml
 auth: oauth2
 oauth:
-  credentials: chatgpt   # or claude | grok
+  credentials: chatgpt   # or claude | grok | gemini
 ```
 
-The process loads tokens from the auth store and **refreshes** ChatGPT/Grok access tokens before expiry (Claude setup-token is long-lived; re-run login when it expires).
+The process loads tokens from the auth store and **refreshes** ChatGPT/Grok/Gemini access tokens before expiry (Claude setup-token is long-lived; re-run login when it expires). Gemini refresh also needs `INJA_GATEWAY_GEMINI_CLIENT_SECRET`.
 
 ## 3. Claude Code (any provider combination)
 
@@ -134,12 +151,17 @@ export KEY=local-dev
 
 cc-gpt              # GPT only
 cc-grok             # Grok 4.5 + composer-2.5
-# PATH shim (after helpers install):
+# PATH shims (after helpers install):
 #   ln -sf ~/.config/inja-gateway/scripts/claude-grok ~/.local/bin/claude-grok
+#   ln -sf ~/.config/inja-gateway/scripts/claude-gemini ~/.local/bin/claude-gemini
+#   ln -sf ~/.config/inja-gateway/scripts/claude-codex ~/.local/bin/claude-codex
 #   claude-grok --help   # forwarded to claude; no gateway
 #   claude-grok          # Grok 4.6 + xhigh
+#   claude-gemini        # live Google model from GET /v1/models?live=1
+#   claude-codex         # ChatGPT / Codex
+cc-gemini           # Gemini / Antigravity (ccgm)
 cc-gpt-grok         # both non-Claude
-cc-multi            # all three
+cc-multi            # Claude + GPT + Grok
 cc-run gpt+grok     # any combo
 cc-list
 ```
@@ -157,6 +179,18 @@ In session:
 
 Use [`examples/claude-code-settings.json.example`](https://github.com/inja-online/llm-gateway/blob/master/examples/claude-code-settings.json.example) and point `ANTHROPIC_BASE_URL` at the gateway. Do **not** put subscription OAuth tokens in Claude Code settings if the gateway holds them — set a dummy/edge key only.
 
+### Thinking, xhigh, ultracode (custom models)
+
+Claude Code treats unknown `ANTHROPIC_BASE_URL` model ids as having **no** thinking / effort / ultracode. Gateway aliases (`grok-4.6`, `gemini`, `sol`, …) are unknown unless you advertise capabilities.
+
+Helpers (`cc-*`, `claude-grok` / `claude-gemini` / `claude-codex`) now:
+
+1. Export `CLAUDE_CODE_EFFORT_LEVEL=xhigh` and `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL_SUPPORTED_CAPABILITIES` plus `ANTHROPIC_CUSTOM_MODEL_OPTION` = the session model, with `effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking`.
+2. Pass `--effort xhigh` unless you already passed `--effort`.
+3. Write a **session** `--settings` JSON (`ultracode: true`, `alwaysThinkingEnabled`, `effortLevel: xhigh`, `modelPicker.options` with `behavesAs: "claude-fable-5"` for gateway aliases). Ultracode is **session-scoped** (xhigh + Workflow API); it does **not** persist in `~/.claude/settings.json`. Override path: `CC_ULTRACODE_SETTINGS`. Pass your own `--settings` to skip the helper file.
+
+`CLAUDE_CODE_DISABLE_WORKFLOWS` / `CLAUDE_CODE_DISABLE_THINKING` turn the features off. `behavesAs` is honored from user / `--settings` / managed settings only — not project checkout.
+
 ## 4. Profiles / combos
 
 Any mix of `claude`, `gpt`, `grok` with separators `+` `,` `-`:
@@ -169,6 +203,7 @@ Any mix of `claude`, `gpt`, `grok` with separators `+` `,` `-`:
 | **claude** | opus (4.8) | sonnet (5) | haiku (4.5) |
 | **claude+gpt** | opus | gpt | luna |
 | **claude+grok** | opus | grok-4.5 | composer-2.5 |
+| **gemini** | gemini-pro | gemini | gemini-flash |
 | **multi** | opus | gpt | composer-2.5 |
 
 Upstream pins (2026-07): see `examples/configs/claude-code-subscriptions.yaml`.
@@ -184,6 +219,7 @@ Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC
 | `chatgpt` | `Authorization: Bearer` (refreshed) | `https://chatgpt.com/backend-api/codex` |
 | `claude` | `Authorization: Bearer` | `https://api.anthropic.com/v1` |
 | `grok` | `Authorization: Bearer` (refreshed) | `https://api.x.ai/v1` |
+| `gemini` | `Authorization: Bearer` (refreshed; needs client secret) | `https://generativelanguage.googleapis.com/v1beta` |
 
 `auth: oauth2` + `oauth.credentials` uses a **TokenSource** so Anthropic gets Bearer (not `x-api-key`). That matches subscription OAuth tokens.
 
@@ -196,8 +232,10 @@ Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC
 | Claude 401 after import | On macOS, Keychain isn’t imported — use `auth login claude` / setup-token |
 | Grok 403 after successful login | xAI tier gate — try API key provider or check subscription |
 | Token refresh fails `invalid_grant` | `auth logout <provider>` then login again |
+| Gemini refresh `invalid_client` | Set `INJA_GATEWAY_GEMINI_CLIENT_SECRET` for the **Jetski** client id (not a gcloud ADC secret). See docs site. |
 | `missing …/examples/scripts/gen-localhost-tls.sh` | Re-run `llm-gateway helpers install` (script lives at `~/.config/inja-gateway/scripts/`). Or: `bash $REPO/examples/scripts/gen-localhost-tls.sh ~/.config/inja-gateway/certs` |
 | `_inja_cc_normalize_providers:read:16: bad option: -a` | zsh + stale helpers. Re-`source` after `llm-gateway helpers install` (split is now portable). |
+| No thinking / no ultracode on grok/gemini/gpt | Unknown custom model. Re-`helpers install` + source; launch via `cc-*` / wrappers (they inject caps + `--settings` ultracode). Do not set `CLAUDE_CODE_DISABLE_WORKFLOWS`. |
 
 ## Cursor IDE (same gateway)
 

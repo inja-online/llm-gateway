@@ -41,7 +41,7 @@ func (s *Server) mergeLiveModels(r *http.Request, base []modelEntry) []modelEntr
 	var jobs []job
 	for name, p := range s.cfg.Providers {
 		switch p.Kind {
-		case config.KindOpenAI, config.KindOpenAICompat, config.KindAnthropic:
+		case config.KindOpenAI, config.KindOpenAICompat, config.KindAnthropic, config.KindGoogle:
 			jobs = append(jobs, job{name: name, p: p})
 		}
 	}
@@ -164,9 +164,10 @@ func parseUpstreamModelIDs(body []byte) []string {
 		Data []struct {
 			ID string `json:"id"`
 		} `json:"data"`
-		// Some hosts return a top-level models array.
+		// Some hosts return a top-level models array (OpenAI id, Gemini name).
 		Models []struct {
-			ID string `json:"id"`
+			ID   string `json:"id"`
+			Name string `json:"name"`
 		} `json:"models"`
 	}
 	if err := json.Unmarshal(body, &env); err != nil {
@@ -179,8 +180,12 @@ func parseUpstreamModelIDs(body []byte) []string {
 		}
 	}
 	for _, d := range env.Models {
-		if d.ID != "" {
-			ids = append(ids, d.ID)
+		id := d.ID
+		if id == "" {
+			id = strings.TrimPrefix(d.Name, "models/")
+		}
+		if id != "" {
+			ids = append(ids, id)
 		}
 	}
 	return ids

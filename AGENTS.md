@@ -13,7 +13,8 @@ Those upstream ids **change often**. Never invent or leave multi-year-old snapsh
 1. **Verify current vendor ids** (prefer primary docs, date-check):
    - Anthropic: https://platform.claude.com/docs/en/about-claude/models/overview  
    - OpenAI / Codex / ChatGPT: https://openai.com/index/gpt-5-6/ and platform models docs  
-   - xAI: https://docs.x.ai/developers/models  
+   - xAI: https://docs.x.ai/developers/models
+   - Gemini: https://ai.google.dev/gemini-api/docs/models  
 2. **Prefer live discovery** when a gateway is running with credentials:
    ```bash
    curl -sk "$GATEWAY/v1/models"              # config aliases only
@@ -28,8 +29,8 @@ Those upstream ids **change often**. Never invent or leave multi-year-old snapsh
 
 | Endpoint | Behavior |
 |----------|----------|
-| `GET /v1/models` | Config aliases (offline) **filtered** by usable `oauth.credentials` store entries; plus static subscription catalog ids for logged-in chatgpt/claude/grok |
-| `GET /v1/models?live=1` | Above **plus** live `GET {provider.base}/models` for openai / openai_compat / anthropic when credentials resolve; failures skipped |
+| `GET /v1/models` | Config aliases (offline) **filtered** by usable `oauth.credentials` store entries; plus static subscription catalog ids for logged-in chatgpt/claude/grok/gemini |
+| `GET /v1/models?live=1` | Above **plus** live `GET {provider.base}/models` for openai / openai_compat / anthropic / google when credentials resolve; failures skipped. Google ids strip a `models/` prefix. |
 | `anthropic-version` on `GET /v1/models` | Pure Anthropic upstream proxy (existing path) |
 
 Subscription OAuth (`oauth.credentials`) also injects CLI-compatible upstream headers (Claude OAuth betas, Codex UA / `Chatgpt-Account-Id`) — see `docs/oauth-token-sources.md`.
@@ -57,9 +58,9 @@ Helpers: `cursor-models`, `examples/cursor/models-to-add.txt`. Short aliases sta
 ## Subscription OAuth / Claude Code / Cursor
 
 - Auth CLI: `llm-gateway auth login|import|status` (`subauth` package).  
-- **Embedded helpers:** `llm-gateway helpers install` / `load-helpers` → `~/.config/inja-gateway/` (source of truth for release binaries). Keep `cmd/gateway/shell/*.sh` and `examples/shell/*.sh` in sync, and `cmd/gateway/scripts/*` with `examples/scripts/` (`gen-localhost-tls.sh`, `claude-grok`) (CI test).  
+- **Embedded helpers:** `llm-gateway helpers install` / `load-helpers` → `~/.config/inja-gateway/` (source of truth for release binaries). Keep `cmd/gateway/shell/*.sh` and `examples/shell/*.sh` in sync, and `cmd/gateway/scripts/*` with `examples/scripts/` (`gen-localhost-tls.sh`, `claude-grok`, `claude-gemini`, `claude-codex`) (CI test).  
 - HTTPS local: `examples/scripts/gen-localhost-tls.sh` (also installed as `scripts/gen-localhost-tls.sh`), helpers `cc-gateway-up`, logs `cc-gateway-logs`.  
-- Claude Code combos: `examples/claude-code-multi.sh`, `cc-gpt` / `cc-grok` / `cc-multi`.  
+- Claude Code combos: `examples/claude-code-multi.sh`, `cc-gpt` / `cc-grok` / `cc-gemini` / `cc-multi`. PATH wrappers `claude-grok` / `claude-gemini` / `claude-codex`.  
 - Cursor: OpenAI base `…/v1` + **prefixed** custom models (`cursor-apply`) next to Cursor built-ins.  
 - **ToS:** personal accounts only; no multi-tenant resale of consumer OAuth.
 

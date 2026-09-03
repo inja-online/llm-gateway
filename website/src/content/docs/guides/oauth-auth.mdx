@@ -176,23 +176,26 @@ srv.SetTokenSource("vertex", mySource) // overrides YAML auto-wire
 2. Prefer **edge key + server `api_key_env` or `oauth2`**.  
 3. If the tool already holds a provider access token, use `auth: client_bearer`.  
 
-**Subscription OAuth** (ChatGPT Codex, Claude setup-token, SuperGrok / Grok CLI):
+**Subscription OAuth** (ChatGPT Codex, Claude setup-token, SuperGrok / Grok CLI, Gemini / Antigravity):
 
 ```bash
 ./llm-gateway auth login chatgpt
 ./llm-gateway auth login claude
 ./llm-gateway auth login grok      # or: auth import grok
+./llm-gateway auth login gemini    # or: auth import gemini  (aliases: google, antigravity)
 ```
 
 ```yaml
 auth: oauth2
 oauth:
-  credentials: chatgpt   # or claude | grok — tokens from local auth store
+  credentials: chatgpt   # or claude | grok | gemini — tokens from local auth store
 ```
 
-**Full walkthrough:** [Claude Code with ChatGPT, Claude & SuperGrok](/llm-gateway/guides/claude-code-subscriptions/) — combos (`gpt`, `grok`, `gpt+grok`, `multi`), aliases (Grok 4.6 / Composer 2.5), troubleshooting. Same gateway: [Claude app](/llm-gateway/guides/claude-desktop-subscriptions/) · [Codex](/llm-gateway/guides/codex-subscriptions/).
+Gemini refresh needs `INJA_GATEWAY_GEMINI_CLIENT_SECRET` (Jetski token file has no secret). Export steps: [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/).
 
-**ToS warning:** personal use of accounts you own only; do not resell multi-tenant consumer OAuth. Re-read OpenAI / Anthropic / xAI terms.
+**Full walkthrough:** [Claude Code with ChatGPT, Claude, SuperGrok & Gemini](/llm-gateway/guides/claude-code-subscriptions/) — combos (`gpt`, `grok`, `gemini`, `gpt+grok`, `multi`), PATH wrappers `claude-grok` / `claude-gemini` / `claude-codex`, live `GET /v1/models?live=1`. Same gateway: [Claude app](/llm-gateway/guides/claude-desktop-subscriptions/) · [Codex](/llm-gateway/guides/codex-subscriptions/).
+
+**ToS warning:** personal use of accounts you own only; do not resell multi-tenant consumer OAuth. Re-read OpenAI / Anthropic / xAI / Google terms.
 
 ---
 

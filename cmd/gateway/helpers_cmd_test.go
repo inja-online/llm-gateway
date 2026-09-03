@@ -58,7 +58,7 @@ func TestHelpersInstallAndSource(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "certs")); err != nil {
 		t.Fatal("certs dir", err)
 	}
-	for _, script := range []string{"gen-localhost-tls.sh", "claude-grok"} {
+	for _, script := range []string{"gen-localhost-tls.sh", "claude-grok", "claude-gemini", "claude-codex"} {
 		p := filepath.Join(dir, "scripts", script)
 		st, err := os.Stat(p)
 		if err != nil || st.Size() < 100 {
@@ -176,11 +176,15 @@ func TestEmbeddedShellMatchesExamples(t *testing.T) {
 
 func TestShellNormalizeProvidersZshAndBash(t *testing.T) {
 	script := `
+unset CC_MODEL CC_OPUS_MODEL CC_SONNET_MODEL CC_HAIKU_MODEL CC_GROK_HEAVY CC_GEMINI_MID ANTHROPIC_MODEL
 source ./shell/claude-code-profiles.sh
 printf 'n=%s\n' "$(_inja_cc_normalize_providers grok)"
 printf 'p=%s\n' "$(_inja_cc_normalize_providers gpt+grok)"
+printf 'g=%s\n' "$(_inja_cc_normalize_providers gemini)"
 _inja_cc_apply_combo grok
 printf 'm=%s\n' "$ANTHROPIC_MODEL"
+_inja_cc_apply_combo gemini
+printf 'gm=%s\n' "$ANTHROPIC_MODEL"
 `
 	gotOne := false
 	for _, sh := range []string{"bash", "zsh"} {
@@ -206,14 +210,100 @@ printf 'm=%s\n' "$ANTHROPIC_MODEL"
 		if !strings.Contains(s, "m=grok-4.5\n") {
 			t.Fatalf("%s apply grok model: %q", sh, s)
 		}
+		if !strings.Contains(s, "g=gemini\n") {
+			t.Fatalf("%s normalize gemini: %q", sh, s)
+		}
+		if !strings.Contains(s, "gm=gemini\n") {
+			t.Fatalf("%s apply gemini model: %q", sh, s)
+		}
 	}
 	if !gotOne {
 		t.Skip("neither bash nor zsh on PATH")
 	}
 }
 
+func TestShellThinkingUltracode(t *testing.T) {
+	dir := t.TempDir()
+	settings := filepath.Join(dir, "ultracode-settings.json")
+	script := `
+unset CC_MODEL CC_OPUS_MODEL CC_SONNET_MODEL CC_HAIKU_MODEL CC_GROK_HEAVY CC_GEMINI_MID ANTHROPIC_MODEL
+unset CLAUDE_CODE_EFFORT_LEVEL
+unset ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES
+unset ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES
+unset ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES
+unset ANTHROPIC_CUSTOM_MODEL_OPTION ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES
+source ./shell/claude-code-profiles.sh
+_inja_cc_apply_combo grok
+printf 'effort=%s\n' "$CLAUDE_CODE_EFFORT_LEVEL"
+printf 'opus_caps=%s\n' "$ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"
+printf 'sonnet_caps=%s\n' "$ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES"
+printf 'haiku_caps=%s\n' "$ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES"
+printf 'custom=%s\n' "$ANTHROPIC_CUSTOM_MODEL_OPTION"
+printf 'custom_caps=%s\n' "$ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES"
+export CC_ULTRACODE_SETTINGS='` + settings + `'
+f="$(_inja_cc_write_ultracode_settings)"
+printf 'settings=%s\n' "$f"
+_inja_cc_prepare_claude_launch
+printf 'extra=%s\n' "${CC_LAUNCH_EXTRA[*]}"
+export CLAUDE_CODE_EFFORT_LEVEL=ultracode
+_inja_cc_apply_thinking
+_inja_cc_prepare_claude_launch
+printf 'coerced=%s\n' "${CC_LAUNCH_EXTRA[*]}"
+`
+	path, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not on PATH")
+	}
+	cmd := exec.Command(path, "-c", script)
+	cmd.Dir = "."
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	s := string(out)
+	if !strings.Contains(s, "effort=xhigh\n") {
+		t.Fatalf("effort: %q", s)
+	}
+	for _, key := range []string{"opus_caps=", "sonnet_caps=", "haiku_caps=", "custom_caps="} {
+		if !strings.Contains(s, key) || !strings.Contains(s, "xhigh_effort") {
+			t.Fatalf("caps missing %s in %q", key, s)
+		}
+	}
+	if !strings.Contains(s, "custom=grok-4.5\n") && !strings.Contains(s, "custom=grok-4.6\n") {
+		t.Fatalf("custom option: %q", s)
+	}
+	if !strings.Contains(s, "--effort") || !strings.Contains(s, "--settings") {
+		t.Fatalf("launch extra: %q", s)
+	}
+	if strings.Contains(s, "coerced=") && strings.Contains(s, "--effort ultracode") {
+		t.Fatalf("ultracode must coerce to xhigh --effort: %q", s)
+	}
+	if !strings.Contains(s, "coerced=--effort xhigh") {
+		t.Fatalf("coerced extra: %q", s)
+	}
+	body, err := os.ReadFile(settings)
+	if err != nil {
+		t.Fatalf("settings file: %v\n%s", err, s)
+	}
+	js := string(body)
+	for _, need := range []string{
+		`"ultracode": true`,
+		`"alwaysThinkingEnabled": true`,
+		`"effortLevel": "xhigh"`,
+		`"behavesAs": "claude-fable-5"`,
+		`"model": "grok-4.6"`,
+		`"model": "gemini"`,
+		`"model": "sol"`,
+		`"model": "sonnet"`,
+	} {
+		if !strings.Contains(js, need) {
+			t.Fatalf("settings missing %s:\n%s", need, js)
+		}
+	}
+}
+
 func TestEmbeddedScriptsMatchExamples(t *testing.T) {
-	names := []string{"gen-localhost-tls.sh", "claude-grok"}
+	names := []string{"gen-localhost-tls.sh", "claude-grok", "claude-gemini", "claude-codex"}
 	for _, name := range names {
 		ex, err := os.ReadFile(filepath.Join("..", "..", "examples", "scripts", name))
 		if err != nil {

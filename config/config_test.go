@@ -440,6 +440,27 @@ providers:
 	}
 }
 
+func TestOAuthCredentialsGemini(t *testing.T) {
+	cfg, err := Parse([]byte(`
+providers:
+  google:
+    kind: google
+    base_url: "https://generativelanguage.googleapis.com/v1beta"
+    auth: oauth2
+    oauth:
+      credentials: gemini
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers["google"].OAuth.Credentials != "gemini" {
+		t.Fatalf("credentials %q", cfg.Providers["google"].OAuth.Credentials)
+	}
+	if !cfg.Providers["google"].UsesTokenSource() {
+		t.Fatal("gemini oauth should use token source")
+	}
+}
+
 func TestOAuth2RefreshGrantAuto(t *testing.T) {
 	cfg, err := Parse([]byte(`
 providers:

@@ -127,4 +127,5 @@ echo "  model=$ANTHROPIC_MODEL  opus=$ANTHROPIC_DEFAULT_OPUS_MODEL  sonnet=$ANTH
 echo "  /model $CC_MODEL_HINTS"
 echo
 
-exec claude "$@"
+_inja_cc_prepare_claude_launch "$@"
+exec claude "${CC_LAUNCH_EXTRA[@]}" "$@"

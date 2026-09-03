@@ -221,7 +221,7 @@ See [vertex-dual-path.md](vertex-dual-path.md) + SA block above.
 
 Point the tool `baseURL` at the gateway (Claude Code: `ANTHROPIC_BASE_URL`). Prefer **edge key + server credentials**.
 
-### F. Consumer subscription OAuth (ChatGPT / Claude / SuperGrok)
+### F. Consumer subscription OAuth (ChatGPT / Claude / SuperGrok / Gemini)
 
 Interactive login (no long-lived API keys):
 
@@ -229,6 +229,7 @@ Interactive login (no long-lived API keys):
 ./llm-gateway auth login chatgpt   # Codex PKCE → ChatGPT subscription
 ./llm-gateway auth login claude    # setup-token / Claude Code OAuth
 ./llm-gateway auth login grok      # SuperGrok device-code OAuth
+./llm-gateway auth login gemini    # Antigravity / Gemini CLI (aliases: google, antigravity)
 ./llm-gateway auth status
 ```
 
@@ -241,12 +242,14 @@ providers:
     base_url: "https://chatgpt.com/backend-api/codex"
     auth: oauth2
     oauth:
-      credentials: chatgpt   # chatgpt | claude | grok
+      credentials: chatgpt   # chatgpt | claude | grok | gemini
 ```
+
+Gemini refresh requires `INJA_GATEWAY_GEMINI_CLIENT_SECRET` (or `client_secret` on the 0600 store row). The Jetski token file has no secret. Export: [claude-code-multi.md](claude-code-multi.md) / [docs site](https://inja-online.github.io/llm-gateway/guides/claude-code-subscriptions/).
 
 Full guide: [claude-code-multi.md](claude-code-multi.md) · config [`examples/configs/claude-code-subscriptions.yaml`](https://github.com/inja-online/llm-gateway/blob/master/examples/configs/claude-code-subscriptions.yaml).
 
-**ToS:** personal use of accounts you own only; do not productize multi-tenant resale of consumer OAuth. Re-read OpenAI / Anthropic / xAI terms.
+**ToS:** personal use of accounts you own only; do not productize multi-tenant resale of consumer OAuth. Re-read OpenAI / Anthropic / xAI / Google terms.
 
 #### Upstream headers the gateway injects
 
@@ -257,6 +260,7 @@ For `oauth.credentials` providers the gateway adds CLI-compatible headers after 
 | `claude` | `Authorization: Bearer` (never `x-api-key`); `anthropic-version: 2023-06-01`; `anthropic-beta` defaults including **`oauth-2025-04-20`** (merged with client betas); `X-App: cli` |
 | `chatgpt` | Codex-like `User-Agent` / `Originator: codex-tui`; **`Chatgpt-Account-Id`** from JWT claims stored at login |
 | `grok` | Plain Bearer only (no extra headers today) |
+| `gemini` | `Authorization: Bearer` (Google OAuth; not `x-goog-api-key`) |
 
 ChatGPT login/refresh parses the access/id JWT for `chatgpt_account_id` and stores it on the credential.
 

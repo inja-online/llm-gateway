@@ -3,6 +3,8 @@ package subauth
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -82,7 +84,11 @@ func (s *StoreTokenSource) TokenWithExpiry(ctx context.Context) (string, time.Ti
 	if tokenURL == "" || clientID == "" {
 		return "", time.Time{}, fmt.Errorf("subauth: %s missing token_url/client_id for refresh", s.Provider)
 	}
-	fresh, err := RefreshAccessToken(ctx, nil, tokenURL, clientID, c.RefreshToken)
+	secret := c.ClientSecret
+	if secret == "" && s.Provider == ProviderGemini {
+		secret = strings.TrimSpace(os.Getenv("INJA_GATEWAY_GEMINI_CLIENT_SECRET"))
+	}
+	fresh, err := RefreshAccessToken(ctx, nil, tokenURL, clientID, c.RefreshToken, secret)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("subauth: refresh %s: %w", s.Provider, err)
 	}
@@ -93,6 +99,9 @@ func (s *StoreTokenSource) TokenWithExpiry(ctx context.Context) (string, time.Ti
 	c.Expiry = fresh.Expiry
 	c.TokenURL = tokenURL
 	c.ClientID = clientID
+	if secret != "" {
+		c.ClientSecret = secret
+	}
 	c.Provider = s.Provider
 	if fresh.AccountID != "" {
 		c.AccountID = fresh.AccountID
@@ -135,6 +144,8 @@ func defaultsForProvider(p string) (tokenURL, clientID string) {
 		return ChatGPTTokenURL, ChatGPTClientID
 	case ProviderGrok:
 		return GrokTokenURL, GrokClientID
+	case ProviderGemini:
+		return GeminiTokenURL, GeminiClientID
 	default:
 		return "", ""
 	}

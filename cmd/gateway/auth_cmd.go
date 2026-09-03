@@ -40,16 +40,18 @@ func runAuth(args []string) error {
 func printAuthUsage() {
 	fmt.Fprintf(os.Stderr, `Usage: llm-gateway auth <command>
 
-Subscription OAuth helpers (ChatGPT Plus/Pro via Codex, Claude, SuperGrok).
+Subscription OAuth helpers (ChatGPT Plus/Pro via Codex, Claude, SuperGrok, Gemini/Antigravity).
 Tokens are stored in $INJA_GATEWAY_AUTH_FILE or ~/.config/inja-gateway/credentials.json (0600).
 
 Commands:
   login chatgpt [--no-browser]   Browser PKCE login (ChatGPT subscription / Codex OAuth)
   login claude                   setup-token / paste Claude subscription OAuth token
   login grok [--device]          Import ~/.grok/auth.json if present, else device-code
+  login gemini                   Import ~/.gemini/jetski-standalone-oauth-token (Antigravity)
   import chatgpt                 Import from ~/.codex/auth.json after: codex login
   import claude                  Import from Claude Code credentials file
   import grok                    Import from ~/.grok/auth.json (Grok CLI) / Hermes / OpenClaw
+  import gemini                  Import Gemini/Antigravity consumer OAuth (GEMINI_AUTH_FILE)
   status                         Show which providers are logged in (no secrets)
   logout [provider|all]          Remove stored credentials
   env [provider]                 Print export lines (refresh/access) for debugging
@@ -57,7 +59,9 @@ Commands:
 Wire into gateway.yaml with:
   auth: oauth2
   oauth:
-    credentials: chatgpt   # or claude | grok
+    credentials: chatgpt   # or claude | grok | gemini
+
+Gemini refresh needs INJA_GATEWAY_GEMINI_CLIENT_SECRET (never commit the secret).
 
 See docs/claude-code-multi.md and docs/oauth-token-sources.md.
 `)
@@ -69,7 +73,7 @@ func authPath() (string, error) {
 
 func authLogin(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("auth login: need provider (chatgpt|claude|grok)")
+		return fmt.Errorf("auth login: need provider (chatgpt|claude|grok|gemini)")
 	}
 	provider := strings.ToLower(args[0])
 	noBrowser := false
@@ -99,8 +103,11 @@ func authLogin(args []string) error {
 	case subauth.ProviderGrok, "xai":
 		provider = subauth.ProviderGrok
 		cred, err = subauth.LoginGrok(ctx, subauth.LoginGrokOptions{ForceDevice: forceDevice})
+	case subauth.ProviderGemini, "google", "antigravity":
+		provider = subauth.ProviderGemini
+		cred, err = subauth.LoginGemini()
 	default:
-		return fmt.Errorf("auth login: unknown provider %q (chatgpt|claude|grok)", args[0])
+		return fmt.Errorf("auth login: unknown provider %q (chatgpt|claude|grok|gemini)", args[0])
 	}
 	if err != nil {
 		return err
@@ -111,7 +118,7 @@ func authLogin(args []string) error {
 
 func authImport(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("auth import: need provider (chatgpt|claude|grok)")
+		return fmt.Errorf("auth import: need provider (chatgpt|claude|grok|gemini)")
 	}
 	var (
 		cred subauth.Credential
@@ -127,8 +134,11 @@ func authImport(args []string) error {
 	case subauth.ProviderGrok, "xai":
 		cred, err = subauth.ImportGrokFromCLI()
 		cred.Provider = subauth.ProviderGrok
+	case subauth.ProviderGemini, "google", "antigravity":
+		cred, err = subauth.ImportGeminiFromCLI()
+		cred.Provider = subauth.ProviderGemini
 	default:
-		return fmt.Errorf("auth import: unknown provider %q (chatgpt|claude|grok)", args[0])
+		return fmt.Errorf("auth import: unknown provider %q (chatgpt|claude|grok|gemini)", args[0])
 	}
 	if err != nil {
 		return err

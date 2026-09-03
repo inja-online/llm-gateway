@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# PATH wrapper: Claude Code on SuperGrok via llm-gateway.
-# Extra args are forwarded to `claude` (so `claude-grok --help` is `claude --help`).
+# PATH wrapper: Claude Code on Gemini/Antigravity via llm-gateway.
+# Extra args are forwarded to `claude` (so `claude-gemini --help` is `claude --help`).
 #
 # Must not run under /bin/sh — helpers define hyphenated functions (cc-gateway-up).
 # Install:
 #   llm-gateway helpers install
-#   ln -sf ~/.config/inja-gateway/scripts/claude-grok ~/.local/bin/claude-grok
+#   ln -sf ~/.config/inja-gateway/scripts/claude-gemini ~/.local/bin/claude-gemini
 #
-# Env overrides: KEY CC_MODEL CC_GROK_HEAVY CLAUDE_CODE_EFFORT_LEVEL CLAUDE_BIN
+# Env overrides: KEY CC_MODEL GATEWAY CLAUDE_BIN
 # Optional: CC_ALLOW_DANGEROUSLY_SKIP_PERMISSIONS=1
+# Does not start/restart the gateway (CC_SKIP_GATEWAY_UP=1).
 set -e
 
 # --help / --version: identical to `claude`, no gateway, no helper source.
@@ -23,9 +24,10 @@ done
 eval "$(llm-gateway helpers source)"
 
 export KEY="${KEY:-local-dev}"
-export CC_MODEL="${CC_MODEL:-grok-4.6}"
-export CC_GROK_HEAVY="${CC_GROK_HEAVY:-grok-4.6}"
-export CLAUDE_CODE_EFFORT_LEVEL="${CLAUDE_CODE_EFFORT_LEVEL:-xhigh}"
+export CC_SKIP_GATEWAY_UP=1
+if [[ -z "${CC_MODEL:-}" ]]; then
+  export CC_MODEL="$(_inja_cc_pick_live_model google gemini)"
+fi
 
 extra=()
 has_skip=0
@@ -39,4 +41,4 @@ if [[ "${CC_ALLOW_DANGEROUSLY_SKIP_PERMISSIONS:-}" == "1" && $has_skip -eq 0 ]];
 fi
 
 # Function, not a binary — do not exec.
-cc-grok "${extra[@]}" "$@"
+cc-gemini "${extra[@]}" "$@"

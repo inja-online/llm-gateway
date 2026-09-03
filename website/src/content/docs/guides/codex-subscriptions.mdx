@@ -10,7 +10,7 @@ sidebar:
 
 **Last updated:** 2026-08-28
 
-Use **Codex CLI** and **ChatGPT desktop coding / Codex mode** with the same local gateway as Claude Code: ChatGPT Plus/Pro (Codex OAuth), plus Claude and SuperGrok when those logins are present.
+Use **Codex CLI** and **ChatGPT desktop coding / Codex mode** with the same local gateway as Claude Code: ChatGPT Plus/Pro (Codex OAuth), plus Claude, SuperGrok, and Gemini/Antigravity when those logins are present.
 
 The **ChatGPT chat** UI often **ignores** a custom provider (product limitation). The supported path is anything that reads `~/.codex/config.toml` (Codex CLI, many ChatGPT **coding agent** surfaces).
 
@@ -37,6 +37,7 @@ eval "$(llm-gateway helpers source)"
 llm-gateway auth login chatgpt    # ChatGPT Plus/Pro via Codex OAuth
 # optional: llm-gateway auth import grok
 # optional: llm-gateway auth login claude
+# optional: llm-gateway auth import gemini
 llm-gateway auth status
 
 export KEY=local-dev

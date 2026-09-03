@@ -113,6 +113,7 @@ func run(args []string) error {
   llm-gateway auth login chatgpt       ChatGPT subscription OAuth (Codex PKCE)
   llm-gateway auth login claude        Claude subscription setup-token
   llm-gateway auth login grok          SuperGrok / X Premium+ device OAuth
+  llm-gateway auth login gemini        Gemini / Antigravity consumer OAuth import
   llm-gateway auth status|logout|env   Manage stored subscription credentials
   llm-gateway helpers install          Install shell helpers from this binary
   llm-gateway load-helpers             Alias for helpers install

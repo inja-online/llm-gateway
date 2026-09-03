@@ -20,6 +20,7 @@ const (
 	ProviderChatGPT = "chatgpt"
 	ProviderClaude  = "claude"
 	ProviderGrok    = "grok"
+	ProviderGemini  = "gemini"
 )
 
 // Credential is one provider's OAuth (or long-lived setup) token set.
@@ -30,6 +31,7 @@ type Credential struct {
 	TokenType    string    `json:"token_type,omitempty"`
 	Expiry       time.Time `json:"expiry,omitempty"`
 	ClientID     string    `json:"client_id,omitempty"`
+	ClientSecret string    `json:"client_secret,omitempty"`
 	TokenURL     string    `json:"token_url,omitempty"`
 	// AccountID is optional ChatGPT account id extracted from the access token.
 	AccountID string `json:"account_id,omitempty"`
@@ -185,13 +187,13 @@ func (s *Store) Delete(provider string) {
 
 // ValidProviders lists known provider ids.
 func ValidProviders() []string {
-	return []string{ProviderChatGPT, ProviderClaude, ProviderGrok}
+	return []string{ProviderChatGPT, ProviderClaude, ProviderGrok, ProviderGemini}
 }
 
 // IsKnownProvider reports whether id is a supported subscription provider.
 func IsKnownProvider(id string) bool {
 	switch id {
-	case ProviderChatGPT, ProviderClaude, ProviderGrok:
+	case ProviderChatGPT, ProviderClaude, ProviderGrok, ProviderGemini:
 		return true
 	default:
 		return false

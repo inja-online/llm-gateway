@@ -95,6 +95,17 @@ func TestAuthImportGrok(t *testing.T) {
 	}
 }
 
+func TestAuthImportGemini(t *testing.T) {
+	dir := t.TempDir()
+	auth := filepath.Join(dir, "jetski.json")
+	t.Setenv("GEMINI_AUTH_FILE", auth)
+	t.Setenv("INJA_GATEWAY_AUTH_FILE", filepath.Join(dir, "gw.json"))
+	_ = os.WriteFile(auth, []byte(`{"token":{"access_token":"ya29.x","refresh_token":"1//r"}}`), 0o600)
+	if err := authImport([]string{"gemini"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFormatExpiry(t *testing.T) {
 	if formatExpiry(time.Time{}) == "" {
 		t.Fatal()

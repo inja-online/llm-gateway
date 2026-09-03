@@ -10,7 +10,7 @@ sidebar:
 
 **Last updated:** 2026-07-23
 
-Use **Cursor** with the same local gateway and **consumer subscriptions** as Claude Code: ChatGPT (Codex OAuth), Claude (setup-token), SuperGrok (Grok CLI / device OAuth).
+Use **Cursor** with the same local gateway and **consumer subscriptions** as Claude Code: ChatGPT (Codex OAuth), Claude (setup-token), SuperGrok (Grok CLI / device OAuth), Gemini / Antigravity.
 
 **You keep Cursor’s own models** (Claude Fable 5, Composer 2.5, Cursor Grok, …) **and** add gateway models next to them with **prefixed** names so nothing collides.
 
@@ -72,6 +72,7 @@ eval "$(llm-gateway helpers source)"
 llm-gateway auth login chatgpt
 llm-gateway auth login claude     # optional
 llm-gateway auth import grok      # or auth login grok
+llm-gateway auth import gemini    # optional — Gemini / Antigravity
 llm-gateway auth status
 ```
 

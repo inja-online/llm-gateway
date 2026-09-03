@@ -10,7 +10,7 @@ sidebar:
 
 **Last updated:** 2026-08-28
 
-Run **one** local gateway with your **ChatGPT / Claude / SuperGrok** logins, then point **whatever client you like** at it. Same credentials, same models, two wire dialects.
+Run **one** local gateway with your **ChatGPT / Claude / SuperGrok / Gemini** logins, then point **whatever client you like** at it. Same credentials, same models, two wire dialects.
 
 ```
   Claude Desktop          ──Anthropic──┐
@@ -42,6 +42,7 @@ eval "$(llm-gateway helpers source)"
 llm-gateway auth login chatgpt     # ChatGPT Plus/Pro via Codex OAuth
 llm-gateway auth login claude      # Claude Pro/Max setup-token
 llm-gateway auth import grok       # SuperGrok (Grok CLI recommended)
+llm-gateway auth import gemini     # Gemini / Antigravity Jetski token
 
 export KEY=local-dev
 cc-gateway-up                      # HTTPS on 127.0.0.1:8787
@@ -55,7 +56,7 @@ cc-gateway-logs -f                 # http + usage
 
 ```bash
 go build -o llm-gateway ./cmd/gateway
-./llm-gateway auth login chatgpt   # and/or claude, grok
+./llm-gateway auth login chatgpt   # and/or claude, grok, gemini
 
 source examples/shell/claude-code-helpers.sh
 source examples/shell/apps-helpers.sh

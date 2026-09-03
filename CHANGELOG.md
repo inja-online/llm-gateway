@@ -31,6 +31,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 - **Docs:** [Moonshot / Kimi provider guide](docs/providers/moonshot-kimi.md) — get API keys on platform.kimi.ai, Kimi K3 (`kimi-k3`), regional bases, gateway curl/SDK, helpers, Kimi Code CLI `/login`; example aliases `kimi` / `kimi-k3`.
 - **Docs:** [Claude app + subscriptions](https://inja-online.github.io/llm-gateway/guides/claude-desktop-subscriptions/) and [Codex + subscriptions](https://inja-online.github.io/llm-gateway/guides/codex-subscriptions/) — third-party inference in the Claude desktop app; Codex CLI / ChatGPT coding via `~/.codex/config.toml`.
 - **`claude-grok` PATH wrapper:** `helpers install` writes `scripts/claude-grok`; `ln -sf` onto `PATH`. Forwards all args to `claude` (`--help` does not start the gateway). Defaults Grok 4.6 + `xhigh`. Claude Code env uses `ANTHROPIC_AUTH_TOKEN` only (avoids dual-key warning).
+- **Gemini / Antigravity consumer OAuth:** `llm-gateway auth login|import gemini` (aliases `google`, `antigravity`) imports `~/.gemini/jetski-standalone-oauth-token`. Store id `oauth.credentials: gemini`. Refresh needs `INJA_GATEWAY_GEMINI_CLIENT_SECRET` (never committed). Example provider `kind: google` in `claude-code-subscriptions.yaml`.
+- **PATH wrappers `claude-gemini` / `claude-codex`:** same pattern as `claude-grok`; pick a live model from `GET /v1/models?live=1` (Google / ChatGPT prefixes). Helpers: `cc-gemini` / `ccgm`.
+- **Live models fan-out** includes `kind: google` (`models/gemini-…` prefix stripped).
+- **Claude Code thinking + ultracode on custom models:** helpers advertise `effort,xhigh_effort,thinking,…` on opus/sonnet/haiku/custom slots and launch with `--effort xhigh` plus a session `--settings` file (`ultracode: true`, `modelPicker` `behavesAs: claude-fable-5` for gateway aliases). Applies to `cc-*`, `claude-grok` / `claude-gemini` / `claude-codex`, and `examples/claude-code-multi.sh`.
 
 ## [0.2.0] — 2026-07-24
 

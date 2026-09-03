@@ -1,10 +1,11 @@
-# Claude Code + consumer subscription OAuth (ChatGPT, Claude, SuperGrok).
+# Claude Code + consumer subscription OAuth (ChatGPT, Claude, SuperGrok, Gemini/Antigravity).
 #
 # 1) Log in once per provider (browser / device code / setup-token):
 #      go build -o llm-gateway ./cmd/gateway
 #      ./llm-gateway auth login chatgpt    # ChatGPT Plus/Pro via Codex OAuth
 #      ./llm-gateway auth login claude     # Claude Pro/Max setup-token
 #      ./llm-gateway auth login grok       # SuperGrok / X Premium+ device code
+#      ./llm-gateway auth login gemini     # Antigravity / Gemini CLI consumer OAuth
 #      ./llm-gateway auth status
 #
 # 2) Start gateway:
@@ -63,9 +64,21 @@ providers:
     capabilities:
       text: true
 
+  # Gemini / Antigravity consumer OAuth → generativelanguage (Bearer from store).
+  # Refresh needs INJA_GATEWAY_GEMINI_CLIENT_SECRET or client_secret in credentials.json.
+  google:
+    kind: google
+    base_url: "https://generativelanguage.googleapis.com/v1beta"
+    auth: oauth2
+    oauth:
+      credentials: gemini
+    capabilities:
+      text: true
+
 defaults:
   anthropic_dialect: anthropic
   openai_dialect: chatgpt
+  google_dialect: google
 
 # Model aliases (updated 2026-08-28). Targets are vendor API ids under provider/.
 # Re-check: platform.claude.com/docs · openai.com/index/gpt-5-6 · docs.x.ai/developers/models
@@ -97,6 +110,17 @@ aliases:
   composer-2.5: xai/grok-build-0.1
   grok-build: xai/grok-build-0.1
   grok-composer: xai/grok-build-0.1
+
+  # --- Gemini (live list via GET /v1/models?live=1; these are fallback aliases) ---
+  gemini: google/gemini-2.5-flash
+  gemini-flash: google/gemini-2.5-flash
+  gemini-pro: google/gemini-2.5-pro
+  google/gemini: google/gemini-2.5-flash
+  google/flash: google/gemini-2.5-flash
+  google/pro: google/gemini-2.5-pro
+  inja/gemini: google/gemini-2.5-flash
+  inja/gemini-flash: google/gemini-2.5-flash
+  inja/gemini-pro: google/gemini-2.5-pro
 
   # --- Cursor coexistence (prefixed names) ---
   # Cursor keeps its own built-ins (e.g. "Claude Fable 5", Composer 2.5, Cursor Grok).

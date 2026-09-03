@@ -71,7 +71,7 @@ type OAuthConfig struct {
 	Extra           map[string]string `yaml:"extra"`    // extra form fields (no secrets in logs)
 	// Grant overrides auto detection: "client_credentials" | "refresh_token".
 	Grant string `yaml:"grant"`
-	// Credentials is a subauth store provider id: chatgpt | claude | grok.
+	// Credentials is a subauth store provider id: chatgpt | claude | grok | gemini.
 	// When set, the gateway loads/refreshes tokens from the local auth store
 	// (see `llm-gateway auth login`). token_url is not required in this mode.
 	Credentials string `yaml:"credentials"`
@@ -484,10 +484,10 @@ func (o *OAuthConfig) validate(providerName string) error {
 	// Subscription credential store (chatgpt|claude|grok) — no token_url required.
 	if cred := strings.ToLower(strings.TrimSpace(o.Credentials)); cred != "" {
 		switch cred {
-		case "chatgpt", "claude", "grok":
+		case "chatgpt", "claude", "grok", "gemini":
 			return nil
 		default:
-			return fmt.Errorf("config: provider %q: oauth.credentials %q unknown (want chatgpt|claude|grok)", providerName, o.Credentials)
+			return fmt.Errorf("config: provider %q: oauth.credentials %q unknown (want chatgpt|claude|grok|gemini)", providerName, o.Credentials)
 		}
 	}
 	if strings.TrimSpace(o.TokenURL) == "" {

@@ -9,7 +9,7 @@ Point the **Claude desktop application** (macOS/Windows) at the local gateway. C
 ```bash
 llm-gateway helpers install
 eval "$(llm-gateway helpers source)"
-llm-gateway auth import grok    # and/or chatgpt, claude
+llm-gateway auth import grok    # and/or chatgpt, claude, gemini
 export KEY=local-dev
 cc-gateway-up
 

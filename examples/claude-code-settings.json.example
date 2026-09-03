@@ -1,5 +1,8 @@
 {
-  "$schema_note": "Merge one env block into ~/.claude/settings.json. Model aliases match examples/configs/* (updated 2026-07-23). Prefer the launcher for switching combos.",
+  "$schema_note": "Merge into ~/.claude/settings.json (user settings). modelPicker.behavesAs is honored from user/--settings/managed only — not project checkout. ultracode is session-scoped: wrappers pass --settings with ultracode:true; do not expect it to persist here.",
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "xhigh",
+  "skipWorkflowUsageWarning": true,
   "env": {
     "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
     "ANTHROPIC_API_KEY": "REPLACE_WITH_EDGE_OR_ANY_KEY",
@@ -8,7 +11,31 @@
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.5",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "composer-2.5",
-    "ANTHROPIC_SMALL_FAST_MODEL": "composer-2.5"
+    "ANTHROPIC_SMALL_FAST_MODEL": "composer-2.5",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "gpt",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
+    "CLAUDE_CODE_EFFORT_LEVEL": "xhigh"
+  },
+  "modelPicker": {
+    "options": [
+      {"model": "sonnet", "label": "Sonnet (gateway)", "behavesAs": "claude-fable-5"},
+      {"model": "opus", "label": "Opus (gateway)", "behavesAs": "claude-fable-5"},
+      {"model": "haiku", "label": "Haiku (gateway)", "behavesAs": "claude-fable-5"},
+      {"model": "fable", "label": "Fable (gateway)", "behavesAs": "claude-fable-5"},
+      {"model": "gpt", "label": "GPT Terra", "behavesAs": "claude-fable-5"},
+      {"model": "sol", "label": "Sol", "behavesAs": "claude-fable-5"},
+      {"model": "terra", "label": "Terra", "behavesAs": "claude-fable-5"},
+      {"model": "luna", "label": "Luna", "behavesAs": "claude-fable-5"},
+      {"model": "grok-4.6", "label": "Grok 4.6", "behavesAs": "claude-fable-5"},
+      {"model": "grok-4.5", "label": "Grok 4.5", "behavesAs": "claude-fable-5"},
+      {"model": "composer-2.5", "label": "Composer 2.5", "behavesAs": "claude-fable-5"},
+      {"model": "gemini", "label": "Gemini", "behavesAs": "claude-fable-5"},
+      {"model": "gemini-pro", "label": "Gemini Pro", "behavesAs": "claude-fable-5"},
+      {"model": "gemini-flash", "label": "Gemini Flash", "behavesAs": "claude-fable-5"}
+    ]
   },
   "_examples": {
     "gpt_only": {
@@ -18,8 +45,8 @@
       "ANTHROPIC_DEFAULT_HAIKU_MODEL": "luna"
     },
     "grok_only": {
-      "ANTHROPIC_MODEL": "grok-4.5",
-      "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.5",
+      "ANTHROPIC_MODEL": "grok-4.6",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "grok-4.6",
       "ANTHROPIC_DEFAULT_SONNET_MODEL": "grok-4.5",
       "ANTHROPIC_DEFAULT_HAIKU_MODEL": "composer-2.5"
     },
@@ -34,16 +61,26 @@
       "ANTHROPIC_DEFAULT_OPUS_MODEL": "opus",
       "ANTHROPIC_DEFAULT_SONNET_MODEL": "sonnet",
       "ANTHROPIC_DEFAULT_HAIKU_MODEL": "haiku"
+    },
+    "gemini_only": {
+      "ANTHROPIC_MODEL": "gemini",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "gemini-pro",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "gemini",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL": "gemini-flash"
     }
   },
   "_upstream_ids_2026_07": {
     "sonnet": "anthropic/claude-sonnet-5",
     "opus": "anthropic/claude-opus-4-8",
     "haiku": "anthropic/claude-haiku-4-5",
+    "fable": "anthropic/claude-fable-5",
     "gpt": "chatgpt/gpt-5.6-terra",
     "sol": "chatgpt/gpt-5.6-sol",
     "luna": "chatgpt/gpt-5.6-luna",
+    "grok-4.6": "xai/grok-4.6",
     "grok-4.5": "xai/grok-4.5",
-    "composer-2.5": "xai/grok-build-0.1"
+    "composer-2.5": "xai/grok-build-0.1",
+    "gemini": "google/gemini-2.5-flash",
+    "gemini-pro": "google/gemini-2.5-pro"
   }
 }

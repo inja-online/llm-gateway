@@ -13,7 +13,7 @@ Get a working edge in a few minutes: binary or Docker, one YAML file, one reques
 After the basics, continue with:
 
 - [Use subscriptions in any app](/llm-gateway/guides/app-integrations/) — Claude Desktop, Codex/GPT Desktop, Cursor, Continue, Cline, Aider, Windsurf, SDKs  
-- [Claude Code + ChatGPT / SuperGrok subscriptions](/llm-gateway/guides/claude-code-subscriptions/) — OAuth login, any provider combo  
+- [Claude Code + ChatGPT / SuperGrok / Gemini subscriptions](/llm-gateway/guides/claude-code-subscriptions/) — OAuth login, PATH wrappers, live models  
 - [Claude app + subscriptions](/llm-gateway/guides/claude-desktop-subscriptions/) — third-party inference in the Claude desktop app  
 - [Codex + subscriptions](/llm-gateway/guides/codex-subscriptions/) — Codex CLI and ChatGPT coding via `~/.codex/config.toml`  
 - [Cursor + same subscriptions](/llm-gateway/guides/cursor-subscriptions/) — point Cursor OpenAI base URL at the gateway  
@@ -73,7 +73,7 @@ curl -s http://localhost:8787/healthz
 
 ## Claude Code / any app with your subscriptions
 
-Use ChatGPT Plus/Pro, Claude Pro/Max, and/or SuperGrok through Claude Code, Cursor, Desktop apps, and more.
+Use ChatGPT Plus/Pro, Claude Pro/Max, SuperGrok, and/or Gemini / Antigravity through Claude Code, Cursor, Desktop apps, and more.
 
 **[Claude Code](/llm-gateway/guides/claude-code-subscriptions/)** · **[Claude app](/llm-gateway/guides/claude-desktop-subscriptions/)** · **[Codex](/llm-gateway/guides/codex-subscriptions/)** · **[Any app](/llm-gateway/guides/app-integrations/)**
 
@@ -81,10 +81,10 @@ Use ChatGPT Plus/Pro, Claude Pro/Max, and/or SuperGrok through Claude Code, Curs
 # From a release binary:
 llm-gateway helpers install          # extract shell helpers + default config
 eval "$(llm-gateway helpers source)"
-llm-gateway auth login chatgpt       # and/or claude, grok
+llm-gateway auth login chatgpt       # and/or claude, grok, gemini
 export KEY=local-dev
 cc-gateway-up
-cc-gpt                               # or cc-grok / cc-multi / cursor-apply / apps-use-gateway
+cc-gpt                               # or cc-grok / cc-gemini / cc-multi / cursor-apply / apps-use-gateway
 cc-gateway-logs -f                   # usage + HTTP access lines
 ```
 

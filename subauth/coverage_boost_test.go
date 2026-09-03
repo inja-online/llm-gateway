@@ -19,8 +19,11 @@ func TestIsKnownAndValidProviders(t *testing.T) {
 		t.Fatal()
 	}
 	ps := ValidProviders()
-	if len(ps) != 3 {
+	if len(ps) != 4 {
 		t.Fatalf("%v", ps)
+	}
+	if !IsKnownProvider(ProviderGemini) {
+		t.Fatal("gemini not known")
 	}
 }
 
@@ -85,6 +88,10 @@ func TestDefaultsForProvider(t *testing.T) {
 	if u != "" || id != "" {
 		t.Fatal()
 	}
+	u, id = defaultsForProvider(ProviderGemini)
+	if u == "" || id == "" {
+		t.Fatal()
+	}
 }
 
 func TestRefreshAccessTokenAndPostForm(t *testing.T) {
@@ -98,7 +105,7 @@ func TestRefreshAccessTokenAndPostForm(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	c, err := RefreshAccessToken(context.Background(), srv.Client(), srv.URL, "cid", "old-rt")
+	c, err := RefreshAccessToken(context.Background(), srv.Client(), srv.URL, "cid", "old-rt", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +119,7 @@ func TestRefreshAccessTokenAndPostForm(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
 	}))
 	t.Cleanup(bad.Close)
-	if _, err := RefreshAccessToken(context.Background(), bad.Client(), bad.URL, "c", "r"); err == nil {
+	if _, err := RefreshAccessToken(context.Background(), bad.Client(), bad.URL, "c", "r", ""); err == nil {
 		t.Fatal("want err")
 	}
 
@@ -121,7 +128,7 @@ func TestRefreshAccessTokenAndPostForm(t *testing.T) {
 		_, _ = w.Write([]byte("not-json"))
 	}))
 	t.Cleanup(ugly.Close)
-	if _, err := RefreshAccessToken(context.Background(), ugly.Client(), ugly.URL, "c", "r"); err == nil {
+	if _, err := RefreshAccessToken(context.Background(), ugly.Client(), ugly.URL, "c", "r", ""); err == nil {
 		t.Fatal("want parse err")
 	}
 

@@ -70,11 +70,15 @@ func expiryFrom(tr tokenResponse) time.Time {
 }
 
 // RefreshAccessToken exchanges a refresh token for a new access token.
-func RefreshAccessToken(ctx context.Context, client *http.Client, tokenURL, clientID, refreshToken string) (Credential, error) {
+// clientSecret is optional (Google confidential clients require it; PKCE public clients do not).
+func RefreshAccessToken(ctx context.Context, client *http.Client, tokenURL, clientID, refreshToken, clientSecret string) (Credential, error) {
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", refreshToken)
 	form.Set("client_id", clientID)
+	if clientSecret != "" {
+		form.Set("client_secret", clientSecret)
+	}
 	tr, err := postFormToken(ctx, client, tokenURL, form)
 	if err != nil {
 		return Credential{}, err
@@ -84,6 +88,7 @@ func RefreshAccessToken(ctx context.Context, client *http.Client, tokenURL, clie
 		RefreshToken: refreshToken,
 		TokenType:    tr.TokenType,
 		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		TokenURL:     tokenURL,
 		Expiry:       expiryFrom(tr),
 		AccountID:    AccountIDFromTokens(tr.AccessToken, tr.IDToken),

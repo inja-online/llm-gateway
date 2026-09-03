@@ -563,17 +563,17 @@ export ANTHROPIC_API_KEY=sk-…   # or edge key when edge_auth is on
 claude
 ```
 
-**Multi-provider with subscription OAuth** (ChatGPT Plus/Pro, Claude Pro/Max, SuperGrok — not API keys):
+**Multi-provider with subscription OAuth** (ChatGPT Plus/Pro, Claude Pro/Max, SuperGrok, Gemini/Antigravity — not API keys):
 
 ```bash
 # one-time: install helpers from the binary (or source examples/shell/… from a checkout)
 llm-gateway helpers install && eval "$(llm-gateway helpers source)"
 
-llm-gateway auth login chatgpt   # and/or claude, grok
+llm-gateway auth login chatgpt   # and/or claude, grok, gemini
 export KEY=local-dev
 cc-gateway-up
-cc-gpt                           # or cc-grok / cc-gpt-grok / cc-multi
-# /model grok-4.5 | /model composer-2.5 | /model gpt | /model sonnet
+cc-gpt                           # or cc-grok / cc-gemini / cc-gpt-grok / cc-multi
+# /model grok-4.5 | /model composer-2.5 | /model gpt | /model sonnet | /model gemini
 cc-gateway-logs -f               # usage + HTTP access
 ```
 

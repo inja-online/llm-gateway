@@ -8,7 +8,7 @@
 #   # or from a git checkout:
 #   source examples/shell/claude-code-helpers.sh
 #
-#   cc-gateway-up · cc-gateway-logs · cc-gpt · cc-grok · cc-multi · cc-gateway-down
+#   cc-gateway-up · cc-gateway-logs · cc-gpt · cc-grok · cc-gemini · cc-multi · cc-gateway-down
 #
 # Optional: KEY GATEWAY GATEWAY_CONFIG CC_*  INJA_GATEWAY_ROOT  LLM_GATEWAY_BIN
 
@@ -407,6 +407,8 @@ export ANTHROPIC_DEFAULT_OPUS_MODEL='$ANTHROPIC_DEFAULT_OPUS_MODEL'
 export ANTHROPIC_DEFAULT_SONNET_MODEL='$ANTHROPIC_DEFAULT_SONNET_MODEL'
 export ANTHROPIC_DEFAULT_HAIKU_MODEL='$ANTHROPIC_DEFAULT_HAIKU_MODEL'
 export ANTHROPIC_SMALL_FAST_MODEL='$ANTHROPIC_SMALL_FAST_MODEL'
+export CLAUDE_CODE_EFFORT_LEVEL='${CLAUDE_CODE_EFFORT_LEVEL:-}'
+export ANTHROPIC_CUSTOM_MODEL_OPTION='${ANTHROPIC_CUSTOM_MODEL_OPTION:-}'
 export NODE_EXTRA_CA_CERTS='${NODE_EXTRA_CA_CERTS:-}'
 export SSL_CERT_FILE='${SSL_CERT_FILE:-}'
 EOF
@@ -459,12 +461,55 @@ _inja_cc_run() {
   _inja_cc_apply_combo "$profile" || return $?
   echo "profile=$CC_GATEWAY_PROFILE  providers=$CC_GATEWAY_PROVIDERS  $ANTHROPIC_BASE_URL  model=$ANTHROPIC_MODEL" >&2
   echo "  /model $CC_MODEL_HINTS" >&2
-  exec claude "$@"
+  _inja_cc_prepare_claude_launch "$@"
+  exec claude "${CC_LAUNCH_EXTRA[@]}" "$@"
+}
+
+# Pick a live catalog id from GET /v1/models?live=1 (provider prefix).
+# $1 = provider name (google|chatgpt|xai)  $2 = fallback alias  $3 = preferred substring
+_inja_cc_pick_live_model() {
+  local prefix="${1:-}"
+  local fallback="${2:-}"
+  local prefer="${3:-}"
+  local base json ids id chosen=""
+  if [[ -n "${GATEWAY:-}" ]]; then
+    base="$GATEWAY"
+  elif command -v _inja_cc_public_base >/dev/null 2>&1; then
+    base="$(_inja_cc_public_base)"
+  else
+    base="https://127.0.0.1:8787"
+  fi
+  json="$(curl -sk --max-time 4 -H "Authorization: Bearer ${KEY:-${GATEWAY_EDGE_KEY:-local-dev}}" "${base%/}/v1/models?live=1" 2>/dev/null || true)"
+  if [[ -n "$json" ]]; then
+    ids="$(printf '%s' "$json" | command grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' | command sed -e 's/.*"id"[[:space:]]*:[[:space:]]*"//' -e 's/"$//')"
+    if [[ -n "$prefer" && -n "$ids" ]]; then
+      while IFS= read -r id; do
+        [[ -z "$id" ]] && continue
+        case "$id" in
+          "$prefix"/*"$prefer"*|*${prefer}*) chosen="$id"; break ;;
+        esac
+      done <<EOF
+$ids
+EOF
+    fi
+    if [[ -z "$chosen" && -n "$ids" ]]; then
+      while IFS= read -r id; do
+        [[ -z "$id" ]] && continue
+        case "$id" in
+          "$prefix"/*) chosen="$id"; break ;;
+        esac
+      done <<EOF
+$ids
+EOF
+    fi
+  fi
+  printf '%s' "${chosen:-$fallback}"
 }
 
 cc-claude() { _inja_cc_run claude "$@"; }
 cc-gpt()    { _inja_cc_run gpt "$@"; }
 cc-grok()   { _inja_cc_run grok "$@"; }
+cc-gemini() { _inja_cc_run gemini "$@"; }
 cc-multi()  { _inja_cc_run multi "$@"; }
 cc-gpt-grok()    { _inja_cc_run gpt+grok "$@"; }
 cc-claude-gpt()  { _inja_cc_run claude+gpt "$@"; }
@@ -488,3 +533,4 @@ ccgo() { cc-gpt "$@"; }
 ccgx() { cc-grok "$@"; }
 ccga() { cc-claude "$@"; }
 ccgg() { cc-gpt-grok "$@"; }
+ccgm() { cc-gemini "$@"; }

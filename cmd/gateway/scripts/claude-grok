@@ -26,19 +26,14 @@ export KEY="${KEY:-local-dev}"
 export CC_MODEL="${CC_MODEL:-grok-4.6}"
 export CC_GROK_HEAVY="${CC_GROK_HEAVY:-grok-4.6}"
 export CLAUDE_CODE_EFFORT_LEVEL="${CLAUDE_CODE_EFFORT_LEVEL:-xhigh}"
-export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="${ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES:-effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking}"
-export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="${ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES:-effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking}"
 
 extra=()
-has_effort=0
 has_skip=0
 for a in "$@"; do
   case "$a" in
-    --effort|--effort=*) has_effort=1 ;;
     --allow-dangerously-skip-permissions) has_skip=1 ;;
   esac
 done
-[[ $has_effort -eq 0 ]] && extra+=(--effort xhigh)
 if [[ "${CC_ALLOW_DANGEROUSLY_SKIP_PERMISSIONS:-}" == "1" && $has_skip -eq 0 ]]; then
   extra+=(--allow-dangerously-skip-permissions)
 fi
