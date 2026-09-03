@@ -27,6 +27,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-04
+
+Gemini / Antigravity consumer OAuth, Claude Code PATH wrappers (`claude-gemini` / `claude-codex`), live Google model lists, and thinking/ultracode on custom gateway models.
+
 ### Fixed
 
 - **`cc-gateway-up` after `helpers install`:** ship `scripts/gen-localhost-tls.sh` with the embedded helpers and look it up under the install dir (`~/.config/inja-gateway/scripts/`), not only the git-checkout path `examples/scripts/`. Fresh `helpers install` layouts can create localhost TLS certs without a repo tree.
