@@ -86,6 +86,12 @@ const (
 // DefaultMaxBodyBytes is the request/response body cap when max_body_bytes is unset.
 const DefaultMaxBodyBytes int64 = 32 << 20 // 32 MiB
 
+// Dashboard ring defaults. ring_size ≤0 → DefaultDashboardRingSize; >MaxDashboardRingSize is invalid.
+const (
+	DefaultDashboardRingSize = 2000
+	MaxDashboardRingSize     = 100000
+)
+
 // Realtime holds process-wide WebSocket session limits (PR5+).
 type Realtime struct {
 	MaxSessions       int `yaml:"max_sessions"`
@@ -107,9 +113,34 @@ type WebhookHook struct {
 	Timeout time.Duration `yaml:"timeout"`
 }
 
+type SQLiteHook struct {
+	Path string `yaml:"path"`
+}
+
 type Hooks struct {
 	JSONL   *JSONLHook   `yaml:"jsonl"`
 	Webhook *WebhookHook `yaml:"webhook"`
+	SQLite  *SQLiteHook  `yaml:"sqlite"`
+}
+
+// Dashboard is the operator UI + /v1/dashboard API. Omitted key → enabled.
+type Dashboard struct {
+	Enabled    *bool  `yaml:"enabled"`
+	RingSize   int    `yaml:"ring_size"`
+	CORSOrigin string `yaml:"cors_origin"`
+}
+
+// IsEnabled reports whether the dashboard is on. Nil/omitted → true.
+func (d Dashboard) IsEnabled() bool {
+	return d.Enabled == nil || *d.Enabled
+}
+
+// Ring is the usage-event ring capacity. ≤0 → DefaultDashboardRingSize.
+func (d Dashboard) Ring() int {
+	if d.RingSize <= 0 {
+		return DefaultDashboardRingSize
+	}
+	return d.RingSize
 }
 
 // EdgeAuth is optional gateway-edge authentication. When enabled, every route
@@ -157,6 +188,8 @@ type Config struct {
 	// Caching holds optional prompt-caching helpers. Default off (never invent
 	// cache breakpoints without operator opt-in).
 	Caching Caching `yaml:"caching"`
+	// Dashboard is optional. Omitted → enabled with default ring_size.
+	Dashboard Dashboard `yaml:"dashboard"`
 }
 
 // TLSConfig is optional server-side TLS for the gateway process.
@@ -342,6 +375,9 @@ func (c *Config) validate() error {
 	}
 	if err := c.validateCaching(); err != nil {
 		return err
+	}
+	if c.Dashboard.RingSize > MaxDashboardRingSize {
+		return fmt.Errorf("config: dashboard.ring_size must be <= %d", MaxDashboardRingSize)
 	}
 	return nil
 }

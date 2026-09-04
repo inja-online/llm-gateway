@@ -308,3 +308,11 @@ hooks:
   # webhook:                   # async POST of the same UsageEvent JSON
   #   url: "https://billing.example.com/ingest"
   #   timeout: 3s
+  # sqlite:                    # optional durable usage events (empty path = off)
+  #   path: ""
+
+# Operator dashboard (default on when omitted). enabled: false → proxy only.
+# dashboard:
+#   enabled: true
+#   ring_size: 2000            # 0 → 2000; max 100000
+#   cors_origin: ""            # empty: no CORS. Else exact origin for a separately hosted SPA
