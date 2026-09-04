@@ -54,6 +54,7 @@
 |---|---|
 | [Getting started](getting-started.md) | Install, config sketch, health check |
 | [Any app integrations](https://inja-online.github.io/llm-gateway/guides/app-integrations/) | Claude Desktop, Codex/GPT Desktop, Cursor, Continue, Cline, Aider, Windsurf, SDKs — start with `llm-gateway helpers install` |
+| [Operator dashboard](dashboard.md) | `/ui` profiles, usage, logs; edge auth, sqlite, `noweb`/`nodb` |
 | [Claude Code + subscriptions](claude-code-multi.md) | ChatGPT / Claude / SuperGrok / Gemini OAuth, wrappers `claude-grok` / `claude-gemini` / `claude-codex` |
 | [Claude app + subscriptions](claude-desktop-subscriptions.md) | Claude desktop app via third-party inference + merged settings |
 | [Codex + subscriptions](codex-subscriptions.md) | Codex CLI / ChatGPT coding via `~/.codex/config.toml` |

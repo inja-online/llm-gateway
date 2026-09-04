@@ -6,7 +6,7 @@ Thanks for helping with **Inja LLM Gateway** (`llm-gateway`). Keep the bar where
 
 - Prefer **passthrough** over translation when dialects match.
 - One usage event per chat/media request — never drop error/abort paths.
-- No database; optional edge auth is a static key gate only (not a full IAM product).
+- No required database; optional CGO-free SQLite usage log (`hooks.sqlite.path`, stripped with `-tags nodb`). Optional edge auth is a static key gate only (not a full IAM product).
 - Simplicity over framework: stdlib + `yaml.v3` when possible.
 - **No live provider calls in CI.** Air-gapped tests with `httptest` / fakes only.
 - Never log request bodies or raw API keys; usage events may include `key_hash` only.
@@ -46,8 +46,10 @@ Coverage gate in CI is **≥ 90%**. Add tests with behavior changes.
 | `egress/openai` | OpenAI / `openai_compat` upstream (incl. Gemini OpenAI-compat) |
 | `egress/anthropic` | Anthropic upstream |
 | `egress/google` | Gemini **native** upstream (`kind: google`) |
-| `hooks/*` | Usage sinks |
+| `hooks/*` | Usage sinks (jsonl, webhook, optional sqlite, ring) |
 | `config/` | YAML + capabilities + edge_auth |
+| `dashboard/` | Operator API (binary-only; not inside `gateway.New`) |
+| `web/` | Vite SPA embedded at `/ui` |
 | `internal/sse/` | SSE helpers |
 | `internal/testutil/` | Shared test helpers (as needed) |
 | `testdata/fixtures/` | Golden media/wire samples |

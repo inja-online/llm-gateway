@@ -63,6 +63,7 @@ Model routing: `aliases` → `provider/model` → dialect default. Details in th
 
 ## Next
 
+- [Operator dashboard](dashboard.md) — `/ui` profiles, usage, logs  
 - [OAuth & token sources](oauth-token-sources.md) — keys, OAuth2, multi-tenant Bearer, SA  
 - [WIF recipes](wif-recipes.md) — short-lived tokens / cloud OIDC  
 - [Realtime & Live WebSocket](realtime-websocket.md) — production TLS/`wss`  

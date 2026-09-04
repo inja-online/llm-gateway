@@ -19,6 +19,10 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+### Added
+
+- **Operator dashboard:** embedded SPA at `/ui`, JSON/SSE API at `/v1/dashboard` (profiles, usage, logs, OAuth). Optional CGO-free SQLite usage log (`hooks.sqlite.path`). Build tags `noweb` (no `/ui`, API stays) and `nodb` (no sqlite). Release attaches `inja-gateway-ui_*.zip`. Dashboard JSON never includes tokens.
+
 ## [0.3.0] — 2026-09-04
 
 Gemini / Antigravity consumer OAuth, Claude Code PATH wrappers (`claude-gemini` / `claude-codex`), live Google model lists, and thinking/ultracode on custom gateway models.

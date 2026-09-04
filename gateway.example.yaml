@@ -279,7 +279,8 @@ aliases:
   whisper-fast: groq/whisper-large-v3
 
 # Optional edge auth (off by default). When enabled, every route except GET /healthz
-# requires Authorization: Bearer <key> or x-api-key matching keys / keys_env.
+# and /ui/* requires Authorization: Bearer <key> or x-api-key matching keys / keys_env.
+# /v1/dashboard is gated like /v1/messages. If listen is not loopback, enable this.
 # Prefer keys_env in production (comma-separated). Distinct from provider api_key_env:
 # with api_key_env set, clients only need the edge key; upstream uses the env secret.
 # edge_auth:
@@ -309,9 +310,13 @@ hooks:
   #   url: "https://billing.example.com/ingest"
   #   timeout: 3s
   # sqlite:                    # optional durable usage events (empty path = off)
-  #   path: ""
+  #   path: ""                 # file 0600 on first write; stripped with -tags nodb
 
 # Operator dashboard (default on when omitted). enabled: false → proxy only.
+# Open http://127.0.0.1:8787/ui/ — SPA stores edge key in sessionStorage.
+# Dashboard JSON never includes tokens. ChatGPT OAuth callback is
+# http://localhost:1455/auth/callback (Codex client), not /ui/oauth/callback.
+# go build -tags noweb omits /ui (API stays). -tags nodb omits sqlite.
 # dashboard:
 #   enabled: true
 #   ring_size: 2000            # 0 → 2000; max 100000
