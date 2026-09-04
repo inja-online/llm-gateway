@@ -40,6 +40,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/dashboard/profiles", s.handleProfiles)
 	mux.HandleFunc("POST /v1/dashboard/profiles/{provider}/logout", s.handleLogout)
 	mux.HandleFunc("POST /v1/dashboard/profiles/{provider}/disable", s.handleDisable)
+	mux.HandleFunc("GET /v1/dashboard/usage", s.handleUsage)
+	mux.HandleFunc("GET /v1/dashboard/logs", s.handleLogs)
+	mux.HandleFunc("GET /v1/dashboard/logs/stream", s.handleLogStream)
 	return mux
 }
 
