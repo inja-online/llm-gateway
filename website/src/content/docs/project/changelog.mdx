@@ -27,12 +27,22 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-04
+
+Operator dashboard SPA at `/ui`, JSON/SSE API at `/v1/dashboard`, OpenAI refusal translation, and stability hardening.
+
 ### Added
 
 - **Operator dashboard:** embedded SPA at `/ui`, JSON/SSE API at `/v1/dashboard` (profiles, usage, logs, OAuth). Optional CGO-free SQLite usage log (`hooks.sqlite.path`). Build tags `noweb` (no `/ui`, API stays) and `nodb` (no sqlite). Release attaches `inja-gateway-ui_*.zip`. Dashboard JSON never includes tokens.
+- **OpenAI refusal support:** preserve refusal payloads from OpenAI models and map `StopReason: StopRefusal` in streaming and non-streaming responses.
 
 ### Fixed
 
+- **Dashboard OAuth concurrency:** eliminate data races in OAuth flow handlers and test suites by wrapping callback dispatch and provider polling hooks.
+- **Upstream custom HTTP transport:** ensure `s.httpClientFor(...)` custom transports and subscription headers are applied consistently across all token counting (`/v1/messages/count_tokens`, `/v1beta/models/:countTokens`) and models discovery endpoints.
+- **ChatGPT OAuth callback channel safety:** use non-blocking channel send in local loopback callback to prevent goroutine leaks on redundant browser visits.
+- **JSONL usage sink thread safety:** synchronize `Close()` on the usage sink to prevent races with active in-flight requests.
+- **Claude Code shell scripts Gemini mapping:** fix slot calculations and add combinations for `gemini` in multi-model profiles (`cmd/gateway/shell/claude-code-profiles.sh` and `examples/shell/claude-code-profiles.sh`).
 - **Claude Code `/model` and `/effort` under PATH wrappers:** helpers no longer default `CLAUDE_CODE_EFFORT_LEVEL=xhigh`, pass `--effort xhigh`, or write session `effortLevel` / `ultracode`. Those pins made `/effort medium` a no-op and `/model chatgpt/sol` lose to a leftover settings pin on restart. Session `--settings` is now `modelPicker` + `alwaysThinkingEnabled` only (`replaceBuiltInOptions: true` hides the Anthropic lineup). Opt in to ultracode with `CC_ULTRACODE=1`.
 - **T3 Code model list on `claude-grok` / `claude-codex`:** T3’s `claudeAgent` driver still lists Anthropic catalog models; `apps-t3-claude-wrappers` writes gateway aliases into `customModels` and hides the Claude builtins.
 

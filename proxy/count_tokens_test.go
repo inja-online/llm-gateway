@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/inja-online/llm-gateway/config"
 )
 
 func TestCountTokensProxiesToAnthropicUpstream(t *testing.T) {
@@ -205,5 +207,60 @@ func TestParseGoogleTotalTokens(t *testing.T) {
 	}
 	if _, ok := parseGoogleTotalTokens([]byte(`{}`)); ok {
 		t.Fatal("empty object should not parse")
+	}
+}
+
+func TestCountTokensProviderResolvedKey(t *testing.T) {
+	t.Setenv("TEST_ANT_KEY", "ant-secret-key")
+	t.Setenv("TEST_GGL_KEY", "ggl-secret-key")
+
+	var gotAnthropicKey, gotGoogleKey string
+	upAnt := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAnthropicKey = r.Header.Get("x-api-key")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"input_tokens":10}`)
+	}))
+	t.Cleanup(upAnt.Close)
+
+	upGgl := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotGoogleKey = r.Header.Get("x-goog-api-key")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"totalTokens":20}`)
+	}))
+	t.Cleanup(upGgl.Close)
+
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`
+providers:
+  ant: { kind: anthropic, base_url: %q, api_key_env: TEST_ANT_KEY }
+  ggl: { kind: google, base_url: %q, api_key_env: TEST_GGL_KEY }
+defaults:
+  anthropic_dialect: ant
+`, upAnt.URL, upGgl.URL)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw := httptest.NewServer(NewServer(cfg, &collector{}).Handler())
+	t.Cleanup(gw.Close)
+
+	// test Anthropic count_tokens using provider resolved key from env
+	resp, err := http.Post(gw.URL+"/v1/messages/count_tokens", "application/json",
+		strings.NewReader(`{"model":"ant/claude-3","messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if gotAnthropicKey != "ant-secret-key" {
+		t.Fatalf("anthropic key = %q, want ant-secret-key", gotAnthropicKey)
+	}
+
+	// test Google count_tokens using provider resolved key from env
+	resp2, err := http.Post(gw.URL+"/v1/messages/count_tokens", "application/json",
+		strings.NewReader(`{"model":"ggl/gemini","messages":[{"role":"user","content":"hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if gotGoogleKey != "ggl-secret-key" {
+		t.Fatalf("google key = %q, want ggl-secret-key", gotGoogleKey)
 	}
 }

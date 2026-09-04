@@ -57,21 +57,35 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) startChatGPT(w http.ResponseWriter, r *http.Request) {
 	s.closePending(subauth.ProviderChatGPT)
-	flow, err := startChatGPT(r.Context())
+	startFn := s.startChatGPTFn
+	if startFn == nil {
+		startFn = subauth.StartChatGPTFlow
+	}
+	flow, err := startFn(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
+	}
+	closeFn := s.closeChatGPTFn
+	if closeFn == nil {
+		closeFn = func(f *subauth.ChatGPTFlow) { f.Close() }
+	}
+	waitFn := s.waitChatGPTFn
+	if waitFn == nil {
+		waitFn = func(ctx context.Context, f *subauth.ChatGPTFlow) (subauth.Credential, error) {
+			return f.Wait(ctx)
+		}
 	}
 	sess := s.putPending(subauth.ProviderChatGPT, &oauthSession{
 		kind:         "redirect",
 		authorizeURL: flow.AuthorizeURL,
 		state:        "pending",
-		close:        func() { closeChatGPT(flow) },
+		close:        func() { closeFn(flow) },
 	})
 	go func() {
 		defer sess.cancel()
-		defer closeChatGPT(flow)
-		cred, err := waitChatGPT(sess.run, flow)
+		defer closeFn(flow)
+		cred, err := waitFn(sess.run, flow)
 		s.finishOAuth(subauth.ProviderChatGPT, sess, cred, err)
 	}()
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -83,10 +97,20 @@ func (s *Server) startChatGPT(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) startGrok(w http.ResponseWriter, r *http.Request) {
 	s.closePending(subauth.ProviderGrok)
-	dev, err := startGrok(r.Context())
+	startFn := s.startGrokFn
+	if startFn == nil {
+		startFn = subauth.StartGrokDevice
+	}
+	dev, err := startFn(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
+	}
+	pollFn := s.pollGrokFn
+	if pollFn == nil {
+		pollFn = func(ctx context.Context, d *subauth.GrokDevice) (subauth.Credential, error) {
+			return d.Poll(ctx)
+		}
 	}
 	sess := s.putPending(subauth.ProviderGrok, &oauthSession{
 		kind:            "device",
@@ -96,7 +120,7 @@ func (s *Server) startGrok(w http.ResponseWriter, r *http.Request) {
 	})
 	go func() {
 		defer sess.cancel()
-		cred, err := pollGrok(sess.run, dev)
+		cred, err := pollFn(sess.run, dev)
 		s.finishOAuth(subauth.ProviderGrok, sess, cred, err)
 	}()
 	writeJSON(w, http.StatusOK, map[string]any{

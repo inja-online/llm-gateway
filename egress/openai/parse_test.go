@@ -26,6 +26,22 @@ func TestParseResponseText(t *testing.T) {
 	}
 }
 
+func TestParseResponseRefusal(t *testing.T) {
+	resp, err := ParseResponse([]byte(`{
+		"id":"cmpl-refusal","model":"gpt-4o",
+		"choices":[{"message":{"role":"assistant","content":null,"refusal":"I cannot fulfill this request"},"finish_reason":"stop"}]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StopReason != canonical.StopRefusal {
+		t.Errorf("stop reason: want refusal, got %q", resp.StopReason)
+	}
+	if len(resp.Content) != 1 || resp.Content[0].Type != canonical.BlockText || resp.Content[0].Text != "I cannot fulfill this request" {
+		t.Errorf("content: %+v", resp.Content)
+	}
+}
+
 func TestParseResponseToolCalls(t *testing.T) {
 	resp, _ := ParseResponse([]byte(`{
 		"id":"c","model":"m",

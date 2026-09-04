@@ -258,8 +258,9 @@ func (s *Server) proxyGoogleCountTokens(w http.ResponseWriter, r *http.Request, 
 		return false
 	}
 	applyAuth(upReq, route.Provider, key)
+	applySubscriptionHeaders(upReq, r, route.Provider)
 
-	resp, err := s.client.Do(upReq)
+	resp, err := s.httpClientFor(route.Provider.BaseURL, route.Provider).Do(upReq)
 	if err != nil {
 		return false
 	}
@@ -354,8 +355,9 @@ func (s *Server) proxyGoogleGET(w http.ResponseWriter, r *http.Request, route Ro
 		return
 	}
 	applyAuth(upReq, route.Provider, key)
+	applySubscriptionHeaders(upReq, r, route.Provider)
 
-	resp, err := s.client.Do(upReq)
+	resp, err := s.httpClientFor(route.Provider.BaseURL, route.Provider).Do(upReq)
 	if err != nil {
 		writeGoogleError(w, http.StatusBadGateway, "api_error", "upstream request failed: "+err.Error())
 		return

@@ -131,3 +131,36 @@ func TestBuildToolSchemaDefault(t *testing.T) {
 		t.Errorf("default schema not applied: %s", out.Tools[0].InputSchema)
 	}
 }
+
+func TestBuildCacheControl(t *testing.T) {
+	req := &canonical.Request{
+		System: []canonical.Block{
+			{Type: canonical.BlockText, Text: "sys", CacheControl: &canonical.CacheControl{TTL: "5m"}},
+		},
+		Tools: []canonical.Tool{
+			{Name: "t1", CacheControl: &canonical.CacheControl{Type: "ephemeral"}},
+		},
+		Messages: []canonical.Message{
+			{Role: canonical.RoleUser, Content: []canonical.Block{
+				{Type: canonical.BlockText, Text: "hi", CacheControl: &canonical.CacheControl{Type: "ephemeral", TTL: "1h"}},
+			}},
+		},
+	}
+	body, err := BuildRequest(req, "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out messagesRequest
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.System[0].CacheControl == nil || out.System[0].CacheControl.Type != "ephemeral" || out.System[0].CacheControl.TTL != "5m" {
+		t.Errorf("system cache control: %+v", out.System[0].CacheControl)
+	}
+	if out.Tools[0].CacheControl == nil || out.Tools[0].CacheControl.Type != "ephemeral" {
+		t.Errorf("tool cache control: %+v", out.Tools[0].CacheControl)
+	}
+	if out.Messages[0].Content[0].CacheControl == nil || out.Messages[0].Content[0].CacheControl.TTL != "1h" {
+		t.Errorf("content cache control: %+v", out.Messages[0].Content[0].CacheControl)
+	}
+}

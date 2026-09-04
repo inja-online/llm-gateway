@@ -23,6 +23,9 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 		if ch.Message.Content != nil && *ch.Message.Content != "" {
 			resp.Content = append(resp.Content, canonical.Block{Type: canonical.BlockText, Text: *ch.Message.Content})
 		}
+		if ch.Message.Refusal != nil && *ch.Message.Refusal != "" {
+			resp.Content = append(resp.Content, canonical.Block{Type: canonical.BlockText, Text: *ch.Message.Refusal})
+		}
 		for _, tc := range ch.Message.ToolCalls {
 			args := tc.Function.Arguments
 			if args == "" {
@@ -37,6 +40,9 @@ func ParseResponse(body []byte) (*canonical.Response, error) {
 		}
 		if ch.FinishReason != nil {
 			resp.StopReason = finishToStop(*ch.FinishReason)
+		}
+		if ch.Message.Refusal != nil && *ch.Message.Refusal != "" && (ch.FinishReason == nil || *ch.FinishReason == "stop") {
+			resp.StopReason = canonical.StopRefusal
 		}
 	}
 	resp.SystemFingerprint = in.SystemFingerprint

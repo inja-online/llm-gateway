@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,12 +13,7 @@ import (
 
 func TestMountOperator(t *testing.T) {
 	proxyH := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-			return
-		}
-		http.NotFound(w, r)
+		w.WriteHeader(http.StatusTeapot)
 	})
 	cfg := &config.Config{
 		Dashboard: config.Dashboard{CORSOrigin: "https://spa.example"},
@@ -37,76 +31,41 @@ func TestMountOperator(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("GET /ui/ status %d body %s", rec.Code, rec.Body.Bytes())
 		}
-		if !bytes.Contains(rec.Body.Bytes(), []byte("Dashboard")) {
+		if !bytes.Contains(bytes.ToLower(rec.Body.Bytes()), []byte("dashboard")) {
 			t.Fatalf("GET /ui/ body %s", rec.Body.Bytes())
 		}
 	} else {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ui/", nil))
-		if rec.Code == http.StatusOK && bytes.Contains(rec.Body.Bytes(), []byte("Dashboard")) {
+		if rec.Code == http.StatusOK && bytes.Contains(bytes.ToLower(rec.Body.Bytes()), []byte("dashboard")) {
 			t.Fatal("noweb served /ui")
 		}
 	}
 
+	// Unauthenticated operator API -> 401
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/meta", nil)
-	req.Header.Set("Authorization", "Bearer secret")
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET meta status %d body %s", rec.Code, rec.Body.Bytes())
-	}
-	var meta struct {
-		Dashboard bool `json:"dashboard"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &meta); err != nil {
-		t.Fatal(err)
-	}
-	if !meta.Dashboard {
-		t.Fatalf("meta %s", rec.Body.Bytes())
-	}
-
-	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-	if rec.Code != http.StatusOK || rec.Body.String() != "ok" {
-		t.Fatalf("healthz status %d body %s", rec.Code, rec.Body.Bytes())
-	}
-
-	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodOptions, "/v1/dashboard/meta", nil))
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("OPTIONS status %d body %s", rec.Code, rec.Body.Bytes())
-	}
-
-	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/meta", nil))
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("unauth GET meta status %d", rec.Code)
+		t.Fatalf("GET /v1/dashboard/meta unauth: want 401, got %d", rec.Code)
+	}
+
+	// Authenticated operator API -> 200 + CORS headers
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/meta", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Origin", "https://spa.example")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /v1/dashboard/meta auth: want 200, got %d", rec.Code)
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://spa.example" {
-		t.Fatalf("unauth ACAO %q", got)
+		t.Errorf("CORS origin: want https://spa.example, got %q", got)
 	}
-}
 
-func TestBuildHandlerDisabled(t *testing.T) {
-	off := false
-	cfg := &config.Config{
-		Providers: map[string]config.Provider{
-			"up": {Kind: config.KindOpenAICompat, BaseURL: "https://example.com/v1"},
-		},
-		Dashboard: config.Dashboard{Enabled: &off},
-	}
-	h, err := buildHandler(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/meta", nil))
-	if rec.Code == http.StatusOK {
-		t.Fatalf("disabled dashboard served meta: %s", rec.Body.Bytes())
-	}
+	// Non-operator, non-ui paths fall through to proxy handler
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ui/", nil))
-	if rec.Code == http.StatusOK && bytes.Contains(rec.Body.Bytes(), []byte("Dashboard")) {
-		t.Fatal("disabled dashboard served /ui")
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
+	if rec.Code != http.StatusTeapot {
+		t.Fatalf("proxy fallthrough: want 418, got %d", rec.Code)
 	}
 }

@@ -200,13 +200,13 @@ func (s *Server) proxyAnthropicModels(w http.ResponseWriter, r *http.Request, pa
 	applyAuth(upReq, route.Provider, key)
 	copyForwardHeaders(upReq, r)
 	applySubscriptionHeaders(upReq, r, route.Provider)
-	resp, err := s.client.Do(upReq)
+	resp, err := s.httpClientFor(route.Provider.BaseURL, route.Provider).Do(upReq)
 	if err != nil {
 		writeOpenAIError(w, http.StatusBadGateway, "api_error", "upstream request failed")
 		return
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, s.bodyLimit()))
+	tbody, err := io.ReadAll(io.LimitReader(resp.Body, s.bodyLimit()))
 	if err != nil {
 		writeOpenAIError(w, http.StatusBadGateway, "api_error", "failed to read upstream response")
 		return
@@ -216,5 +216,5 @@ func (s *Server) proxyAnthropicModels(w http.ResponseWriter, r *http.Request, pa
 		w.Header().Set("Content-Type", "application/json")
 	}
 	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(body)
+	_, _ = w.Write(tbody)
 }

@@ -79,22 +79,34 @@ func (f *ChatGPTFlow) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	if e := r.URL.Query().Get("error"); e != "" {
 		// Do not echo error_description.
-		f.errCh <- fmt.Errorf("oauth denied: %s", e)
+		select {
+		case f.errCh <- fmt.Errorf("oauth denied: %s", e):
+		default:
+		}
 		fmt.Fprint(w, "Login failed. You can close this tab.")
 		return
 	}
 	if r.URL.Query().Get("state") != f.state {
-		f.errCh <- fmt.Errorf("oauth state mismatch")
+		select {
+		case f.errCh <- fmt.Errorf("oauth state mismatch"):
+		default:
+		}
 		fmt.Fprint(w, "Login failed (state). You can close this tab.")
 		return
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		f.errCh <- fmt.Errorf("oauth missing code")
+		select {
+		case f.errCh <- fmt.Errorf("oauth missing code"):
+		default:
+		}
 		fmt.Fprint(w, "Login failed (no code). You can close this tab.")
 		return
 	}
-	f.codeCh <- code
+	select {
+	case f.codeCh <- code:
+	default:
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, `<!doctype html><title>Inja gateway</title>
 <p>ChatGPT login successful. You can close this tab and return to the terminal.</p>`)

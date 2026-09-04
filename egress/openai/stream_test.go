@@ -64,10 +64,10 @@ func TestStreamParseText(t *testing.T) {
 func TestStreamParseToolCalls(t *testing.T) {
 	p := NewStreamParser()
 	evs := feed(p, []string{
-		`{"id":"c","model":"m","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search","arguments":""}}]}}]}`,
-		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\":"}}]}}]}`,
-		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"go\"}"}}]}}]}`,
-		`{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		`{"id":"c","model":"m","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search","arguments":""}}]}}]}` ,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\":"}}]}}]}` ,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"go\"}"}}]}}]}` ,
+		`{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}]}` ,
 		`[DONE]`,
 	})
 	var start *canonical.StreamEvent
@@ -162,7 +162,7 @@ func TestStreamParseReasoningContent(t *testing.T) {
 		`{"id":"c1","choices":[{"delta":{"reasoning_content":"step "}}]}`,
 		`{"id":"c1","choices":[{"delta":{"reasoning_content":"one"}}]}`,
 		`{"id":"c1","choices":[{"delta":{"content":"ans"}}]}`,
-		`{"id":"c1","choices":[{"delta":{},"finish_reason":"stop"}]}`,
+		`{"id":"c1","choices":[{"delta":{},"finish_reason":"stop"}}]}`,
 		`[DONE]`,
 	})
 
@@ -214,7 +214,7 @@ func TestStreamParseReasoningThenTool(t *testing.T) {
 		`{"id":"c","model":"m","choices":[{"delta":{"reasoning_content":"plan"}}]}`,
 		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search","arguments":"{\"q\""}}]}}]}`,
 		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"x\"}"}}]}}]}`,
-		`{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		`{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}}]}`,
 		`[DONE]`,
 	})
 	var toolID, toolName, args, thinking string
@@ -268,5 +268,32 @@ func TestStreamParseReasoningThenTool(t *testing.T) {
 		if sawTool && (o == "think_start" || o == "think_delta") {
 			t.Fatalf("thinking reordered after tool: %v", order)
 		}
+	}
+}
+
+func TestStreamParseRefusal(t *testing.T) {
+	p := NewStreamParser()
+	evs := feed(p, []string{
+		`{"id":"c1","model":"gpt-4o","choices":[{"delta":{"role":"assistant"}}]}`,
+		`{"id":"c1","choices":[{"delta":{"refusal":"I cannot do that"}}]}`,
+		`{"id":"c1","choices":[{"delta":{},"finish_reason":"stop"}}]}`,
+		`[DONE]`,
+	})
+
+	var text string
+	var fin *canonical.StreamEvent
+	for i := range evs {
+		switch evs[i].Type {
+		case canonical.EventTextDelta:
+			text += evs[i].Text
+		case canonical.EventFinish:
+			fin = &evs[i]
+		}
+	}
+	if text != "I cannot do that" {
+		t.Errorf("text = %q, want %q", text, "I cannot do that")
+	}
+	if fin == nil || fin.StopReason != canonical.StopRefusal {
+		t.Errorf("finish event: %+v", fin)
 	}
 }

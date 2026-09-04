@@ -137,6 +137,7 @@ type chatChoice struct {
 type respMessage struct {
 	Role      string          `json:"role"`
 	Content   *string         `json:"content"`
+	Refusal   *string         `json:"refusal,omitempty"`
 	// Reasoning is DeepSeek/Kimi/Z.AI-style reasoning_content (string or JSON string).
 	Reasoning json.RawMessage `json:"reasoning_content,omitempty"`
 	ToolCalls []respToolCall  `json:"tool_calls"`
@@ -145,6 +146,7 @@ type respMessage struct {
 type respDelta struct {
 	Role      string          `json:"role"`
 	Content   *string         `json:"content"`
+	Refusal   *string         `json:"refusal,omitempty"`
 	// Reasoning carries streaming reasoning_content deltas (string JSON value).
 	Reasoning json.RawMessage `json:"reasoning_content,omitempty"`
 	ToolCalls []respToolCall  `json:"tool_calls"`
@@ -177,6 +179,3 @@ type promptTokensDetails struct {
 type completionTokensDetails struct {
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 }
-
-// chatRequest optional OpenAI-only fields used on egress rebuild.
-// (service_tier lives on the request wire in ingress; egress build adds it.)

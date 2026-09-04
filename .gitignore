@@ -16,6 +16,12 @@ website/.astro/
 web/node_modules/
 web/dist/
 
+# Ensure cmd/gateway embedded dist is tracked regardless of global gitignore
+!cmd/gateway/dist/
+!cmd/gateway/dist/**
+
 # Local TLS for Claude Code
 examples/certs/
 
+# Claude Worktrees
+/.claude/

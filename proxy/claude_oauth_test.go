@@ -2,6 +2,10 @@ package proxy
 
 import (
 	"strings"
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/inja-online/llm-gateway/config"
@@ -113,6 +117,10 @@ func TestRestoreStreamLineAndResponse(t *testing.T) {
 	if !strings.Contains(string(bare), `"tool_name":"grep"`) {
 		t.Fatalf("bare restore: %s", bare)
 	}
+	streamLine := restoreClaudeOAuthStreamLine(line, rev)
+	if !strings.Contains(string(streamLine), `"name":"bash"`) {
+		t.Fatalf("streamLine restore: %s", streamLine)
+	}
 	resp := restoreClaudeOAuthResponse(
 		[]byte(`{"content":[{"type":"tool_use","name":"Bash"}]}`), rev)
 	if gjson.GetBytes(resp, "content.0.name").String() != "bash" {
@@ -169,3 +177,26 @@ func TestModelsCatalogURLsEnv(t *testing.T) {
 	}
 }
 
+func TestRefreshRemoteModelsCatalog(t *testing.T) {
+	remoteCatalogMu.Lock()
+	oldCatalog := remoteCatalog
+	oldAt := remoteCatalogAt
+	remoteCatalogMu.Unlock()
+	t.Cleanup(func() {
+		remoteCatalogMu.Lock()
+		remoteCatalog = oldCatalog
+		remoteCatalogAt = oldAt
+		remoteCatalogMu.Unlock()
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"claude":[{"id":"claude-3-7-sonnet"}]}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	t.Setenv("INJA_GATEWAY_MODELS_URL", srv.URL)
+	if err := refreshRemoteModelsCatalog(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

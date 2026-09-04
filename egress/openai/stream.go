@@ -21,6 +21,7 @@ type StreamParser struct {
 	textOpen      bool
 	thinkingIndex int
 	thinkingOpen  bool
+	refusalSeen   bool
 	toolIndexes   map[int]int // OpenAI tool ordinal -> canonical block index
 	openBlocks    []int       // canonical indexes still open, in open order
 	stopReason    string
@@ -101,6 +102,25 @@ func (p *StreamParser) Parse(data []byte) []canonical.StreamEvent {
 				Text:  *ch.Delta.Content,
 			})
 		}
+		if ch.Delta.Refusal != nil && *ch.Delta.Refusal != "" {
+			p.refusalSeen = true
+			if !p.textOpen {
+				p.textIndex = p.nextIndex
+				p.nextIndex++
+				p.textOpen = true
+				p.openBlocks = append(p.openBlocks, p.textIndex)
+				evs = append(evs, canonical.StreamEvent{
+					Type:      canonical.EventBlockStart,
+					Index:     p.textIndex,
+					BlockType: canonical.BlockText,
+				})
+			}
+			evs = append(evs, canonical.StreamEvent{
+				Type:  canonical.EventTextDelta,
+				Index: p.textIndex,
+				Text:  *ch.Delta.Refusal,
+			})
+		}
 		for _, tc := range ch.Delta.ToolCalls {
 			idx, known := p.toolIndexes[tc.Index]
 			if !known {
@@ -147,7 +167,9 @@ func (p *StreamParser) finish() []canonical.StreamEvent {
 		evs = append(evs, canonical.StreamEvent{Type: canonical.EventBlockStop, Index: p.openBlocks[i]})
 	}
 	stop := p.stopReason
-	if stop == "" {
+	if p.refusalSeen && (stop == "" || stop == canonical.StopEndTurn) {
+		stop = canonical.StopRefusal
+	} else if stop == "" {
 		stop = canonical.StopEndTurn
 	}
 	evs = append(evs, canonical.StreamEvent{

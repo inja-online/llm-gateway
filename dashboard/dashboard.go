@@ -9,6 +9,7 @@ import (
 	"github.com/inja-online/llm-gateway/hooks"
 	"github.com/inja-online/llm-gateway/hooks/ring"
 	"github.com/inja-online/llm-gateway/hooks/sqlite"
+	"github.com/inja-online/llm-gateway/subauth"
 )
 
 // sqliteSink is satisfied by hooks/sqlite.Sink (real or nodb stub).
@@ -28,14 +29,27 @@ type Options struct {
 }
 
 type Server struct {
-	opts     Options
-	ringSize int
-	oauthMu  sync.Mutex
-	oauth    map[string]*oauthSession
+	opts           Options
+	ringSize       int
+	oauthMu        sync.Mutex
+	oauth          map[string]*oauthSession
+	startChatGPTFn func(context.Context) (*subauth.ChatGPTFlow, error)
+	waitChatGPTFn  func(context.Context, *subauth.ChatGPTFlow) (subauth.Credential, error)
+	closeChatGPTFn func(*subauth.ChatGPTFlow)
+	startGrokFn    func(context.Context) (*subauth.GrokDevice, error)
+	pollGrokFn     func(context.Context, *subauth.GrokDevice) (subauth.Credential, error)
 }
 
 func New(opts Options) *Server {
-	return &Server{opts: opts, ringSize: opts.Dashboard.Ring()}
+	return &Server{
+		opts:           opts,
+		ringSize:       opts.Dashboard.Ring(),
+		startChatGPTFn: startChatGPT,
+		waitChatGPTFn:  waitChatGPT,
+		closeChatGPTFn: closeChatGPT,
+		startGrokFn:    startGrok,
+		pollGrokFn:     pollGrok,
+	}
 }
 
 func (s *Server) Handler() http.Handler {

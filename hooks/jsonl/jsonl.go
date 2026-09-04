@@ -48,8 +48,12 @@ func (s *Sink) OnUsage(_ context.Context, ev hooks.UsageEvent) {
 }
 
 func (s *Sink) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.c != nil {
-		return s.c.Close()
+		err := s.c.Close()
+		s.c = nil
+		return err
 	}
 	return nil
 }

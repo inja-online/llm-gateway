@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,7 +19,6 @@ import (
 
 func TestOAuthStartChatGPTStatusComplete(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "credentials.json")
-	h := New(Options{AuthPath: path}).Handler()
 
 	oldStart, oldWait := startChatGPT, waitChatGPT
 	startChatGPT = func(context.Context) (*subauth.ChatGPTFlow, error) {
@@ -35,6 +35,8 @@ func TestOAuthStartChatGPTStatusComplete(t *testing.T) {
 		}, nil
 	}
 	t.Cleanup(func() { startChatGPT, waitChatGPT = oldStart, oldWait })
+
+	h := New(Options{AuthPath: path}).Handler()
 
 	rec := postJSON(h, "/v1/dashboard/oauth/start", `{"provider":"chatgpt"}`)
 	if rec.Code != http.StatusOK {
@@ -69,11 +71,11 @@ func TestOAuthStartChatGPTStatusComplete(t *testing.T) {
 }
 
 func TestOAuthStartChatGPTClosesPrior(t *testing.T) {
-	h := New(Options{AuthPath: filepath.Join(t.TempDir(), "credentials.json")}).Handler()
-
 	var live atomic.Bool
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	oldStart, oldWait, oldClose := startChatGPT, waitChatGPT, closeChatGPT
-	t.Cleanup(func() { startChatGPT, waitChatGPT, closeChatGPT = oldStart, oldWait, oldClose })
 
 	closeChatGPT = func(f *subauth.ChatGPTFlow) {
 		live.Store(false)
@@ -87,9 +89,18 @@ func TestOAuthStartChatGPTClosesPrior(t *testing.T) {
 		return &subauth.ChatGPTFlow{AuthorizeURL: "https://auth.openai.com/oauth/authorize?fake=1"}, nil
 	}
 	waitChatGPT = func(ctx context.Context, _ *subauth.ChatGPTFlow) (subauth.Credential, error) {
+		defer wg.Done()
 		<-ctx.Done()
 		return subauth.Credential{}, ctx.Err()
 	}
+
+	srv := New(Options{AuthPath: filepath.Join(t.TempDir(), "credentials.json")})
+	t.Cleanup(func() {
+		srv.closePending(subauth.ProviderChatGPT)
+		wg.Wait()
+		startChatGPT, waitChatGPT, closeChatGPT = oldStart, oldWait, oldClose
+	})
+	h := srv.Handler()
 
 	rec := postJSON(h, "/v1/dashboard/oauth/start", `{"provider":"chatgpt"}`)
 	if rec.Code != http.StatusOK {
@@ -104,7 +115,6 @@ func TestOAuthStartChatGPTClosesPrior(t *testing.T) {
 
 func TestOAuthStartGrokOmitsDeviceCode(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "credentials.json")
-	h := New(Options{AuthPath: path}).Handler()
 
 	oldStart, oldPoll := startGrok, pollGrok
 	startGrok = func(context.Context) (*subauth.GrokDevice, error) {
@@ -127,17 +137,19 @@ func TestOAuthStartGrokOmitsDeviceCode(t *testing.T) {
 	}
 	t.Cleanup(func() { startGrok, pollGrok = oldStart, oldPoll })
 
+	h := New(Options{AuthPath: path}).Handler()
+
 	rec := postJSON(h, "/v1/dashboard/oauth/start", `{"provider":"grok"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("start status %d body %s", rec.Code, rec.Body.Bytes())
 	}
-	body := rec.Body.Bytes()
-	assertNoSecrets(t, body, "DEVICESECRET", "SECRETTOKEN", "SECRETREFRESH")
-	if bytes.Contains(bytes.ToLower(body), []byte("device_code")) {
-		t.Fatalf("device_code in body: %s", body)
+	tbody := rec.Body.Bytes()
+	assertNoSecrets(t, tbody, "DEVICESECRET", "SECRETTOKEN", "SECRETREFRESH")
+	if bytes.Contains(bytes.ToLower(tbody), []byte("device_code")) {
+		t.Fatalf("device_code in body: %s", tbody)
 	}
 	var started map[string]any
-	if err := json.Unmarshal(body, &started); err != nil {
+	if err := json.Unmarshal(tbody, &started); err != nil {
 		t.Fatal(err)
 	}
 	if started["kind"] != "device" || started["user_code"] != "WDJB-MJHT" {

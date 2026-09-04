@@ -119,7 +119,7 @@ func (s *Server) fetchProviderModels(r *http.Request, name string, p config.Prov
 	copyForwardHeaders(req, r)
 	applySubscriptionHeaders(req, r, p)
 
-	resp, err := s.client.Do(req)
+	resp, err := s.httpClientFor(p.BaseURL, p).Do(req)
 	if err != nil {
 		return nil
 	}

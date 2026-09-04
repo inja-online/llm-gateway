@@ -35,6 +35,9 @@ _inja_cc_normalize_providers() {
     gpt+xai|xai+gpt|openai+grok|grok+openai) raw="gpt+grok" ;;
     claude+openai|openai+claude) raw="claude+gpt" ;;
     claude+xai|xai+claude) raw="claude+grok" ;;
+    claude+google|google+claude|claude+gemini|gemini+claude) raw="claude+gemini" ;;
+    gpt+google|google+gpt|gpt+gemini|gemini+gpt) raw="gpt+gemini" ;;
+    grok+google|google+grok|grok+gemini|gemini+grok) raw="grok+gemini" ;;
   esac
 
   # Split on + without `read -a` (zsh rejects -a; bash uses -a / zsh uses -A).
@@ -90,7 +93,7 @@ _inja_cc_map_slots() {
   [[ "$pad" == *" grok "* ]] && has_x=1
   [[ "$pad" == *" gemini "* ]] && has_m=1
 
-  local n=$((has_c + has_g + has_x))
+  local n=$((has_c + has_g + has_x + has_m))
   PROFILE_LABEL="${providers// /+}"
 
   # Defaults per provider family (gateway aliases)
@@ -126,12 +129,35 @@ _inja_cc_map_slots() {
     elif [[ $has_c -eq 1 && $has_x -eq 1 ]]; then
       # claude + grok
       OPUS_M="$c_opus"; SONNET_M="$g_heavy"; HAIKU_M="$g_fast"; MAIN_M="$c_sonnet"
-    else
+    elif [[ $has_c -eq 1 && $has_m -eq 1 ]]; then
+      # claude + gemini
+      OPUS_M="$c_opus"; SONNET_M="$gm_mid"; HAIKU_M="$gm_fast"; MAIN_M="$c_sonnet"
+    elif [[ $has_g -eq 1 && $has_x -eq 1 ]]; then
       # gpt + grok (no Claude)
       OPUS_M="$g_heavy"; SONNET_M="$gpt_mid"; HAIKU_M="$g_fast"; MAIN_M="$gpt_mid"
+    elif [[ $has_g -eq 1 && $has_m -eq 1 ]]; then
+      # gpt + gemini
+      OPUS_M="$gpt_heavy"; SONNET_M="$gpt_mid"; HAIKU_M="$gm_fast"; MAIN_M="$gpt_mid"
+    else
+      # grok + gemini
+      OPUS_M="$g_heavy"; SONNET_M="$g_heavy"; HAIKU_M="$gm_fast"; MAIN_M="$g_heavy"
+    fi
+  elif [[ $n -eq 3 ]]; then
+    if [[ $has_c -eq 1 && $has_g -eq 1 && $has_x -eq 1 ]]; then
+      # claude + gpt + grok
+      OPUS_M="$c_opus"; SONNET_M="$gpt_mid"; HAIKU_M="$g_fast"; MAIN_M="$c_sonnet"
+    elif [[ $has_c -eq 1 && $has_g -eq 1 && $has_m -eq 1 ]]; then
+      # claude + gpt + gemini
+      OPUS_M="$c_opus"; SONNET_M="$gpt_mid"; HAIKU_M="$gm_fast"; MAIN_M="$c_sonnet"
+    elif [[ $has_c -eq 1 && $has_x -eq 1 && $has_m -eq 1 ]]; then
+      # claude + grok + gemini
+      OPUS_M="$c_opus"; SONNET_M="$g_heavy"; HAIKU_M="$gm_fast"; MAIN_M="$c_sonnet"
+    else
+      # gpt + grok + gemini
+      OPUS_M="$g_heavy"; SONNET_M="$gpt_mid"; HAIKU_M="$gm_fast"; MAIN_M="$gpt_mid"
     fi
   else
-    # all three (gemini extra does not change Claude/GPT/Grok slots)
+    # all four: claude opus, gpt mid, grok composer fast, main sonnet
     OPUS_M="$c_opus"; SONNET_M="$gpt_mid"; HAIKU_M="$g_fast"; MAIN_M="$c_sonnet"
   fi
 

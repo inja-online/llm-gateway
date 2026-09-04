@@ -95,3 +95,13 @@ edge_auth:
 		t.Fatalf("metrics should bypass edge auth: %d", resp.StatusCode)
 	}
 }
+
+func TestMetricsUnavailable(t *testing.T) {
+	s := &Server{}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	s.handleMetrics(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503, got %d", rr.Code)
+	}
+}
