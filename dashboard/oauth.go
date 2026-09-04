@@ -40,7 +40,7 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 		Provider string `json:"provider"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "bad json")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "bad json")
 		return
 	}
 	switch body.Provider {
@@ -49,9 +49,9 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	case subauth.ProviderGrok:
 		s.startGrok(w, r)
 	case subauth.ProviderClaude, subauth.ProviderGemini:
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "wrong method")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "wrong method")
 	default:
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "unknown provider")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "unknown provider")
 	}
 }
 
@@ -59,7 +59,7 @@ func (s *Server) startChatGPT(w http.ResponseWriter, r *http.Request) {
 	s.closePending(subauth.ProviderChatGPT)
 	flow, err := startChatGPT(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	sess := s.putPending(subauth.ProviderChatGPT, &oauthSession{
@@ -85,7 +85,7 @@ func (s *Server) startGrok(w http.ResponseWriter, r *http.Request) {
 	s.closePending(subauth.ProviderGrok)
 	dev, err := startGrok(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	sess := s.putPending(subauth.ProviderGrok, &oauthSession{
@@ -142,16 +142,16 @@ func (s *Server) handleOAuthComplete(w http.ResponseWriter, r *http.Request) {
 		Token    string `json:"token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "bad json")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "bad json")
 		return
 	}
 	if body.Provider != subauth.ProviderClaude {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "claude paste only")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "claude paste only")
 		return
 	}
 	tok := strings.TrimSpace(body.Token)
 	if tok == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "empty token")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "empty token")
 		return
 	}
 	c := subauth.Credential{
@@ -161,7 +161,7 @@ func (s *Server) handleOAuthComplete(w http.ResponseWriter, r *http.Request) {
 		Source:      "setup_token",
 	}
 	if err := s.putCred(c); err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -172,7 +172,7 @@ func (s *Server) handleOAuthImport(w http.ResponseWriter, r *http.Request) {
 		Provider string `json:"provider"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "bad json")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "bad json")
 		return
 	}
 	var (
@@ -189,15 +189,15 @@ func (s *Server) handleOAuthImport(w http.ResponseWriter, r *http.Request) {
 	case subauth.ProviderGemini:
 		c, err = subauth.ImportGeminiFromCLI()
 	default:
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "unknown provider")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "unknown provider")
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", err.Error())
 		return
 	}
 	if err := s.putCred(c); err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

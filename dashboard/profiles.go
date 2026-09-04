@@ -11,7 +11,7 @@ import (
 func (s *Server) handleProfiles(w http.ResponseWriter, _ *http.Request) {
 	store, err := subauth.Load(s.opts.AuthPath)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	now := time.Now()
@@ -35,12 +35,12 @@ func (s *Server) handleProfiles(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
 	if provider != "all" && !subauth.IsKnownProvider(provider) {
-		writeError(w, http.StatusNotFound, "invalid_request_error", "unknown provider")
+		writeError(w, http.StatusNotFound, "invalid_request_error", "", "unknown provider")
 		return
 	}
 	store, err := subauth.Load(s.opts.AuthPath)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	account := r.URL.Query().Get("account")
@@ -57,7 +57,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		removePoolAccount(store, provider, account)
 	}
 	if err := store.Save(s.opts.AuthPath); err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -66,7 +66,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDisable(w http.ResponseWriter, r *http.Request) {
 	provider := r.PathValue("provider")
 	if !subauth.IsKnownProvider(provider) {
-		writeError(w, http.StatusNotFound, "invalid_request_error", "unknown provider")
+		writeError(w, http.StatusNotFound, "invalid_request_error", "", "unknown provider")
 		return
 	}
 	var body struct {
@@ -74,12 +74,12 @@ func (s *Server) handleDisable(w http.ResponseWriter, r *http.Request) {
 		Account  string `json:"account"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", "bad json")
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", "bad json")
 		return
 	}
 	store, err := subauth.Load(s.opts.AuthPath)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	var found *subauth.Account
@@ -91,14 +91,14 @@ func (s *Server) handleDisable(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if found == nil {
-		writeError(w, http.StatusNotFound, "invalid_request_error", "unknown account")
+		writeError(w, http.StatusNotFound, "invalid_request_error", "", "unknown account")
 		return
 	}
 	found.Provider = provider
 	found.Disabled = body.Disabled
 	store.PutAccount(*found)
 	if err := store.Save(s.opts.AuthPath); err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

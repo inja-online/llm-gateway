@@ -24,12 +24,12 @@ type usageTotals struct {
 func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	q, err := queryFrom(r, false)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", err.Error())
 		return
 	}
 	evs, err := s.loadEvents(r.Context(), q)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"totals": sumUsage(evs), "recent": evs})

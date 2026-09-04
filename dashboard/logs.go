@@ -14,12 +14,12 @@ var heartbeat = 15 * time.Second
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	q, err := queryFrom(r, true)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		writeError(w, http.StatusBadRequest, "invalid_request_error", "", err.Error())
 		return
 	}
 	evs, err := s.loadEvents(r.Context(), q)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "api_error", "", err.Error())
 		return
 	}
 	next := ""
@@ -32,7 +32,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, http.StatusInternalServerError, "api_error", "stream unsupported")
+		writeError(w, http.StatusInternalServerError, "api_error", "", "stream unsupported")
 		return
 	}
 	seen := map[string]struct{}{}

@@ -28,13 +28,14 @@ type Options struct {
 }
 
 type Server struct {
-	opts    Options
-	oauthMu sync.Mutex
-	oauth   map[string]*oauthSession
+	opts     Options
+	ringSize int
+	oauthMu  sync.Mutex
+	oauth    map[string]*oauthSession
 }
 
 func New(opts Options) *Server {
-	return &Server{opts: opts}
+	return &Server{opts: opts, ringSize: opts.Dashboard.Ring()}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -50,7 +51,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/dashboard/oauth/complete", s.handleOAuthComplete)
 	mux.HandleFunc("POST /v1/dashboard/oauth/import", s.handleOAuthImport)
 	mux.HandleFunc("GET /v1/dashboard/oauth/status", s.handleOAuthStatus)
-	return mux
+	mux.HandleFunc("GET /v1/dashboard/settings", s.handleGetSettings)
+	mux.HandleFunc("PUT /v1/dashboard/settings", s.handlePutSettings)
+	origin := s.opts.Dashboard.CORSOrigin
+	if origin == "" || origin == "*" {
+		return mux
+	}
+	return cors(origin, mux)
 }
 
 func (s *Server) handleMeta(w http.ResponseWriter, _ *http.Request) {
