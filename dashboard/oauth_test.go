@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -65,6 +66,40 @@ func TestOAuthStartChatGPTStatusComplete(t *testing.T) {
 	if !ok || c.AccessToken != "SECRETTOKEN" || c.Source != "oauth_pkce" {
 		t.Fatalf("saved %+v ok=%v", c, ok)
 	}
+}
+
+func TestOAuthStartChatGPTClosesPrior(t *testing.T) {
+	h := New(Options{AuthPath: filepath.Join(t.TempDir(), "credentials.json")}).Handler()
+
+	var live atomic.Bool
+	oldStart, oldWait, oldClose := startChatGPT, waitChatGPT, closeChatGPT
+	t.Cleanup(func() { startChatGPT, waitChatGPT, closeChatGPT = oldStart, oldWait, oldClose })
+
+	closeChatGPT = func(f *subauth.ChatGPTFlow) {
+		live.Store(false)
+		f.Close()
+	}
+	startChatGPT = func(context.Context) (*subauth.ChatGPTFlow, error) {
+		if live.Load() {
+			t.Fatal("startChatGPT while previous flow still live")
+		}
+		live.Store(true)
+		return &subauth.ChatGPTFlow{AuthorizeURL: "https://auth.openai.com/oauth/authorize?fake=1"}, nil
+	}
+	waitChatGPT = func(ctx context.Context, _ *subauth.ChatGPTFlow) (subauth.Credential, error) {
+		<-ctx.Done()
+		return subauth.Credential{}, ctx.Err()
+	}
+
+	rec := postJSON(h, "/v1/dashboard/oauth/start", `{"provider":"chatgpt"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first start %d body %s", rec.Code, rec.Body.Bytes())
+	}
+	rec = postJSON(h, "/v1/dashboard/oauth/start", `{"provider":"chatgpt"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second start %d body %s", rec.Code, rec.Body.Bytes())
+	}
+	assertNoSecrets(t, rec.Body.Bytes())
 }
 
 func TestOAuthStartGrokOmitsDeviceCode(t *testing.T) {

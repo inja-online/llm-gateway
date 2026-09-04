@@ -18,6 +18,7 @@ var waitChatGPT = func(ctx context.Context, f *subauth.ChatGPTFlow) (subauth.Cre
 var pollGrok = func(ctx context.Context, d *subauth.GrokDevice) (subauth.Credential, error) {
 	return d.Poll(ctx)
 }
+var closeChatGPT = func(f *subauth.ChatGPTFlow) { f.Close() }
 
 const oauthTTL = 10 * time.Minute
 
@@ -31,6 +32,7 @@ type oauthSession struct {
 	started         time.Time
 	cancel          context.CancelFunc
 	run             context.Context
+	close           func()
 }
 
 func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +56,7 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) startChatGPT(w http.ResponseWriter, r *http.Request) {
+	s.closePending(subauth.ProviderChatGPT)
 	flow, err := startChatGPT(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
@@ -63,10 +66,11 @@ func (s *Server) startChatGPT(w http.ResponseWriter, r *http.Request) {
 		kind:         "redirect",
 		authorizeURL: flow.AuthorizeURL,
 		state:        "pending",
+		close:        func() { closeChatGPT(flow) },
 	})
 	go func() {
 		defer sess.cancel()
-		defer flow.Close()
+		defer closeChatGPT(flow)
 		cred, err := waitChatGPT(sess.run, flow)
 		s.finishOAuth(subauth.ProviderChatGPT, sess, cred, err)
 	}()
@@ -78,6 +82,7 @@ func (s *Server) startChatGPT(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) startGrok(w http.ResponseWriter, r *http.Request) {
+	s.closePending(subauth.ProviderGrok)
 	dev, err := startGrok(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "api_error", err.Error())
@@ -198,6 +203,24 @@ func (s *Server) handleOAuthImport(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) closePending(provider string) {
+	s.oauthMu.Lock()
+	old := s.oauth[provider]
+	if old != nil {
+		delete(s.oauth, provider)
+	}
+	s.oauthMu.Unlock()
+	if old == nil {
+		return
+	}
+	if old.close != nil {
+		old.close()
+	}
+	if old.cancel != nil {
+		old.cancel()
+	}
+}
+
 func (s *Server) putPending(provider string, sess *oauthSession) *oauthSession {
 	sess.started = time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), oauthTTL)
@@ -207,9 +230,6 @@ func (s *Server) putPending(provider string, sess *oauthSession) *oauthSession {
 	defer s.oauthMu.Unlock()
 	if s.oauth == nil {
 		s.oauth = map[string]*oauthSession{}
-	}
-	if old := s.oauth[provider]; old != nil && old.cancel != nil {
-		old.cancel()
 	}
 	s.oauth[provider] = sess
 	return sess
