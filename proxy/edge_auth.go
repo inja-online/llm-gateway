@@ -4,21 +4,24 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"strings"
+
+	"github.com/inja-online/llm-gateway/config"
 )
 
-// withEdgeAuth wraps h so that when edge_auth is enabled, every request except
-// GET /healthz must present a configured key via Authorization: Bearer … or
-// x-api-key. Comparison is constant-time against each configured key.
+// WrapEdgeAuth wraps h so that when edge_auth is enabled, every request except
+// /healthz and /metrics must present a configured key via Authorization: Bearer …
+// or x-api-key. Comparison is constant-time against each configured key.
+// If cfg is nil or edge_auth is disabled, h is returned unchanged.
 //
 // Edge auth is independent of upstream credentials: with api_key_env set, the
 // client only needs a valid edge key; the server substitutes the upstream key.
 // key_hash on usage events still reflects the upstream-forwarded credential
 // (client key or api_key_env), not a separate edge-only identity.
-func (s *Server) withEdgeAuth(h http.Handler) http.Handler {
-	if s.cfg == nil || !s.cfg.EdgeAuth.Enabled {
+func WrapEdgeAuth(cfg *config.Config, h http.Handler) http.Handler {
+	if cfg == nil || !cfg.EdgeAuth.Enabled {
 		return h
 	}
-	keys := s.cfg.EdgeKeys()
+	keys := cfg.EdgeKeys()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Process liveness + scrape endpoints stay open when edge auth is on.
 		if r.URL.Path == "/healthz" || r.URL.Path == "/metrics" {
@@ -36,6 +39,10 @@ func (s *Server) withEdgeAuth(h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) withEdgeAuth(h http.Handler) http.Handler {
+	return WrapEdgeAuth(s.cfg, h)
 }
 
 func edgeCredential(r *http.Request) string {

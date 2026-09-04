@@ -156,6 +156,36 @@ func TestEdgeAuthAcceptsBearerAndXAPIKey(t *testing.T) {
 	}
 }
 
+func TestWrapEdgeAuthStandaloneMux(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	cfg := &config.Config{
+		EdgeAuth: config.EdgeAuth{Enabled: true, Keys: []string{"edge-secret"}},
+	}
+	h := WrapEdgeAuth(cfg, ok)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/foo", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing key: %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/foo", nil)
+	req.Header.Set("Authorization", "Bearer edge-secret")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("with key: %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("healthz: %d", rec.Code)
+	}
+}
+
 func TestEdgeAuthHealthzOpen(t *testing.T) {
 	gw := edgeAuthGateway(t, []string{"edge-secret"}, "", "", nil)
 	resp, err := http.Get(gw.URL + "/healthz")

@@ -28,6 +28,9 @@ const (
 
 const grokHTTPUserAgent = "inja-gateway/subauth"
 
+// grokDiscoveryURL is the OIDC discovery URL. Tests swap it for httptest.
+var grokDiscoveryURL = GrokDiscovery
+
 type oidcDiscovery struct {
 	DeviceAuthorizationEndpoint string `json:"device_authorization_endpoint"`
 	TokenEndpoint               string `json:"token_endpoint"`
@@ -38,6 +41,19 @@ type oidcDiscovery struct {
 type LoginGrokOptions struct {
 	// ForceDevice skips auto-import from ~/.grok/auth.json and always runs device code.
 	ForceDevice bool
+}
+
+// GrokDevice is a started OAuth device-code login. Start does not import
+// CLI creds and does not open a browser.
+type GrokDevice struct {
+	UserCode        string
+	VerificationURI string
+	DeviceCode      string
+	TokenURL        string
+	ExpiresIn       int
+	Interval        int
+
+	completeURI string
 }
 
 // LoginGrok runs the OAuth 2.0 device-code flow against xAI.
@@ -58,9 +74,39 @@ func LoginGrok(ctx context.Context, opts ...LoginGrokOptions) (Credential, error
 		}
 	}
 
-	disc, err := fetchGrokDiscovery(ctx)
+	d, err := StartGrokDevice(ctx)
 	if err != nil {
 		return Credential{}, err
+	}
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Sign in with SuperGrok / X Premium+ (xAI device code)")
+	fmt.Fprintln(os.Stderr, "────────────────────────────────────────────────────")
+	fmt.Fprintln(os.Stderr, "If the browser says \"Invalid action\":")
+	fmt.Fprintln(os.Stderr, "  • Prefer:  llm-gateway auth import grok   (uses ~/.grok/auth.json from Grok CLI)")
+	fmt.Fprintln(os.Stderr, "  • Or open the base URL (not the prefilled link), sign in, then type the code.")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "  1. Open:  %s\n", d.VerificationURI)
+	fmt.Fprintf(os.Stderr, "  2. Enter code:  %s\n", d.UserCode)
+	if d.completeURI != "" {
+		fmt.Fprintf(os.Stderr, "  (alt prefilled link — often breaks): %s\n", d.completeURI)
+	}
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Waiting for approval…")
+
+	// Open base URI (not complete) — more reliable on accounts.x.ai.
+	_ = OpenBrowser(d.VerificationURI)
+	return d.Poll(ctx)
+}
+
+// StartGrokDevice runs OIDC discovery + the device-code POST.
+func StartGrokDevice(ctx context.Context) (*GrokDevice, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	disc, err := fetchGrokDiscovery(ctx)
+	if err != nil {
+		return nil, err
 	}
 	form := url.Values{}
 	form.Set("client_id", GrokClientID)
@@ -68,19 +114,19 @@ func LoginGrok(ctx context.Context, opts ...LoginGrokOptions) (Credential, error
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, disc.DeviceAuthorizationEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return Credential{}, err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", grokHTTPUserAgent)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return Credential{}, fmt.Errorf("device code request: %w", err)
+		return nil, fmt.Errorf("device code request: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return Credential{}, err
+		return nil, err
 	}
 	var dc struct {
 		DeviceCode              string `json:"device_code"`
@@ -93,14 +139,14 @@ func LoginGrok(ctx context.Context, opts ...LoginGrokOptions) (Credential, error
 		ErrorDesc               string `json:"error_description"`
 	}
 	if err := json.Unmarshal(body, &dc); err != nil {
-		return Credential{}, fmt.Errorf("device code parse (HTTP %d): %w", resp.StatusCode, err)
+		return nil, fmt.Errorf("device code parse (HTTP %d): %w", resp.StatusCode, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 || dc.DeviceCode == "" {
 		msg := dc.Error
 		if msg == "" {
 			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 		}
-		return Credential{}, fmt.Errorf("device code: %s", msg)
+		return nil, fmt.Errorf("device code: %s", msg)
 	}
 
 	// Prefer the *base* verification URI + manual code entry. Prefilling
@@ -110,31 +156,25 @@ func LoginGrok(ctx context.Context, opts ...LoginGrokOptions) (Credential, error
 	if baseURI == "" {
 		baseURI = "https://accounts.x.ai/oauth2/device"
 	}
+	return &GrokDevice{
+		UserCode:        dc.UserCode,
+		VerificationURI: baseURI,
+		DeviceCode:      dc.DeviceCode,
+		TokenURL:        disc.TokenEndpoint,
+		ExpiresIn:       dc.ExpiresIn,
+		Interval:        dc.Interval,
+		completeURI:     dc.VerificationURIComplete,
+	}, nil
+}
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Sign in with SuperGrok / X Premium+ (xAI device code)")
-	fmt.Fprintln(os.Stderr, "────────────────────────────────────────────────────")
-	fmt.Fprintln(os.Stderr, "If the browser says \"Invalid action\":")
-	fmt.Fprintln(os.Stderr, "  • Prefer:  llm-gateway auth import grok   (uses ~/.grok/auth.json from Grok CLI)")
-	fmt.Fprintln(os.Stderr, "  • Or open the base URL (not the prefilled link), sign in, then type the code.")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "  1. Open:  %s\n", baseURI)
-	fmt.Fprintf(os.Stderr, "  2. Enter code:  %s\n", dc.UserCode)
-	if dc.VerificationURIComplete != "" {
-		fmt.Fprintf(os.Stderr, "  (alt prefilled link — often breaks): %s\n", dc.VerificationURIComplete)
-	}
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Waiting for approval…")
-
-	// Open base URI (not complete) — more reliable on accounts.x.ai.
-	_ = OpenBrowser(baseURI)
-
-	interval := time.Duration(dc.Interval) * time.Second
+// Poll waits until the user authorizes the device code (or it expires).
+func (d *GrokDevice) Poll(ctx context.Context) (Credential, error) {
+	interval := time.Duration(d.Interval) * time.Second
 	if interval < time.Second {
 		interval = 5 * time.Second
 	}
-	deadline := time.Now().Add(time.Duration(dc.ExpiresIn) * time.Second)
-	if dc.ExpiresIn <= 0 {
+	deadline := time.Now().Add(time.Duration(d.ExpiresIn) * time.Second)
+	if d.ExpiresIn <= 0 {
 		deadline = time.Now().Add(15 * time.Minute)
 	}
 
@@ -150,9 +190,9 @@ func LoginGrok(ctx context.Context, opts ...LoginGrokOptions) (Credential, error
 
 		tform := url.Values{}
 		tform.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
-		tform.Set("device_code", dc.DeviceCode)
+		tform.Set("device_code", d.DeviceCode)
 		tform.Set("client_id", GrokClientID)
-		tr, err := postFormTokenUA(ctx, nil, disc.TokenEndpoint, tform, grokHTTPUserAgent)
+		tr, err := postFormTokenUA(ctx, nil, d.TokenURL, tform, grokHTTPUserAgent)
 		if err != nil {
 			msg := err.Error()
 			if strings.Contains(msg, "authorization_pending") || strings.Contains(msg, "slow_down") {
@@ -172,7 +212,7 @@ func LoginGrok(ctx context.Context, opts ...LoginGrokOptions) (Credential, error
 			RefreshToken: tr.RefreshToken,
 			TokenType:    tr.TokenType,
 			ClientID:     GrokClientID,
-			TokenURL:     disc.TokenEndpoint,
+			TokenURL:     d.TokenURL,
 			Expiry:       expiryFrom(tr),
 			Source:       "device_code",
 		}
@@ -379,7 +419,7 @@ func firstNonEmpty(vals ...string) string {
 }
 
 func fetchGrokDiscovery(ctx context.Context) (oidcDiscovery, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, GrokDiscovery, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, grokDiscoveryURL, nil)
 	if err != nil {
 		return oidcDiscovery{}, err
 	}
@@ -408,8 +448,10 @@ func fetchGrokDiscovery(ctx context.Context) (oidcDiscovery, error) {
 	if d.DeviceAuthorizationEndpoint == "" {
 		return oidcDiscovery{}, fmt.Errorf("xAI discovery: missing device_authorization_endpoint")
 	}
-	if !trustedXAIURL(d.TokenEndpoint) || !trustedXAIURL(d.DeviceAuthorizationEndpoint) {
-		return oidcDiscovery{}, fmt.Errorf("xAI discovery: untrusted endpoint host")
+	if grokDiscoveryURL == GrokDiscovery {
+		if !trustedXAIURL(d.TokenEndpoint) || !trustedXAIURL(d.DeviceAuthorizationEndpoint) {
+			return oidcDiscovery{}, fmt.Errorf("xAI discovery: untrusted endpoint host")
+		}
 	}
 	return d, nil
 }

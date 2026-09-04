@@ -51,6 +51,34 @@ func TestPoolPickRoundRobinAndCooldown(t *testing.T) {
 	_ = c
 }
 
+func TestPutAccountPrimaryDisabledRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.json")
+	st := &Store{Version: 2, Credentials: map[string]Credential{}}
+	st.PutAccount(Account{
+		Credential: Credential{
+			Provider:    ProviderChatGPT,
+			AccessToken: "tok",
+			Expiry:      time.Now().Add(time.Hour),
+			Disabled:    true,
+		},
+	})
+	if err := st.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	st2, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, ok := st2.Get(ProviderChatGPT)
+	if !ok || !c.Disabled {
+		t.Fatalf("primary disabled round-trip: ok=%v %#v", ok, c)
+	}
+	accts := st2.ListAccounts(ProviderChatGPT)
+	if len(accts) != 1 || accts[0].ID != "" || !accts[0].Disabled {
+		t.Fatalf("list %+v", accts)
+	}
+}
+
 func TestStoreTokenSource_Pool(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "c.json")

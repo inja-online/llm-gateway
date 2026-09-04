@@ -12,6 +12,10 @@ website/node_modules/
 website/dist/
 website/.astro/
 
+# Operator dashboard SPA
+web/node_modules/
+web/dist/
+
 # Local TLS for Claude Code
 examples/certs/
 

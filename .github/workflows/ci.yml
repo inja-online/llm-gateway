@@ -56,6 +56,24 @@ jobs:
             coverage.out
             coverage.txt
 
+  tags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - name: noweb build
+        run: go build -tags noweb -o /tmp/llm-gateway-noweb ./cmd/gateway
+
+      - name: nodb tests
+        run: go test ./hooks/sqlite/ ./dashboard/ ./cmd/gateway/ -tags nodb -count=1
+
+      - name: noweb tests
+        run: go test ./cmd/gateway/ -tags noweb -count=1
+
   smoke-binary:
     runs-on: ubuntu-latest
     needs: test
@@ -89,6 +107,7 @@ jobs:
           for i in $(seq 1 30); do
             if curl -fsS "http://127.0.0.1:18787/healthz" | grep -q ok; then
               echo "healthz ok"
+              curl -fsS "http://127.0.0.1:18787/ui/" | grep -qiE 'html|Dashboard'
               exit 0
             fi
             sleep 0.1

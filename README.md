@@ -80,6 +80,7 @@ Clients speak **OpenAI**, **Anthropic**, or **native Gemini**. The gateway route
 - [Passthrough vs translation](#passthrough-vs-translation)
 - [Hooks & usage events](#hooks--usage-events)
 - [Claude Code](#claude-code)
+- [Dashboard](#dashboard)
 - [Library use](#library-use)
 - [Architecture](#architecture)
 - [Deploy](#deploy)
@@ -179,7 +180,8 @@ Full commented sample: [`gateway.example.yaml`](gateway.example.yaml).
 | **Media** | Images, video jobs, TTS/STT (OpenAI paths + Anthropic-version gate + Google speech) |
 | **Agent surface** | Responses, Files (OpenAI + Anthropic), Message Batches, Moderations |
 | **Realtime** | OpenAI Realtime WS + Google Live passthrough; cross-protocol bridge **not** implemented (fail-closed) |
-| **Usage metering** | JSONL, async webhook, or in-process Go hook — one event per proxied request |
+| **Usage metering** | JSONL, async webhook, optional SQLite, or in-process Go hook — one event per proxied request |
+| **Operator dashboard** | `/ui` + `/v1/dashboard` — profiles, usage, logs (binary-only) |
 | **Ops** | One YAML file, `/healthz`, body limits, optional edge auth, multi-arch releases |
 
 ---
@@ -393,6 +395,8 @@ Single YAML file. Unknown fields are rejected.
 | `edge_auth` | no | Optional shared-secret gate (see Auth) |
 | `realtime.*` | no | Session caps |
 | `hooks.jsonl` / `hooks.webhook` | no | Usage sinks |
+| `hooks.sqlite.path` | no | Optional CGO-free SQLite usage log (empty = off; stripped with `-tags nodb`) |
+| `dashboard` | no | Operator UI; default `enabled: true`. See [Dashboard](#dashboard) |
 
 ### Provider kinds
 
@@ -470,7 +474,7 @@ edge_auth:
   keys_env: GATEWAY_EDGE_KEYS   # comma-separated
 ```
 
-When enabled, every route **except** `GET /healthz` requires a matching key. Missing/invalid → **401**. Constant-time compare; keys never logged. With `api_key_env` on providers, clients only need the edge key.
+When enabled, every route **except** `GET /healthz` and `/ui/` requires a matching key (`/v1/dashboard` is gated). Missing/invalid → **401**. Constant-time compare; keys never logged. With `api_key_env` on providers, clients only need the edge key.
 
 See [SECURITY.md](SECURITY.md).
 
@@ -527,6 +531,7 @@ Exactly **one** `UsageEvent` per proxied chat, media, embeddings, audio, respons
 |---|---|
 | JSONL | `hooks.jsonl.output`: `stdout` \| `stderr` \| file path |
 | Webhook | `hooks.webhook.url` (+ optional `timeout`, default 3s) |
+| SQLite | `hooks.sqlite.path` (empty = off; `-tags nodb` strips it) |
 | Go | `gateway.WithHook(...)` in library mode |
 
 ### Metrics / Prometheus
@@ -611,6 +616,22 @@ apps-use-default              # restore pre-gateway settings
 ```
 
 Templates: [`examples/apps/`](examples/apps/). Docs: [Any app](https://inja-online.github.io/llm-gateway/guides/app-integrations/) · [Claude app](https://inja-online.github.io/llm-gateway/guides/claude-desktop-subscriptions/) · [Codex](https://inja-online.github.io/llm-gateway/guides/codex-subscriptions/).
+
+---
+
+## Dashboard
+
+Operator UI for auth profiles, token usage, and request logs. Open [http://127.0.0.1:8787/ui/](http://127.0.0.1:8787/ui/). JSON/SSE is `/v1/dashboard/*`.
+
+- **Default on.** Omit `dashboard:` or set `enabled: true`. `dashboard.enabled: false` → proxy only (no `/ui`, no `/v1/dashboard`).
+- **Auth.** `/ui/` is unauthenticated (HTML/JS/CSS). `edge_auth` gates `/v1/dashboard` the same way as `/v1/messages`. The SPA stores the edge key in `sessionStorage` (`inja.edge_key`) and sends `Authorization` on API calls. If `listen` is not loopback, enable `edge_auth`.
+- **Secrets.** Dashboard JSON, SSE, and HTML never include `access_token`, `refresh_token`, `client_secret`, raw API keys, or request bodies.
+- **SQLite (opt-in).** `hooks.sqlite.path` — empty = off. File created `0600` on first write. Strip with `go build -tags nodb`.
+- **Build tags.** `go build -tags noweb` omits `/ui`; the API stays so a separately hosted SPA can talk to the gateway (`dashboard.cors_origin` = that origin). Smallest binary: `-tags noweb,nodb`.
+- **Release.** GitHub Releases attach `inja-gateway-ui_*.zip` (same SPA as the embed).
+- **ChatGPT OAuth.** Codex public client redirects to `http://localhost:1455/auth/callback` — **not** `/ui/oauth/callback`. The gateway binds that loopback and exchanges the code; the SPA never sees `code` or the PKCE verifier.
+
+Details: [docs/dashboard.md](docs/dashboard.md).
 
 ---
 

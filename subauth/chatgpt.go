@@ -9,91 +9,106 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 // OpenAI Codex / ChatGPT subscription OAuth constants (public Codex CLI values).
 // Source: github.com/openai/codex codex-rs/login (CLIENT_ID, issuer, scopes).
 const (
-	ChatGPTClientID   = "app_EMoamEEZ73f0CkXaXp7hrann"
-	ChatGPTIssuer     = "https://auth.openai.com"
-	ChatGPTTokenURL   = ChatGPTIssuer + "/oauth/token"
-	ChatGPTScope      = "openid profile email offline_access api.connectors.read api.connectors.invoke"
+	ChatGPTClientID    = "app_EMoamEEZ73f0CkXaXp7hrann"
+	ChatGPTIssuer      = "https://auth.openai.com"
+	ChatGPTTokenURL    = ChatGPTIssuer + "/oauth/token"
+	ChatGPTScope       = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 	ChatGPTDefaultPort = 1455
 )
 
-// LoginChatGPT runs the browser PKCE flow and returns a Credential.
-// If noBrowser is true, prints the URL and waits for the callback only.
-func LoginChatGPT(ctx context.Context, noBrowser bool) (Credential, error) {
+// ChatGPTFlow is a started PKCE loopback login. The verifier stays unexported.
+type ChatGPTFlow struct {
+	AuthorizeURL string
+
+	verifier    string
+	state       string
+	redirectURI string
+	tokenURL    string
+	ln          net.Listener
+	srv         *http.Server
+	codeCh      chan string
+	errCh       chan error
+	closeOnce   sync.Once
+}
+
+// StartChatGPTFlow binds 127.0.0.1:1455 (else :0) and serves /auth/callback.
+// It does not open a browser and does not wait for the redirect.
+func StartChatGPTFlow(ctx context.Context) (*ChatGPTFlow, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	pkce, err := GeneratePKCE()
 	if err != nil {
-		return Credential{}, err
+		return nil, err
 	}
 	state, err := RandomState()
 	if err != nil {
-		return Credential{}, err
+		return nil, err
 	}
-
 	ln, port, err := listenLoopback(ChatGPTDefaultPort)
 	if err != nil {
-		return Credential{}, err
+		return nil, err
 	}
-	defer ln.Close()
-
 	redirectURI := fmt.Sprintf("http://localhost:%d/auth/callback", port)
-	authURL := buildChatGPTAuthorizeURL(ChatGPTClientID, redirectURI, pkce.Challenge, state)
-
-	codeCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/auth/callback" {
-			http.NotFound(w, r)
-			return
-		}
-		if e := r.URL.Query().Get("error"); e != "" {
-			// Do not echo error_description.
-			errCh <- fmt.Errorf("oauth denied: %s", e)
-			fmt.Fprint(w, "Login failed. You can close this tab.")
-			return
-		}
-		if r.URL.Query().Get("state") != state {
-			errCh <- fmt.Errorf("oauth state mismatch")
-			fmt.Fprint(w, "Login failed (state). You can close this tab.")
-			return
-		}
-		code := r.URL.Query().Get("code")
-		if code == "" {
-			errCh <- fmt.Errorf("oauth missing code")
-			fmt.Fprint(w, "Login failed (no code). You can close this tab.")
-			return
-		}
-		codeCh <- code
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, `<!doctype html><title>Inja gateway</title>
-<p>ChatGPT login successful. You can close this tab and return to the terminal.</p>`)
-	})}
-	go func() { _ = srv.Serve(ln) }()
-	defer func() {
-		shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shctx)
-	}()
-
-	fmt.Fprintf(os.Stderr, "Open this URL to sign in with ChatGPT (subscription):\n\n  %s\n\n", authURL)
-	if !noBrowser {
-		if err := OpenBrowser(authURL); err != nil {
-			fmt.Fprintf(os.Stderr, "(could not open browser automatically: %v)\n", err)
-		}
+	f := &ChatGPTFlow{
+		AuthorizeURL: buildChatGPTAuthorizeURL(ChatGPTClientID, redirectURI, pkce.Challenge, state),
+		verifier:     pkce.Verifier,
+		state:        state,
+		redirectURI:  redirectURI,
+		tokenURL:     ChatGPTTokenURL,
+		ln:           ln,
+		codeCh:       make(chan string, 1),
+		errCh:        make(chan error, 1),
 	}
-	fmt.Fprintln(os.Stderr, "Waiting for browser callback on", redirectURI, "…")
+	f.srv = &http.Server{Handler: http.HandlerFunc(f.callback)}
+	go func() { _ = f.srv.Serve(ln) }()
+	return f, nil
+}
 
+func (f *ChatGPTFlow) callback(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/auth/callback" {
+		http.NotFound(w, r)
+		return
+	}
+	if e := r.URL.Query().Get("error"); e != "" {
+		// Do not echo error_description.
+		f.errCh <- fmt.Errorf("oauth denied: %s", e)
+		fmt.Fprint(w, "Login failed. You can close this tab.")
+		return
+	}
+	if r.URL.Query().Get("state") != f.state {
+		f.errCh <- fmt.Errorf("oauth state mismatch")
+		fmt.Fprint(w, "Login failed (state). You can close this tab.")
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		f.errCh <- fmt.Errorf("oauth missing code")
+		fmt.Fprint(w, "Login failed (no code). You can close this tab.")
+		return
+	}
+	f.codeCh <- code
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, `<!doctype html><title>Inja gateway</title>
+<p>ChatGPT login successful. You can close this tab and return to the terminal.</p>`)
+}
+
+// Wait blocks until the loopback callback, then exchanges the code.
+func (f *ChatGPTFlow) Wait(ctx context.Context) (Credential, error) {
 	var code string
 	select {
 	case <-ctx.Done():
 		return Credential{}, ctx.Err()
-	case err := <-errCh:
+	case err := <-f.errCh:
 		return Credential{}, err
-	case code = <-codeCh:
+	case code = <-f.codeCh:
 	case <-time.After(10 * time.Minute):
 		return Credential{}, fmt.Errorf("oauth timeout waiting for callback")
 	}
@@ -101,11 +116,15 @@ func LoginChatGPT(ctx context.Context, noBrowser bool) (Credential, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
-	form.Set("redirect_uri", redirectURI)
+	form.Set("redirect_uri", f.redirectURI)
 	form.Set("client_id", ChatGPTClientID)
-	form.Set("code_verifier", pkce.Verifier)
+	form.Set("code_verifier", f.verifier)
 
-	tr, err := postFormToken(ctx, nil, ChatGPTTokenURL, form)
+	tokenURL := f.tokenURL
+	if tokenURL == "" {
+		tokenURL = ChatGPTTokenURL
+	}
+	tr, err := postFormToken(ctx, nil, tokenURL, form)
 	if err != nil {
 		return Credential{}, err
 	}
@@ -124,6 +143,42 @@ func LoginChatGPT(ctx context.Context, noBrowser bool) (Credential, error) {
 		return Credential{}, fmt.Errorf("chatgpt oauth: no refresh_token (need offline_access)")
 	}
 	return c, nil
+}
+
+// Close stops the loopback server. Safe to call twice.
+func (f *ChatGPTFlow) Close() {
+	if f == nil {
+		return
+	}
+	f.closeOnce.Do(func() {
+		if f.srv != nil {
+			shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_ = f.srv.Shutdown(shctx)
+		}
+		if f.ln != nil {
+			_ = f.ln.Close()
+		}
+	})
+}
+
+// LoginChatGPT runs the browser PKCE flow and returns a Credential.
+// If noBrowser is true, prints the URL and waits for the callback only.
+func LoginChatGPT(ctx context.Context, noBrowser bool) (Credential, error) {
+	f, err := StartChatGPTFlow(ctx)
+	if err != nil {
+		return Credential{}, err
+	}
+	defer f.Close()
+
+	fmt.Fprintf(os.Stderr, "Open this URL to sign in with ChatGPT (subscription):\n\n  %s\n\n", f.AuthorizeURL)
+	if !noBrowser {
+		if err := OpenBrowser(f.AuthorizeURL); err != nil {
+			fmt.Fprintf(os.Stderr, "(could not open browser automatically: %v)\n", err)
+		}
+	}
+	fmt.Fprintln(os.Stderr, "Waiting for browser callback on", f.redirectURI, "…")
+	return f.Wait(ctx)
 }
 
 func buildChatGPTAuthorizeURL(clientID, redirectURI, challenge, state string) string {
@@ -218,4 +273,3 @@ func pickCodexTokens(root map[string]json.RawMessage, raw []byte) (access, refre
 	}
 	return "", ""
 }
-

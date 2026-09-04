@@ -70,6 +70,8 @@ Website content lives in `website/src/content/docs/`. Pushes to `master` deploy 
 
 When shipping operator features, update **both** in-repo `docs/*` and `website/src/content/docs/*` where user-facing.
 
+Operator dashboard lives in `dashboard/` + `web/` (binary-only; `gateway.New` stays proxy-only).
+
 ## Tests
 
 ```bash

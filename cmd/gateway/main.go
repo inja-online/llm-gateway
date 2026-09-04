@@ -18,7 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	gateway "github.com/inja-online/llm-gateway"
 	"github.com/inja-online/llm-gateway/config"
 )
 
@@ -29,7 +28,7 @@ var version = "dev"
 var loadConfig = config.Load
 
 // newGateway is overridden in tests.
-var newGateway = gateway.New
+var newGateway = buildHandler
 
 // fatal is overridden in tests so main can be exercised without os.Exit.
 var fatal = log.Fatal
@@ -152,6 +151,9 @@ Env:
 		scheme = "https"
 	}
 	log.Printf("llm-gateway %s listening on %s://%s (%d providers)", version, scheme, cfg.Listen, len(cfg.Providers))
+	if cfg.Dashboard.IsEnabled() && uiEnabled {
+		log.Printf("ui on /ui")
+	}
 	return serve(cfg, h)
 }
 

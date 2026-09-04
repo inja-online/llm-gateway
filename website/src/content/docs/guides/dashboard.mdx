@@ -1,0 +1,85 @@
+---
+title: "Operator dashboard"
+description: "Profiles, usage, and logs at /ui. Edge auth, OAuth, sqlite, build tags."
+sidebar:
+  order: 11
+  label: "Operator dashboard"
+  group:
+    label: "Guides"
+---
+
+Embedded operator UI for **auth profiles**, **token usage**, and **request logs**. Same SPA ships as a GitHub Release zip.
+
+Open [http://127.0.0.1:8787/ui/](http://127.0.0.1:8787/ui/) after the gateway is running. JSON/SSE is `/v1/dashboard`.
+
+## Mental model
+
+```
+  browser ──► /ui/*              embed.FS (no edge_auth)
+           ──► /v1/dashboard/*   dashboard API (edge_auth like /v1/messages)
+           ──► /                 proxy
+```
+
+`dashboard.enabled` defaults **true** when the key is omitted. `enabled: false` → proxy only (no `/ui`, no `/v1/dashboard`).
+
+## Auth
+
+`/ui/` is always unauthenticated (HTML/JS/CSS), same pattern as `/healthz`.
+
+`/v1/dashboard/*` uses the same `edge_auth` keys as `/v1/messages` (`Authorization: Bearer` or `x-api-key`). When `edge_auth.enabled` is false, the API is open (laptop default).
+
+On 401 the SPA shows a gate, stores the edge key in `sessionStorage` (`inja.edge_key`), and sends `Authorization` on every API call (not `localStorage`).
+
+**If `listen` is not loopback, enable `edge_auth`.**
+
+## Secrets
+
+Dashboard JSON, SSE, and HTML **never** include `access_token`, `refresh_token`, `client_secret`, raw API keys, or request bodies. Profiles expose `has_access` / `access_state`, not tokens.
+
+## Config
+
+```yaml
+dashboard:
+  enabled: true          # false: proxy only
+  ring_size: 2000        # 1..100000; 0 → 2000
+  cors_origin: ""        # empty: no CORS. Else exact origin for a separately hosted SPA
+
+hooks:
+  sqlite:
+    path: ""             # empty = off. File created 0600 on first write.
+```
+
+## Build tags
+
+| Tag | Effect |
+|-----|--------|
+| *(default)* | SPA embedded at `/ui`, API at `/v1/dashboard` |
+| `-tags noweb` | no embed, no `/ui`; API stays |
+| `-tags nodb` | no sqlite (`hooks.sqlite.path` unusable) |
+| `-tags noweb,nodb` | smallest binary |
+
+```bash
+go build -tags noweb -o llm-gateway ./cmd/gateway
+go build -tags nodb -o llm-gateway ./cmd/gateway
+```
+
+Release artifacts also include `inja-gateway-ui_*.zip` (same SPA). Set `dashboard.cors_origin` to that origin when the zip is not same-origin.
+
+## OAuth from the UI
+
+Reuse the same `subauth` flows as `llm-gateway auth`. Do not invent a dashboard redirect.
+
+| Provider | What the UI does |
+|----------|------------------|
+| ChatGPT | Opens authorize URL. Codex client redirects to **`http://localhost:1455/auth/callback`** — **not** `/ui/oauth/callback`. Gateway exchanges the code; SPA polls status. |
+| Grok | Device-code: show `user_code` + `verification_uri`. |
+| Claude | Paste setup token. |
+| Gemini | Import from the well-known CLI file on the **server** filesystem. |
+
+The SPA never sees OAuth `code` or the PKCE verifier.
+
+## Related
+
+- In-repo [docs/dashboard.md](https://github.com/inja-online/llm-gateway/blob/master/docs/dashboard.md)
+- [OAuth & upstream auth](/llm-gateway/guides/oauth-auth/)
+- [Claude Code + subscriptions](/llm-gateway/guides/claude-code-subscriptions/)

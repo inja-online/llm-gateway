@@ -609,3 +609,56 @@ func TestVertexBaseURL(t *testing.T) {
 		t.Fatal("empty project")
 	}
 }
+
+func TestDashboardDefaultsEnabled(t *testing.T) {
+	cfg, err := Parse([]byte(`providers:
+  x: { kind: openai, base_url: "https://x" }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Dashboard.IsEnabled() {
+		t.Fatal("dashboard should default enabled")
+	}
+	if cfg.Dashboard.Ring() != DefaultDashboardRingSize {
+		t.Fatalf("ring = %d", cfg.Dashboard.Ring())
+	}
+}
+
+func TestDashboardEnabledFalse(t *testing.T) {
+	cfg, err := Parse([]byte(`providers:
+  x: { kind: openai, base_url: "https://x" }
+dashboard:
+  enabled: false
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Dashboard.IsEnabled() {
+		t.Fatal("want disabled")
+	}
+}
+
+func TestDashboardRingSizeReject(t *testing.T) {
+	_, err := Parse([]byte(`providers:
+  x: { kind: openai, base_url: "https://x" }
+dashboard:
+  ring_size: 100001
+`))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestHooksSQLitePath(t *testing.T) {
+	cfg, err := Parse([]byte(`providers:
+  x: { kind: openai, base_url: "https://x" }
+hooks:
+  sqlite: { path: "/tmp/usage.sqlite" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Hooks.SQLite == nil || cfg.Hooks.SQLite.Path != "/tmp/usage.sqlite" {
+		t.Fatalf("sqlite = %#v", cfg.Hooks.SQLite)
+	}
+}
