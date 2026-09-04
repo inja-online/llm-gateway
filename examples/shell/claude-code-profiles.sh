@@ -286,13 +286,17 @@ EOF
 # Populate CC_LAUNCH_EXTRA with --settings <picker json> unless the caller
 # already passed --settings. Do not pass --effort unless the user set
 # CLAUDE_CODE_EFFORT_LEVEL or passed --effort (env pin otherwise overrides /effort).
+# Pass --model $ANTHROPIC_MODEL so a leftover user/project `model` pin
+# (Claude /model "save as default") does not own this session. Env
+# ANTHROPIC_MODEL alone does not silence `.claude/settings.json pins …`.
 _inja_cc_prepare_claude_launch() {
   CC_LAUNCH_EXTRA=()
-  local has_effort=0 has_settings=0 a
+  local has_effort=0 has_settings=0 has_model=0 a
   for a in "$@"; do
     case "$a" in
       --effort|--effort=*) has_effort=1 ;;
       --settings|--settings=*) has_settings=1 ;;
+      --model|--model=*) has_model=1 ;;
     esac
   done
   if [[ $has_effort -eq 0 && -n "${CLAUDE_CODE_EFFORT_LEVEL:-}" ]]; then
@@ -302,6 +306,9 @@ _inja_cc_prepare_claude_launch() {
     local f
     f="$(_inja_cc_write_ultracode_settings)"
     CC_LAUNCH_EXTRA+=(--settings "$f")
+  fi
+  if [[ $has_model -eq 0 && -n "${ANTHROPIC_MODEL:-}" ]]; then
+    CC_LAUNCH_EXTRA+=(--model "$ANTHROPIC_MODEL")
   fi
 }
 

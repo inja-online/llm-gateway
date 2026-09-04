@@ -275,6 +275,9 @@ printf 'coerced=%s\n' "${CC_LAUNCH_EXTRA[*]}"
 	if !strings.Contains(s, "--settings") {
 		t.Fatalf("launch extra missing --settings: %q", s)
 	}
+	if !strings.Contains(s, "extra=") || !strings.Contains(s, "--model ") {
+		t.Fatalf("launch extra missing --model (wrapper must beat leftover settings pin): %q", s)
+	}
 	for _, line := range strings.Split(s, "\n") {
 		if strings.HasPrefix(line, "extra=") && strings.Contains(line, "--effort") {
 			t.Fatalf("must not pass --effort unless env set: %q", s)
