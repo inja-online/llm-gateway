@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/inja-online/llm-gateway/config"
 	"github.com/inja-online/llm-gateway/hooks"
@@ -27,7 +28,9 @@ type Options struct {
 }
 
 type Server struct {
-	opts Options
+	opts    Options
+	oauthMu sync.Mutex
+	oauth   map[string]*oauthSession
 }
 
 func New(opts Options) *Server {
@@ -43,6 +46,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/dashboard/usage", s.handleUsage)
 	mux.HandleFunc("GET /v1/dashboard/logs", s.handleLogs)
 	mux.HandleFunc("GET /v1/dashboard/logs/stream", s.handleLogStream)
+	mux.HandleFunc("POST /v1/dashboard/oauth/start", s.handleOAuthStart)
+	mux.HandleFunc("POST /v1/dashboard/oauth/complete", s.handleOAuthComplete)
+	mux.HandleFunc("POST /v1/dashboard/oauth/import", s.handleOAuthImport)
+	mux.HandleFunc("GET /v1/dashboard/oauth/status", s.handleOAuthStatus)
 	return mux
 }
 
