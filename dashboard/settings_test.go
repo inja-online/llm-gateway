@@ -181,7 +181,7 @@ func TestPutSQLiteDisabled(t *testing.T) {
 
 func TestCORS(t *testing.T) {
 	origin := "https://spa.example"
-	h := New(Options{Dashboard: config.Dashboard{CORSOrigin: origin}}).Handler()
+	h := CORS(origin, New(Options{}).Handler())
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/settings", nil))

@@ -82,6 +82,9 @@ func TestMountOperator(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("unauth GET meta status %d", rec.Code)
 	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://spa.example" {
+		t.Fatalf("unauth ACAO %q", got)
+	}
 }
 
 func TestBuildHandlerDisabled(t *testing.T) {

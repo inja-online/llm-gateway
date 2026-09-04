@@ -21,7 +21,7 @@ func writeError(w http.ResponseWriter, status int, typ, code, msg string) {
 	})
 }
 
-func cors(origin string, next http.Handler) http.Handler {
+func CORS(origin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, x-api-key")

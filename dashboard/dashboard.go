@@ -53,11 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/dashboard/oauth/status", s.handleOAuthStatus)
 	mux.HandleFunc("GET /v1/dashboard/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /v1/dashboard/settings", s.handlePutSettings)
-	origin := s.opts.Dashboard.CORSOrigin
-	if origin == "" || origin == "*" {
-		return mux
-	}
-	return cors(origin, mux)
+	return mux
 }
 
 func (s *Server) handleMeta(w http.ResponseWriter, _ *http.Request) {

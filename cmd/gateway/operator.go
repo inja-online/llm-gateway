@@ -37,7 +37,7 @@ func buildHandler(cfg *config.Config, opts ...gateway.Option) (http.Handler, err
 	return mountOperator(cfg, h, ringSink, sqlSink), nil
 }
 
-func mountOperator(cfg *config.Config, h http.Handler, ringSink *ring.Sink, sqlSink *sqlite.Sink) http.Handler {
+func mountOperator(cfg *config.Config, proxyH http.Handler, ringSink *ring.Sink, sqlSink *sqlite.Sink) http.Handler {
 	root := http.NewServeMux()
 	if uiEnabled {
 		if dist, err := fs.Sub(uiFS, "dist"); err == nil {
@@ -62,15 +62,12 @@ func mountOperator(cfg *config.Config, h http.Handler, ringSink *ring.Sink, sqlS
 		JSONLPath: jsonlPath,
 		Dashboard: cfg.Dashboard,
 	}).Handler()
-	authH := proxy.WrapEdgeAuth(cfg, dashH)
-	root.Handle("/v1/dashboard/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			dashH.ServeHTTP(w, r)
-			return
-		}
-		authH.ServeHTTP(w, r)
-	}))
-	root.Handle("/", h)
+	h := proxy.WrapEdgeAuth(cfg, dashH)
+	if origin := cfg.Dashboard.CORSOrigin; origin != "" {
+		h = dashboard.CORS(origin, h)
+	}
+	root.Handle("/v1/dashboard/", h)
+	root.Handle("/", proxyH)
 	return root
 }
 
