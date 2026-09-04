@@ -24,6 +24,8 @@ export default function Logs() {
 
   const loadRef = useRef(load)
   loadRef.current = load
+  const filters = useRef({ provider, model, status, q })
+  filters.current = { provider, model, status, q }
 
   useEffect(() => {
     load()
@@ -32,8 +34,14 @@ export default function Logs() {
   useEffect(() => {
     const ac = new AbortController()
     let poll = 0
-    const merge = (ev: UsageEvent) =>
+    const merge = (ev: UsageEvent) => {
+      const f = filters.current
+      if (f.provider && ev.provider !== f.provider) return
+      if (f.model && ev.model !== f.model) return
+      if (f.status && ev.status !== f.status) return
+      if (f.q && !ev.request_id.includes(f.q)) return
       setRows((cur) => (cur.some((x) => x.request_id === ev.request_id) ? cur : [ev, ...cur].slice(0, 500)))
+    }
     const fallback = () => {
       setLive('poll')
       const tick = () => {
