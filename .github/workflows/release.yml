@@ -21,10 +21,24 @@ jobs:
           go-version: "1.25.x"
           cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Tests
         run: |
           go vet ./...
           go test -race -count=1 ./...
+
+      - name: Build dashboard SPA
+        run: |
+          set -euo pipefail
+          (cd web && npm ci && npm run build)
+          rm -rf cmd/gateway/dist
+          mkdir -p cmd/gateway/dist
+          cp -R web/dist/. cmd/gateway/dist/
 
       - name: Build release matrix
         run: |
@@ -49,6 +63,7 @@ jobs:
               -trimpath -ldflags="-s -w -X main.version=${version}" \
               -o "$out" ./cmd/gateway
           done
+          (cd web/dist && zip -r "$GITHUB_WORKSPACE/dist/inja-gateway-ui_${version}.zip" .)
           (cd dist && shasum -a 256 * > checksums.txt)
           ls -la dist
 
