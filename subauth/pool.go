@@ -12,7 +12,6 @@ type Account struct {
 	Credential
 	// CooldownUntil skips this account until this time (quota / 429).
 	CooldownUntil time.Time `json:"cooldown_until,omitempty"`
-	Disabled     bool      `json:"disabled,omitempty"`
 }
 
 // PoolState is process-local round-robin + cooldown for a provider.

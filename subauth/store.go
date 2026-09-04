@@ -38,6 +38,7 @@ type Credential struct {
 	// Source describes how the credential was obtained (oauth_pkce, device_code, setup_token, import).
 	Source    string    `json:"source,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	Disabled  bool      `json:"disabled,omitempty"`
 }
 
 // Store is the on-disk credentials map.

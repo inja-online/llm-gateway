@@ -106,6 +106,43 @@ func TestProfilesHidesSecretsLogoutDisable(t *testing.T) {
 	}
 }
 
+func TestDisablePrimaryPersists(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "credentials.json")
+	st := &subauth.Store{Version: 2, Credentials: map[string]subauth.Credential{}}
+	st.Put(subauth.Credential{
+		Provider:    subauth.ProviderChatGPT,
+		AccessToken: "SECRETTOKEN",
+		Expiry:      time.Now().Add(time.Hour),
+	})
+	if err := st.Save(path); err != nil {
+		t.Fatal(err)
+	}
+
+	h := New(Options{AuthPath: path}).Handler()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/dashboard/profiles/chatgpt/disable", strings.NewReader(`{"disabled":true}`)))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("disable status %d body %s", rec.Code, rec.Body.Bytes())
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/profiles", nil))
+	body := rec.Body.Bytes()
+	if bytes.Contains(body, []byte("SECRETTOKEN")) {
+		t.Fatalf("leaked token: %s", body)
+	}
+	var wrap struct {
+		Profiles []ProfileDTO `json:"profiles"`
+	}
+	if err := json.Unmarshal(body, &wrap); err != nil {
+		t.Fatal(err)
+	}
+	p := findProfile(t, wrap.Profiles, subauth.ProviderChatGPT, "")
+	if !p.Disabled {
+		t.Fatalf("primary not disabled %+v", p)
+	}
+}
+
 func TestUnknownProvider404(t *testing.T) {
 	h := New(Options{AuthPath: filepath.Join(t.TempDir(), "c.json")}).Handler()
 	rec := httptest.NewRecorder()
