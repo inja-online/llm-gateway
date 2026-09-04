@@ -194,9 +194,10 @@ _inja_cc_apply_combo() {
 
 
 # Claude Code treats unknown ANTHROPIC_BASE_URL models as having no thinking /
-# effort / ultracode. Advertise xhigh + thinking on every slot, and write a
-# session --settings file (ultracode is session-scoped; it does not persist in
-# ~/.claude/settings.json).
+# effort / ultracode. Advertise capabilities on every slot and write a session
+# --settings file (modelPicker only — do not pin effort or ultracode; /effort
+# and /model must stick). Ultracode is session-scoped; it does not persist in
+# ~/.claude/settings.json. Opt in: CC_ULTRACODE=1.
 _INJA_CC_THINKING_CAPS="${_INJA_CC_THINKING_CAPS:-effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking}"
 
 _inja_cc_thinking_caps() {
@@ -206,12 +207,11 @@ _inja_cc_thinking_caps() {
 _inja_cc_apply_thinking() {
   local caps
   caps="$(_inja_cc_thinking_caps)"
-  # CLI --effort accepts low|medium|high|xhigh only. ultracode is a session
-  # flag (Workflow), not an effort enum.
+  # Do not default CLAUDE_CODE_EFFORT_LEVEL — that env pin overrides /effort
+  # for the whole process. CLI --effort accepts low|medium|high|xhigh only.
   case "${CLAUDE_CODE_EFFORT_LEVEL:-}" in
-    ultracode|ultra|max) CLAUDE_CODE_EFFORT_LEVEL=xhigh ;;
+    ultracode|ultra|max) export CLAUDE_CODE_EFFORT_LEVEL=xhigh ;;
   esac
-  export CLAUDE_CODE_EFFORT_LEVEL="${CLAUDE_CODE_EFFORT_LEVEL:-xhigh}"
   export CLAUDE_CODE_ALWAYS_ENABLE_EFFORT="${CLAUDE_CODE_ALWAYS_ENABLE_EFFORT:-1}"
   export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="${ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES:-$caps}"
   export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="${ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES:-$caps}"
@@ -220,21 +220,26 @@ _inja_cc_apply_thinking() {
   export ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES="${ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES:-$caps}"
 }
 
-# Session settings: ultracode (xhigh + Workflow) + modelPicker behavesAs so
-# unknown gateway aliases inherit Fable 5 client handling.
+# Session settings: modelPicker behavesAs so unknown gateway aliases inherit
+# Fable 5 client handling. replaceBuiltInOptions hides the Anthropic lineup
+# (T3 / Claude Code otherwise show opus/sonnet/haiku next to gateway ids).
+# No "model" / "effortLevel" keys — those pin /model and /effort across restart.
 _inja_cc_write_ultracode_settings() {
   local f="${CC_ULTRACODE_SETTINGS:-}"
   if [[ -z "$f" ]]; then
     f="${XDG_STATE_HOME:-$HOME/.local/state}/inja-gateway/claude-code-ultracode.json"
   fi
   mkdir -p "$(dirname "$f")"
-  cat >"$f" <<'EOF'
+  local ultra_line=""
+  if [[ "${CC_ULTRACODE:-}" == "1" ]]; then
+    ultra_line='  "ultracode": true,'$'\n'
+  fi
+  cat >"$f" <<EOF
 {
-  "ultracode": true,
-  "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
+${ultra_line}  "alwaysThinkingEnabled": true,
   "skipWorkflowUsageWarning": true,
   "modelPicker": {
+    "replaceBuiltInOptions": true,
     "options": [
       {"model": "sonnet", "label": "Sonnet (gateway)", "behavesAs": "claude-fable-5"},
       {"model": "opus", "label": "Opus (gateway)", "behavesAs": "claude-fable-5"},
@@ -278,8 +283,9 @@ EOF
   printf '%s' "$f"
 }
 
-# Populate CC_LAUNCH_EXTRA with --effort xhigh and --settings <ultracode json>
-# unless the caller already passed those flags.
+# Populate CC_LAUNCH_EXTRA with --settings <picker json> unless the caller
+# already passed --settings. Do not pass --effort unless the user set
+# CLAUDE_CODE_EFFORT_LEVEL or passed --effort (env pin otherwise overrides /effort).
 _inja_cc_prepare_claude_launch() {
   CC_LAUNCH_EXTRA=()
   local has_effort=0 has_settings=0 a
@@ -289,8 +295,8 @@ _inja_cc_prepare_claude_launch() {
       --settings|--settings=*) has_settings=1 ;;
     esac
   done
-  if [[ $has_effort -eq 0 ]]; then
-    CC_LAUNCH_EXTRA+=(--effort "${CLAUDE_CODE_EFFORT_LEVEL:-xhigh}")
+  if [[ $has_effort -eq 0 && -n "${CLAUDE_CODE_EFFORT_LEVEL:-}" ]]; then
+    CC_LAUNCH_EXTRA+=(--effort "$CLAUDE_CODE_EFFORT_LEVEL")
   fi
   if [[ $has_settings -eq 0 ]]; then
     local f

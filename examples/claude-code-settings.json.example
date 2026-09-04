@@ -1,7 +1,6 @@
 {
-  "$schema_note": "Merge into ~/.claude/settings.json (user settings). modelPicker.behavesAs is honored from user/--settings/managed only — not project checkout. ultracode is session-scoped: wrappers pass --settings with ultracode:true; do not expect it to persist here.",
+  "$schema_note": "Merge into ~/.claude/settings.json (user settings). modelPicker.behavesAs is honored from user/--settings/managed only — not project checkout. Do not set model/effortLevel here if you want /model and /effort to stick. ultracode is session-scoped: CC_ULTRACODE=1.",
   "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
   "skipWorkflowUsageWarning": true,
   "env": {
     "ANTHROPIC_BASE_URL": "https://127.0.0.1:8787",
@@ -16,10 +15,10 @@
     "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
     "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking",
-    "CLAUDE_CODE_EFFORT_LEVEL": "xhigh"
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES": "effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking"
   },
   "modelPicker": {
+    "replaceBuiltInOptions": true,
     "options": [
       {"model": "sonnet", "label": "Sonnet (gateway)", "behavesAs": "claude-fable-5"},
       {"model": "opus", "label": "Opus (gateway)", "behavesAs": "claude-fable-5"},

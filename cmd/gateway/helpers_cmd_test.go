@@ -261,8 +261,8 @@ printf 'coerced=%s\n' "${CC_LAUNCH_EXTRA[*]}"
 		t.Fatalf("bash: %v\n%s", err, out)
 	}
 	s := string(out)
-	if !strings.Contains(s, "effort=xhigh\n") {
-		t.Fatalf("effort: %q", s)
+	if strings.Contains(s, "effort=xhigh\n") {
+		t.Fatalf("must not default CLAUDE_CODE_EFFORT_LEVEL (pins /effort): %q", s)
 	}
 	for _, key := range []string{"opus_caps=", "sonnet_caps=", "haiku_caps=", "custom_caps="} {
 		if !strings.Contains(s, key) || !strings.Contains(s, "xhigh_effort") {
@@ -272,8 +272,13 @@ printf 'coerced=%s\n' "${CC_LAUNCH_EXTRA[*]}"
 	if !strings.Contains(s, "custom=grok-4.5\n") && !strings.Contains(s, "custom=grok-4.6\n") {
 		t.Fatalf("custom option: %q", s)
 	}
-	if !strings.Contains(s, "--effort") || !strings.Contains(s, "--settings") {
-		t.Fatalf("launch extra: %q", s)
+	if !strings.Contains(s, "--settings") {
+		t.Fatalf("launch extra missing --settings: %q", s)
+	}
+	for _, line := range strings.Split(s, "\n") {
+		if strings.HasPrefix(line, "extra=") && strings.Contains(line, "--effort") {
+			t.Fatalf("must not pass --effort unless env set: %q", s)
+		}
 	}
 	if strings.Contains(s, "coerced=") && strings.Contains(s, "--effort ultracode") {
 		t.Fatalf("ultracode must coerce to xhigh --effort: %q", s)
@@ -287,9 +292,8 @@ printf 'coerced=%s\n' "${CC_LAUNCH_EXTRA[*]}"
 	}
 	js := string(body)
 	for _, need := range []string{
-		`"ultracode": true`,
 		`"alwaysThinkingEnabled": true`,
-		`"effortLevel": "xhigh"`,
+		`"replaceBuiltInOptions": true`,
 		`"behavesAs": "claude-fable-5"`,
 		`"model": "grok-4.6"`,
 		`"model": "gemini"`,
@@ -299,6 +303,66 @@ printf 'coerced=%s\n' "${CC_LAUNCH_EXTRA[*]}"
 		if !strings.Contains(js, need) {
 			t.Fatalf("settings missing %s:\n%s", need, js)
 		}
+	}
+	for _, ban := range []string{`"effortLevel"`, `"ultracode": true`} {
+		if strings.Contains(js, ban) {
+			t.Fatalf("settings must not pin %s:\n%s", ban, js)
+		}
+	}
+}
+
+func TestAppsT3ClaudeWrappersMerge(t *testing.T) {
+	dir := t.TempDir()
+	settings := filepath.Join(dir, "settings.json")
+	client := filepath.Join(dir, "client-settings.json")
+	if err := os.WriteFile(settings, []byte(`{
+  "providerInstances": {
+    "claudeAgent_claude_grok": {
+      "driver": "claudeAgent",
+      "config": {"binaryPath": "/tmp/claude-grok", "customModels": []}
+    },
+    "claudeAgent_claude_codex": {
+      "driver": "claudeAgent",
+      "config": {"binaryPath": "/tmp/claude-codex"}
+    }
+  }
+}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(client, []byte(`{"providerModelPreferences":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+source ./shell/apps-helpers.sh
+_apps_t3_settings_path() { printf '%s' '` + settings + `'; }
+_apps_t3_client_settings_path() { printf '%s' '` + client + `'; }
+apps-t3-claude-wrappers
+`
+	path, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not on PATH")
+	}
+	cmd := exec.Command(path, "-c", script)
+	cmd.Dir = "."
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	body, err := os.ReadFile(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(body)
+	if !strings.Contains(js, `"grok-4.6"`) || !strings.Contains(js, `"chatgpt/sol"`) {
+		t.Fatalf("customModels not merged:\n%s\nout=%s", js, out)
+	}
+	cbody, err := os.ReadFile(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cbody), `"claude-opus-5"`) {
+		t.Fatalf("hiddenModels not written:\n%s", cbody)
 	}
 }
 

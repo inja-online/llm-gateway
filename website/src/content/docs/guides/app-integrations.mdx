@@ -8,7 +8,7 @@ sidebar:
     label: "Guides"
 ---
 
-**Last updated:** 2026-08-28
+**Last updated:** 2026-09-04
 
 Run **one** local gateway with your **ChatGPT / Claude / SuperGrok / Gemini** logins, then point **whatever client you like** at it. Same credentials, same models, two wire dialects.
 
@@ -96,7 +96,7 @@ Snapshots live under `~/.local/state/inja-gateway/app-profiles/` (or `$XDG_STATE
 | `apps-enable` / `apps-disable` | Aliases for use-gateway / use-default |
 | `apps-rollback` | Alias for `apps-use-default` |
 
-**Not** session-only env: these write real config files. Fully quit Claude Desktop / Codex after switching. Continue, Cline, Aider, Windsurf, Cursor GUI are **not** auto-managed (print helpers only).
+**Not** session-only env: these write real config files. Fully quit Claude Desktop / Codex after switching. Continue, Cline, Aider, Windsurf, Cursor GUI are **not** auto-managed (print helpers only). T3 Code wrappers: `apps-t3-claude-wrappers` fills `customModels` on `claude-grok` / `claude-codex` / `claude-gemini` instances and hides Anthropic catalog rows.
 
 TLS: prefer `mkcert -install` + `./examples/scripts/gen-localhost-tls.sh` so Electron apps trust the cert. Otherwise set `NODE_EXTRA_CA_CERTS` (and Python `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE`) to `examples/certs/localhost.pem`.
 

@@ -185,9 +185,9 @@ Claude Code treats unknown `ANTHROPIC_BASE_URL` model ids as having **no** think
 
 Helpers (`cc-*`, `claude-grok` / `claude-gemini` / `claude-codex`) now:
 
-1. Export `CLAUDE_CODE_EFFORT_LEVEL=xhigh` and `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL_SUPPORTED_CAPABILITIES` plus `ANTHROPIC_CUSTOM_MODEL_OPTION` = the session model, with `effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking`.
-2. Pass `--effort xhigh` unless you already passed `--effort`.
-3. Write a **session** `--settings` JSON (`ultracode: true`, `alwaysThinkingEnabled`, `effortLevel: xhigh`, `modelPicker.options` with `behavesAs: "claude-fable-5"` for gateway aliases). Ultracode is **session-scoped** (xhigh + Workflow API); it does **not** persist in `~/.claude/settings.json`. Override path: `CC_ULTRACODE_SETTINGS`. Pass your own `--settings` to skip the helper file.
+1. Export `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL_SUPPORTED_CAPABILITIES` plus `ANTHROPIC_CUSTOM_MODEL_OPTION` = the session model, with `effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking`.
+2. Write a **session** `--settings` JSON (`alwaysThinkingEnabled`, `modelPicker.replaceBuiltInOptions: true`, `modelPicker.options` with `behavesAs: "claude-fable-5"` for gateway aliases). **No** `model` / `effortLevel` / default `CLAUDE_CODE_EFFORT_LEVEL` — those pin `/model` and `/effort` until restart.
+3. Do **not** pass `--effort` unless you set `CLAUDE_CODE_EFFORT_LEVEL` or passed `--effort`. Ultracode is **session-scoped**; opt in with `CC_ULTRACODE=1`. Override path: `CC_ULTRACODE_SETTINGS`. Pass your own `--settings` to skip the helper file.
 
 `CLAUDE_CODE_DISABLE_WORKFLOWS` / `CLAUDE_CODE_DISABLE_THINKING` turn the features off. `behavesAs` is honored from user / `--settings` / managed settings only — not project checkout.
 
@@ -235,7 +235,10 @@ Overrides: `CC_OPUS_MODEL`, `CC_SONNET_MODEL`, `CC_HAIKU_MODEL`, `CC_MODEL`, `CC
 | Gemini refresh `invalid_client` | Set `INJA_GATEWAY_GEMINI_CLIENT_SECRET` for the **Jetski** client id (not a gcloud ADC secret). See docs site. |
 | `missing …/examples/scripts/gen-localhost-tls.sh` | Re-run `llm-gateway helpers install` (script lives at `~/.config/inja-gateway/scripts/`). Or: `bash $REPO/examples/scripts/gen-localhost-tls.sh ~/.config/inja-gateway/certs` |
 | `_inja_cc_normalize_providers:read:16: bad option: -a` | zsh + stale helpers. Re-`source` after `llm-gateway helpers install` (split is now portable). |
-| No thinking / no ultracode on grok/gemini/gpt | Unknown custom model. Re-`helpers install` + source; launch via `cc-*` / wrappers (they inject caps + `--settings` ultracode). Do not set `CLAUDE_CODE_DISABLE_WORKFLOWS`. |
+| No thinking / no ultracode on grok/gemini/gpt | Unknown custom model. Re-`helpers install` + source; launch via `cc-*` / wrappers (they inject caps + `--settings` picker). Opt in ultracode with `CC_ULTRACODE=1`. Do not set `CLAUDE_CODE_DISABLE_WORKFLOWS`. |
+| `/model` saved but Grok still pins on restart | Session `--settings` or leftover `.claude/settings.json` `model` key. Helpers no longer write `model`/`effortLevel`. Clear `model` from user/project settings if you want `/model` to persist. |
+| `/effort medium` ignored (`CLAUDE_CODE_EFFORT_LEVEL=xhigh overrides`) | Wrapper used to export that env. Re-`helpers install`; do not export `CLAUDE_CODE_EFFORT_LEVEL` unless you want a launch pin. |
+| T3 Code picker is Anthropic opus/sonnet even on `claude-codex` | T3 `claudeAgent` catalog. Run `apps-t3-claude-wrappers` then restart T3. |
 
 ## Cursor IDE (same gateway)
 

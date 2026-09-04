@@ -642,8 +642,9 @@ Switch (recommended):
 
 Per-app (print only unless apps-write-*):
   apps-claude-desktop · apps-codex · apps-continue · apps-cline
-  apps-aider · apps-windsurf · apps-generic
+  apps-aider · apps-windsurf · apps-generic · apps-t3
   apps-write-claude-settings · apps-write-claude-desktop · apps-write-codex
+  apps-t3-claude-wrappers     # T3 Code: gateway models on claude-grok/codex/gemini
 
 Claude Code / Cursor:
   cc-gpt / cc-grok / cc-multi · cursor-setup
@@ -817,6 +818,131 @@ source examples/apps/generic/openai.env
 source examples/apps/generic/anthropic.env
 # Session env only — does not touch Desktop/Codex profiles.
 EOF
+}
+
+_apps_t3_settings_path() {
+  printf '%s/.t3/userdata/settings.json' "$HOME"
+}
+
+_apps_t3_client_settings_path() {
+  printf '%s/.t3/userdata/client-settings.json' "$HOME"
+}
+
+# T3 Code (t3.codes) treats PATH wrappers as Claude Code, so the picker is the
+# Anthropic catalog. Fill customModels from gateway aliases and hide built-ins.
+apps-t3() {
+  cat <<EOF
+
+── T3 Code ───────────────────────────────────────────────────────
+Settings: $(_apps_t3_settings_path)
+
+T3's claudeAgent driver lists Anthropic models even when binaryPath is
+claude-grok / claude-codex / claude-gemini. Custom models in T3 UI break
+the picker. Write gateway aliases instead:
+
+  apps-t3-claude-wrappers
+
+Then restart T3 Code. Hide leftover Claude rows in T3 → Models if any remain.
+EOF
+}
+
+apps-t3-claude-wrappers() {
+  local settings client
+  settings="$(_apps_t3_settings_path)"
+  client="$(_apps_t3_client_settings_path)"
+  if [[ ! -f "$settings" ]]; then
+    echo "no T3 settings at $settings" >&2
+    return 1
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 required to merge T3 settings" >&2
+    return 1
+  fi
+  python3 - "$settings" "$client" <<'PY'
+import json, os, sys
+
+settings_path = sys.argv[1]
+client_path = sys.argv[2] if len(sys.argv) > 2 else ""
+
+MODELS = {
+    "grok": ["grok-4.6", "grok-4.5", "composer-2.5", "grok"],
+    "codex": ["chatgpt/sol", "chatgpt/terra", "chatgpt/luna", "sol", "gpt", "luna"],
+    "gemini": ["gemini", "gemini-pro", "gemini-flash"],
+}
+CLAUDE_BUILTINS = [
+    "claude-fable-5-1", "claude-fable-5", "claude-opus-5",
+    "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+    "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-4-5",
+]
+
+def kind_from_path(path):
+    name = os.path.basename(path or "")
+    if "grok" in name:
+        return "grok"
+    if "codex" in name or "gpt" in name:
+        return "codex"
+    if "gemini" in name:
+        return "gemini"
+    return ""
+
+with open(settings_path) as f:
+    data = json.load(f)
+if not isinstance(data, dict):
+    raise SystemExit(f"{settings_path}: expected a JSON object")
+inst = data.get("providerInstances")
+if not isinstance(inst, dict):
+    raise SystemExit(f"{settings_path}: no providerInstances")
+
+hidden = {}
+n = 0
+for iid, row in inst.items():
+    if not isinstance(row, dict) or row.get("driver") != "claudeAgent":
+        continue
+    cfg = row.get("config")
+    if not isinstance(cfg, dict):
+        cfg = {}
+        row["config"] = cfg
+    kind = kind_from_path(cfg.get("binaryPath") or "")
+    if not kind:
+        continue
+    cfg["customModels"] = list(MODELS[kind])
+    hidden[iid] = CLAUDE_BUILTINS
+    n += 1
+    print(f"  {iid}: {kind} → {', '.join(MODELS[kind])}")
+
+tmp = settings_path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+os.replace(tmp, settings_path)
+
+if n == 0:
+    print("no claude-grok / claude-codex / claude-gemini instances found", file=sys.stderr)
+    raise SystemExit(1)
+
+if client_path and os.path.isfile(client_path):
+    with open(client_path) as f:
+        client = json.load(f)
+    if isinstance(client, dict):
+        prefs = client.get("providerModelPreferences")
+        if not isinstance(prefs, dict):
+            prefs = {}
+            client["providerModelPreferences"] = prefs
+        for iid, models in hidden.items():
+            row = prefs.get(iid)
+            if not isinstance(row, dict):
+                row = {}
+                prefs[iid] = row
+            row["hiddenModels"] = list(models)
+        tmp = client_path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(client, f, indent=2)
+            f.write("\n")
+        os.replace(tmp, client_path)
+        print(f"hid Anthropic catalog on {len(hidden)} T3 instance(s)")
+print(settings_path)
+PY
+  echo "restart T3 Code so the picker reloads" >&2
 }
 
 # Aliases

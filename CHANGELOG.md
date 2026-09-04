@@ -23,6 +23,11 @@ Release process: tag `vX.Y.Z` → GitHub Actions builds multi-arch binaries. PRs
 
 - **Operator dashboard:** embedded SPA at `/ui`, JSON/SSE API at `/v1/dashboard` (profiles, usage, logs, OAuth). Optional CGO-free SQLite usage log (`hooks.sqlite.path`). Build tags `noweb` (no `/ui`, API stays) and `nodb` (no sqlite). Release attaches `inja-gateway-ui_*.zip`. Dashboard JSON never includes tokens.
 
+### Fixed
+
+- **Claude Code `/model` and `/effort` under PATH wrappers:** helpers no longer default `CLAUDE_CODE_EFFORT_LEVEL=xhigh`, pass `--effort xhigh`, or write session `effortLevel` / `ultracode`. Those pins made `/effort medium` a no-op and `/model chatgpt/sol` lose to a leftover settings pin on restart. Session `--settings` is now `modelPicker` + `alwaysThinkingEnabled` only (`replaceBuiltInOptions: true` hides the Anthropic lineup). Opt in to ultracode with `CC_ULTRACODE=1`.
+- **T3 Code model list on `claude-grok` / `claude-codex`:** T3’s `claudeAgent` driver still lists Anthropic catalog models; `apps-t3-claude-wrappers` writes gateway aliases into `customModels` and hides the Claude builtins.
+
 ## [0.3.0] — 2026-09-04
 
 Gemini / Antigravity consumer OAuth, Claude Code PATH wrappers (`claude-gemini` / `claude-codex`), live Google model lists, and thinking/ultracode on custom gateway models.

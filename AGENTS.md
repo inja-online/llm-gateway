@@ -60,8 +60,9 @@ Helpers: `cursor-models`, `examples/cursor/models-to-add.txt`. Short aliases sta
 - Auth CLI: `llm-gateway auth login|import|status` (`subauth` package).  
 - **Embedded helpers:** `llm-gateway helpers install` / `load-helpers` → `~/.config/inja-gateway/` (source of truth for release binaries). Keep `cmd/gateway/shell/*.sh` and `examples/shell/*.sh` in sync, and `cmd/gateway/scripts/*` with `examples/scripts/` (`gen-localhost-tls.sh`, `claude-grok`, `claude-gemini`, `claude-codex`) (CI test).  
 - HTTPS local: `examples/scripts/gen-localhost-tls.sh` (also installed as `scripts/gen-localhost-tls.sh`), helpers `cc-gateway-up`, logs `cc-gateway-logs`.  
-- Claude Code combos: `examples/claude-code-multi.sh`, `cc-gpt` / `cc-grok` / `cc-gemini` / `cc-multi`. PATH wrappers `claude-grok` / `claude-gemini` / `claude-codex`.  
+- Claude Code combos: `examples/claude-code-multi.sh`, `cc-gpt` / `cc-grok` / `cc-gemini` / `cc-multi`. PATH wrappers `claude-grok` / `claude-gemini` / `claude-codex`. Do **not** default `CLAUDE_CODE_EFFORT_LEVEL` or session `effortLevel`/`model` — those pin `/effort` and `/model`.  
 - Cursor: OpenAI base `…/v1` + **prefixed** custom models (`cursor-apply`) next to Cursor built-ins.  
+- T3 Code: `apps-t3-claude-wrappers` writes gateway aliases into `claudeAgent` `customModels` (T3 otherwise shows the Anthropic catalog).  
 - **ToS:** personal accounts only; no multi-tenant resale of consumer OAuth.
 
 ## Docs site

@@ -364,10 +364,10 @@ Behind a custom `ANTHROPIC_BASE_URL`, Claude Code **does not** validate model na
 Those unknown ids also get **no** thinking / effort / ultracode unless advertised. Helpers inject:
 
 - `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL_SUPPORTED_CAPABILITIES` and `ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES` = `effort,xhigh_effort,thinking,adaptive_thinking,interleaved_thinking`
-- `--effort xhigh` (skip if you pass `--effort`)
-- session `--settings` with `"ultracode": true` (xhigh + Workflow API), `alwaysThinkingEnabled`, and `modelPicker.options` using `behavesAs: "claude-fable-5"` for gateway aliases (`grok-4.6`, `gemini`, `sol`, `sonnet`, …)
+- session `--settings` with `alwaysThinkingEnabled`, `modelPicker.replaceBuiltInOptions: true`, and `modelPicker.options` using `behavesAs: "claude-fable-5"` for gateway aliases (`grok-4.6`, `gemini`, `sol`, `sonnet`, …)
+- **no** default `--effort` / `CLAUDE_CODE_EFFORT_LEVEL` / `effortLevel` — those pin `/effort` until restart. Set `CLAUDE_CODE_EFFORT_LEVEL` yourself if you want a launch pin.
 
-Ultracode is **session-scoped** — it does not persist in `~/.claude/settings.json`. Path override: `CC_ULTRACODE_SETTINGS`. Your own `--settings` wins. `CLAUDE_CODE_DISABLE_WORKFLOWS` disables it.
+Ultracode is **session-scoped** — opt in with `CC_ULTRACODE=1`. It does not persist in `~/.claude/settings.json`. Path override: `CC_ULTRACODE_SETTINGS`. Your own `--settings` wins. `CLAUDE_CODE_DISABLE_WORKFLOWS` disables it.
 
 ---
 

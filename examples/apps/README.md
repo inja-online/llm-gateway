@@ -84,6 +84,7 @@ curl -sk -H "Authorization: Bearer local-dev" \
 | Cline / Roo | `cline/vscode-settings.snippet.json` · `apps-cline` |
 | Aider | `aider/aider.env` · `apps-aider` |
 | Windsurf | `windsurf/settings.snippet.md` · `apps-windsurf` |
+| T3 Code | `apps-t3` · `apps-t3-claude-wrappers` (gateway aliases on `claude-grok` / `claude-codex` / `claude-gemini`) |
 | Generic OpenAI | `generic/openai.env` |
 | Generic Anthropic | `generic/anthropic.env` |
 
